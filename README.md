@@ -1,15 +1,15 @@
 # Synopsis
 
 basho-perf-scripts is a collection of bash scripts for use with
-basho-perf.  The primary function is to parse output log files from
-basho-perf runs and plot summary statistics.
+basho-perf. In particular, bash_scripts/basho_perf_scripts.sh provides scripts to parse output log files from
+basho-perf runs and plot summary statistics, via calls to the python matplotlib library.
 
 # Usage
 
 Suppose you have a basho-perf run script like:
 
 ```
-MacBook-Pro.local:basho-perf:>cat riak-sjb.run
+MacBook-Pro.local:basho-perf:>cat riak-sjb_10.run
 
 test = "/Users/eml/projects/riak/utilities/internal_utilities_checkout/basho-perf/lib/tests/riak-simple_java_bench";
 hosts = "/Users/eml/projects/riak/utilities/internal_utilities_checkout/etc/hosts.d/softlayer-b";
@@ -25,7 +25,7 @@ simple_java_bench = {
 And you capture the output to a log file, i.e.:
 
 ```
-basho-perf run riak-sjb.run &> riak-sjb.log
+basho-perf run riak-sjb.run &> riak-sjb_10.log
 ```
 
 Then the following command:
@@ -33,9 +33,34 @@ Then the following command:
 ```
 source basho-perf-scripts/bash_scripts/basho_perf_scripts.sh
 
-plotlogfile riak-sjb.log threads columns
+plotlogfile riak-sjb_10.log threads columns
 ```
 
 Produces this image:
 
 ![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/example1.png)
+
+If a cellsize is specified, the script will additionally plot bytes/sec:
+
+plotlogfile riak-sjb_10.log threads columns cellsize=10
+```
+
+Produces this image:
+
+![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/example2.png)
+
+Multiple files can also be plotted:
+
+plotlogfile "riak-sjb_10.log riak-sjb_100.log" threads columns cellsize="10 100"
+```
+
+Produces this image:
+
+![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/example3.png)
+
+or
+
+![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/example4.png)
+
+if ```overplot=true``` is specified.
+

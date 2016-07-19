@@ -165,6 +165,7 @@ getTestData()
 	getTestDataSingle $i $2 $3 "$4" $iIter $5
         iIter=$[$iIter+1] 
     done
+    printf "\n"
 }
 
 getTestDataSingle()
@@ -270,6 +271,8 @@ generatePythonPlots()
     labels="$6"
     title=$7
     scale=$8
+    plotwith=$9
+    output=${10}
 
     pycomm="import scipy.interpolate as int;\n"
     pycomm+="import numpy as np;\n"
@@ -600,7 +603,13 @@ generatePythonPlots()
     fi
     
     pycomm+="\n"
-    pycomm+="plt.show();\n"
+
+    echo "output = $output"
+    if [ $output == \"\" ]; then
+	pycomm+="plt.show();\n"
+    else
+	pycomm+="plt.savefig('${output//\"/}.png', format='png');\n"
+    fi
 
     printf "$pycomm" | python
     printf "$pycomm" > /tmp/emltest.py
@@ -624,6 +633,7 @@ plotlogfile()
     scaleto=$(valOrDef scaleto '' "$@")
     plotwithfiles=$(valOrDef plotwith '' "$@")
     stat=$(valOrDef stat 'ops' "$@")
+    output=$(valOrDef output '' "$@")
 	    
     files="$1"
 
@@ -657,7 +667,11 @@ plotlogfile()
     fi
 
     getTestData "$allfiles" $2 $3 "$allcellsize" $stat
-    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith
+    echo "output(1) = $output"
+    if [ $output == \"\" ]; then
+	echo "output is null"
+    fi
+    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output
 }
 
 makeplots()
@@ -667,35 +681,26 @@ makeplots()
 
 makeRiakPlots()
 {
-    plotlogfile "threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Riak SJB threads vs. columns"
-}
+    output=$(valOrDef output '' "$@")
+    output=${output//\"/}
 
-makeCassPlotTest()
-{
-    plotlogfile "cass_sjb_thread_v_columns_1.log" threads columns cellsize="1" overplot=false figsize="(16,18)" labels="Cellsize=1" title="Cass SJB threads vs. columns" stat="cpu"
+    plotlogfile "threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Riak SJB threads vs. columns" output=$output
 }
 
 makeRiakCassOverplots()
 {
-    plotlogfile "threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Riak + Cass SJB threads vs. columns\\\\n(cyan = Riak, magenta = Cass)" plotwith="cass_sjb_thread_v_columns_1.log cass_sjb_thread_v_columns_10.log cass_sjb_thread_v_columns_100.log cass_sjb_thread_v_columns_200.log cass_sjb_thread_v_columns_500.log"
+    output=$(valOrDef output '' "$@")
+    output=${output//\"/}
+    
+    plotlogfile "threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Riak + Cass SJB threads vs. columns\\\\n(cyan = Riak, magenta = Cass)" plotwith="cass_sjb_thread_v_columns_1.log cass_sjb_thread_v_columns_10.log cass_sjb_thread_v_columns_100.log cass_sjb_thread_v_columns_200.log cass_sjb_thread_v_columns_500.log" output=$output
 }
 
 makeCassPlots()
 {
-    plotlogfile "cass_sjb_thread_v_columns_1.log cass_sjb_thread_v_columns_10.log cass_sjb_thread_v_columns_100.log cass_sjb_thread_v_columns_200.log cass_sjb_thread_v_columns_500.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Cass SJB threads vs. columns" scaleto="threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log"
-}
+    output=$(valOrDef output '' "$@")
+    output=${output//\"/}
 
-makeRiakVsCassPlots()
-{
-    plotlogfile "threads_v_columns_riak_v3.log cass_sjb_thread_v_columns_1.log" threads columns cellsize="1" overplot=true figsize="(15,5)" labels="Riak vs Cass" title="Riak vs Cass SJB threads vs. columns"
-
-    plotlogfile "threads_v_columns_riak_v2.log cass_sjb_thread_v_columns_10.log" threads columns cellsize="10" overplot=true figsize="(15,5)" labels="Riak vs Cass" title="Riak vs Cass SJB threads vs. columns"
-
-    plotlogfile "threads_v_columns_riak_v7.log cass_sjb_thread_v_columns_100.log" threads columns cellsize="100" overplot=true figsize="(15,5)" labels="Riak vs Cass" title="Riak vs Cass SJB threads vs. columns"
-
-    plotlogfile "threads_v_columns_riak_v6.log cass_sjb_thread_v_columns_200.log" threads columns cellsize="200" overplot=true figsize="(15,5)" labels="Riak vs Cass" title="Riak vs Cass SJB threads vs. columns"
-
-    plotlogfile "threads_v_columns_riak_v5.log cass_sjb_thread_v_columns_500.log" threads columns cellsize="500" overplot=true figsize="(15,5)" labels="Riak vs Cass" title="Riak vs Cass SJB threads vs. columns"
+    plotlogfile "cass_sjb_thread_v_columns_1.log cass_sjb_thread_v_columns_10.log cass_sjb_thread_v_columns_100.log cass_sjb_thread_v_columns_200.log cass_sjb_thread_v_columns_500.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Cass SJB threads vs. columns" scaleto="threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log" output=$output
 }
 
 runAllCassSjb()
@@ -864,4 +869,13 @@ showInfluxQuery()
     query="select min(value), max(value) from cpu_value where time > '$utcstart' and time < '$utcstop' and ( host = 'basho-c4s1' or host = 'basho-c4s2' or host = 'basho-c4s3' or host = 'basho-c4s4' or host = 'basho-c4s5' ) group by type_instance"
 
     echo $query
+}
+
+emltest()
+{
+    output=$(valOrDef output '' "$@")
+
+    if [ $output == \"\" ]; then
+	echo "hello"
+    fi
 }

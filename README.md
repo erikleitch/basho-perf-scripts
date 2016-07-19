@@ -42,6 +42,7 @@ Produces this image:
 
 If a cellsize is specified, the script will additionally plot bytes/sec:
 
+```
 plotlogfile riak-sjb_10.log threads columns cellsize=10
 ```
 
@@ -51,6 +52,7 @@ Produces this image:
 
 Multiple files can also be plotted:
 
+```
 plotlogfile "riak-sjb_10.log riak-sjb_100.log" threads columns cellsize="10 100"
 ```
 

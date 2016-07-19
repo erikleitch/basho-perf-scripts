@@ -28,3 +28,4 @@ plotlogfile riak-sjb.log
 
 Produces the following output:
 
+![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/example1.png)

@@ -1,5 +1,10 @@
-# basho-perf-scripts
-Scripts for use with basho-perf
+# Synopsis
+
+basho-perf-scripts is a collection of bash scripts for use with
+basho-perf.  The primary function is to parse output log files from
+basho-perf runs and plot summary statistics.
+
+# Usage
 
 Suppose you have a basho-perf run script like:
 

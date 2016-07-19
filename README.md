@@ -21,5 +21,10 @@ And you capture the output to a log file, ie:
 
 ```
 basho-perf run riak-sjb.run &> riak-sjb.log
+
+source basho-perf-scripts/bash_scripts/basho_perf_scripts.sh
+plotlogfile riak-sjb.log
 ```
+
+Produces the following output:
 

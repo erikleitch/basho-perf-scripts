@@ -22,15 +22,20 @@ simple_java_bench = {
 			
 ```
 
-And you capture the output to a log file, ie:
+And you capture the output to a log file, i.e.:
 
 ```
 basho-perf run riak-sjb.run &> riak-sjb.log
-
-source basho-perf-scripts/bash_scripts/basho_perf_scripts.sh
-plotlogfile riak-sjb.log
 ```
 
-Produces the following output:
+Then the following command:
+
+```
+source basho-perf-scripts/bash_scripts/basho_perf_scripts.sh
+
+plotlogfile riak-sjb.log threads columns
+```
+
+Produces this image:
 
 ![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/example1.png)

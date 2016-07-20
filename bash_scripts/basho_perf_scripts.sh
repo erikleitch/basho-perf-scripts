@@ -137,14 +137,17 @@ writeVal()
 
 	writes=$(getWrites "$av" $param1 $val1 $param2 $val2)
 	bytes=$(getBytes "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter)
-	
-	if [ ! -z "$bytes" ]; then
-	    echo $val1 " " $val2 " " $total " " $writes " " $bytes >> "/tmp/dat"$iter".txt"
-	elif [ ! -z "$writes" ]; then
-	    echo $val1 " " $val2 " " $total " " $writes >> "/tmp/dat"$iter".txt"
-	else
-	    echo $val1 " " $val2 " " $total >> "/tmp/dat"$iter".txt"
+
+	if [ $total != "0" ]; then
+	    if [ ! -z "$bytes" ]; then
+		echo $val1 " " $val2 " " $total " " $writes " " $bytes >> "/tmp/dat"$iter".txt"
+	    elif [ ! -z "$writes" ]; then
+		echo $val1 " " $val2 " " $total " " $writes >> "/tmp/dat"$iter".txt"
+	    else
+		echo $val1 " " $val2 " " $total >> "/tmp/dat"$iter".txt"
+	    fi
 	fi
+
     elif [ $stat == \"cpu\" ]; then
 	total=$(pythonInfluxQuery "$startdate" "$enddate")
 	echo $val1 " " $val2 " " $total >> "/tmp/dat"$iter".txt"

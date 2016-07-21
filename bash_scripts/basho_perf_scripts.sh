@@ -276,7 +276,11 @@ generatePythonPlots()
     scale=$8
     plotwith=$9
     output=${10}
+    figview=${11}
 
+    echo "figsize = $figsize"
+    echo "figview = $figview"
+    
     pycomm="import scipy.interpolate as int;\n"
     pycomm+="import numpy as np;\n"
     pycomm+="import matplotlib.pyplot as plt;\n"
@@ -404,6 +408,12 @@ generatePythonPlots()
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel);\n"
     pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
     pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
+
+    echo "view = $figview"
+    if [ $figview != \"\" ]; then
+	pycomm+="  ax.view_init${figview//\"/};\n"
+    fi
+    
     pycomm+="\n"
 
     pycomm+="def plotFiles(files, plotwithfiles, axes, colors, scales, units, maxs):\n"
@@ -637,6 +647,7 @@ plotlogfile()
     plotwithfiles=$(valOrDef plotwith '' "$@")
     stat=$(valOrDef stat 'ops' "$@")
     output=$(valOrDef output '' "$@")
+    figview=$(valOrDef figview '' "$@")
 	    
     files="$1"
 
@@ -674,7 +685,7 @@ plotlogfile()
     if [ $output == \"\" ]; then
 	echo "output is null"
     fi
-    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output
+    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview"
 }
 
 makeplots()
@@ -688,6 +699,14 @@ makeRiakPlots()
     output=${output//\"/}
 
     plotlogfile "threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Riak SJB threads vs. columns" output=$output
+}
+
+makeRiakNvalPlots()
+{
+    output=$(valOrDef output '' "$@")
+    output=${output//\"/}
+
+    plotlogfile "threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Riak SJB threads vs. columns, nval=1 vs nval=3\\\\n(cyan: nval=1, magenta: nval=3)" plotwith="riak_sjb_thread_v_columns_1_nval3.log riak_sjb_thread_v_columns_10_nval3.log riak_sjb_thread_v_columns_100_nval3.log riak_sjb_thread_v_columns_200_nval3.log riak_sjb_thread_v_columns_500_nval3.log" figview="(30,135)" output=$output
 }
 
 makeRiakCassOverplots()

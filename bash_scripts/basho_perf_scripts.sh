@@ -277,6 +277,7 @@ generatePythonPlots()
     plotwith=$9
     output=${10}
     figview=${11}
+    plotwithaction=${12}
 
     echo "figsize = $figsize"
     echo "figview = $figview"
@@ -408,7 +409,25 @@ generatePythonPlots()
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel);\n"
     pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
     pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
-
+    pycomm+="\n"
+    pycomm+="def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal):\n"
+    pycomm+="\n"
+    pycomm+="  x1,y1,z1,unitIgnore = getData(fileName, index);\n"
+    pycomm+="  x2,y2,z2,unitIgnore = getData(fileName2, index);\n"
+    pycomm+="  plt.hold(doHold);\n"
+    pycomm+="  if action == '-':\n"
+    pycomm+="    ax.plot_surface(x1, y1, (z1 - z2)/scale, color=Color);\n"
+    pycomm+="  elif action == '+':\n"
+    pycomm+="    ax.plot_surface(x1, y1, (z1 + z2)/scale, color=Color);\n"
+    pycomm+="  elif action == '/':\n"
+    pycomm+="    ax.plot_surface(x1, y1, z1 / z2, color=Color);\n"
+    pycomm+="  elif action == '*':\n"
+    pycomm+="    ax.plot_surface(x1, y1, z1 * z2, color=Color);\n"
+    pycomm+="  ax.set_xlabel('\\\\n' + xlabel);\n"
+    pycomm+="  ax.set_ylabel('\\\\n' + ylabel);\n"
+    pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
+    pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
+    
     echo "view = $figview"
     if [ $figview != \"\" ]; then
 	pycomm+="  ax.view_init${figview//\"/};\n"
@@ -416,19 +435,27 @@ generatePythonPlots()
     
     pycomm+="\n"
 
-    pycomm+="def plotFiles(files, plotwithfiles, axes, colors, scales, units, maxs):\n"
+    pycomm+="def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units, maxs):\n"
     pycomm+="  nfile=np.shape(files)[0]\n"
     pycomm+="  ncolor=np.shape(colors)[0];\n"
+    pycomm+="\n"
+    pycomm+="  print 'plotwithaction = ' + str(plotwithaction)"
     pycomm+="\n"
     pycomm+="  for iFile in range(0,nfile):\n"
     pycomm+="\n"
     pycomm+="    if plotwithfiles != None:\n"
     pycomm+="      if iFile == 0:\n"
-    pycomm+="        plotData(files, iFile, False, axes, 'c', scales, units, maxs)\n"
-    pycomm+="        plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs)\n"
+    pycomm+="        if plotwithaction == 'p':\n"
+    pycomm+="          plotData(files, iFile, False, axes, 'c', scales, units, maxs)\n"
+    pycomm+="          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs)\n"
+    pycomm+="        else:\n"
+    pycomm+="          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, False, axes, 'c', scales, units, maxs)\n"
     pycomm+="      else:\n"
-    pycomm+="        plotData(files, iFile,  True, axes, 'c', scales, units, maxs)\n"
-    pycomm+="        plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs)\n"
+    pycomm+="        if plotwithaction == 'p':\n"
+    pycomm+="          plotData(files, iFile,  True, axes, 'c', scales, units, maxs)\n"
+    pycomm+="          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs)\n"
+    pycomm+="        else:\n"
+    pycomm+="          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, True, axes, 'c', scales, units, maxs)\n"
     pycomm+="    else:\n"
     pycomm+="      if iFile == 0:\n"
     pycomm+="        plotData(files, iFile, False, axes, colors[iFile %% ncolor], scales, units, maxs)\n"
@@ -446,6 +473,18 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  if naxes > 2 and axes[2] != None:\n"
     pycomm+="    makeSubPlot(fileNames[iFile], 4, axes[2][iFile], doHold, Color, 'threads', 'columns', 'Bytes/sec', scales[2], units[2], maxs[2]);\n"
+    pycomm+="\n"
+    pycomm+="def plotDataTwo(fileNames, fileNames2, action, iFile, doHold, axes, Color, scales, units, maxs):\n"
+    pycomm+="\n"
+    pycomm+="  naxes=np.shape(axes)[0]\n"
+    pycomm+="\n"
+    pycomm+="  makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 2, action, axes[0][iFile], doHold, Color, 'threads', 'columns', 'Ops/sec', scales[0], units[0], maxs[0]);\n"
+    pycomm+="\n"
+    pycomm+="  if naxes > 1 and axes[1] != None:\n"
+    pycomm+="    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 3, action, axes[1][iFile], doHold, Color, 'threads', 'columns', 'Writes/sec', scales[1], units[1], maxs[1]);\n"
+    pycomm+="\n"
+    pycomm+="  if naxes > 2 and axes[2] != None:\n"
+    pycomm+="    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 4, action, axes[2][iFile], doHold, Color, 'threads', 'columns', 'Bytes/sec', scales[2], units[2], maxs[2]);\n"
     pycomm+="\n"
 
     pycomm+="def getDataAndUnits(dat, nline, index):\n"
@@ -610,9 +649,9 @@ generatePythonPlots()
     pycomm+="\n"
 
     if [ $plotwith == "true" ]; then
-	pycomm+="plotFiles(files, plotwithfiles, axes, colors, scales, units, maxs)\n"
+	pycomm+="plotFiles(files, plotwithfiles, '${plotwithaction//\"/}', axes, colors, scales, units, maxs)\n"
     else
-	pycomm+="plotFiles(files, None, axes, colors, scales, units, maxs)\n"
+	pycomm+="plotFiles(files, None, None, axes, colors, scales, units, maxs)\n"
     fi
     
     pycomm+="\n"
@@ -645,10 +684,11 @@ plotlogfile()
     title=$(valOrDef title '' "$@")
     scaleto=$(valOrDef scaleto '' "$@")
     plotwithfiles=$(valOrDef plotwith '' "$@")
+    plotwithaction=$(valOrDef plotwithaction 'p' "$@")
     stat=$(valOrDef stat 'ops' "$@")
     output=$(valOrDef output '' "$@")
     figview=$(valOrDef figview '' "$@")
-	    
+
     files="$1"
 
     allfiles=$files
@@ -685,7 +725,7 @@ plotlogfile()
     if [ $output == \"\" ]; then
 	echo "output is null"
     fi
-    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview"
+    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction
 }
 
 makeplots()
@@ -706,7 +746,10 @@ makeRiakNvalPlots()
     output=$(valOrDef output '' "$@")
     output=${output//\"/}
 
-    plotlogfile "threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Riak SJB threads vs. columns, nval=1 vs nval=3\\\\n(cyan: nval=1, magenta: nval=3)" plotwith="riak_sjb_thread_v_columns_1_nval3.log riak_sjb_thread_v_columns_10_nval3.log riak_sjb_thread_v_columns_100_nval3.log riak_sjb_thread_v_columns_200_nval3.log riak_sjb_thread_v_columns_500_nval3.log" figview="(30,135)" output=$output
+    action=$(valOrDef action 'p' "$@")
+    action=${action//\"/}
+
+    plotlogfile "threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v7.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log" threads columns cellsize="1 10 100 200 500" overplot=false figsize="(16,18)" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200 Cellsize=500" title="Riak SJB threads vs. columns, nval=1 vs nval=3\\\\n(cyan: nval=1, magenta: nval=3)" plotwith="riak_sjb_thread_v_columns_1_nval3.log riak_sjb_thread_v_columns_10_nval3.log riak_sjb_thread_v_columns_100_nval3.log riak_sjb_thread_v_columns_200_nval3.log riak_sjb_thread_v_columns_500_nval3.log" figview="(30,135)" output=$output plotwithaction=$action
 }
 
 makeRiakCassOverplots()

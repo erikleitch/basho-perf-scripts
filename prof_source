@@ -1,0 +1,18 @@
+#!/bin/bash
+
+SRCPATH=""
+if [[ ${BASH_SOURCE[0]} == *"/"* ]]
+then
+    SRCPATH=${BASH_SOURCE[0]%/*}
+    else
+        SRCPATH=`dirname ${BASH_SOURCE[0]%/*}`
+	fi
+
+CWD="$( cd $SRCPATH; pwd )"
+
+export RIAK_TEST_BASE=$CWD
+
+export PYTHONPATH=${PYTHONPATH}:${RIAK_TEST_BASE}/python_scripts
+
+source $RIAK_TEST_BASE/bash_scripts/riak_test_scripts.sh
+

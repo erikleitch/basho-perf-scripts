@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 def getLine(label, content):
   for line in content:
@@ -70,11 +71,13 @@ def makePlot(bytes, puts, gets):
 def retick(ax, size):
   ax.set_xticklabels(ax.get_xticklabels(), fontsize=size)
   ax.set_yticklabels(ax.get_yticklabels(), fontsize=size)
-    
-bytes1, puts1, gets1 = getProfilerOutput('../data/kvlatency_nval1.txt')
-bytes3, puts3, gets3 = getProfilerOutput('../data/kvlatency_nval3.txt')
-bytesw1c3, putsw1c3, getsw1c3 = getProfilerOutput('../data/kvlatency_nval3_w1c.txt')
-bytesb3, putsb3, getsb3 = getProfilerOutput('../data/kvlatency_nval3_bitcask.txt')
+
+dataDir = str(os.environ['RIAK_TEST_BASE']) + '/data/'
+  
+bytes1, puts1, gets1 = getProfilerOutput(dataDir + 'kvlatency_nval1.txt')
+bytes3, puts3, gets3 = getProfilerOutput(dataDir + 'kvlatency_nval3.txt')
+bytesw1c3, putsw1c3, getsw1c3 = getProfilerOutput(dataDir + 'kvlatency_nval3_w1c.txt')
+bytesb3, putsb3, getsb3 = getProfilerOutput(dataDir + 'kvlatency_nval3_bitcask.txt')
 
 fig = plt.figure()
 fig.set_facecolor('white');

@@ -14,5 +14,17 @@ export RIAK_TEST_BASE=$CWD
 
 export PYTHONPATH=${PYTHONPATH}:${RIAK_TEST_BASE}/python_scripts
 
+if [ ! -d $RIAK_TEST_BASE/erlang_scripts/profiler ]
+then
+    git clone "git@github.com:erikleitch/profiler.git" -b master $RIAK_TEST_BASE/erlang_scripts/profiler
+fi
+
+pushd .
+cd $RIAK_TEST_BASE/erlang_scripts; make
+popd
+
+source $RIAK_TEST_BASE/bash_scripts/utilities.sh
 source $RIAK_TEST_BASE/bash_scripts/riak_test_scripts.sh
+source $RIAK_TEST_BASE/bash_scripts/basho_perf_scripts.sh
+
 

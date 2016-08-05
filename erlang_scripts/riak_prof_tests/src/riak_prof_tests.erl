@@ -1,0 +1,173 @@
+-module(riak_prof_tests).
+
+-compile([export_all]).
+
+-include_lib("$RIAK_TEST_BASE/erlang_scripts/profiler/include/profiler.hrl").
+
+%%=======================================================================
+%% Utilities
+%%=======================================================================
+
+getClient(_) ->
+    getClient().
+
+getClient() ->
+    {ok, C} = riakc_pb_socket:start_link("127.0.0.1", 10017),
+    C.
+
+%%=======================================================================
+%% TS PUT Latency tests
+%%=======================================================================
+
+%%------------------------------------------------------------
+%% Run Ncols x Nbyte trials, doing Nrow x Niter iterations for each
+%% combination
+%%------------------------------------------------------------
+
+runTsLatencyTests([Nrow]) when is_list(Nrow) ->
+    runTsLatencyTests(list_to_integer(Nrow));
+runTsLatencyTests(Nrow) ->
+    Ncols = [1, 5, 10, 20, 50],
+
+    Bytes = [{1000,      1}, 
+	     {1000,     10}, 
+	     {1000,    100}, 
+	     {1000,   1000}, 
+	     {100,   10000}, 
+	     {100,  100000},
+	     {100, 1000000}],
+
+    C = getClient(),
+    profiler:profile({prefix, "/tmp/client_profiler_results"}),
+    profiler:profile({noop, false}),
+
+    ColRunFun = 
+	fun(Ncol) ->
+		[runTsLatencyTests(C, Nrow, Ncol, Niter, Nbyte) || {Niter, Nbyte} <- Bytes]
+	end,
+
+    [ColRunFun(Ncol) || Ncol <- Ncols].
+
+%%------------------------------------------------------------
+%% Write a fixed total number of bytes for each Ncol, doing Nrow x
+%% Niter iterations for each combination
+%%
+%% Ie, for 100 bytes total, we will write 100 bytes/col for Ncol =  1
+%%                                         20 bytes/col for Ncol =  5
+%%                                         10 bytes/col for Ncol = 10
+%%                                          5 bytes/col for Ncol = 20
+%%------------------------------------------------------------
+
+runTsSplits([Nrow]) when is_list(Nrow) ->
+    runTsSplits(list_to_integer(Nrow));
+runTsSplits(Nrow) ->
+    Ncols = [1, 5, 10, 20, 50],
+
+    Bytes = [{10000,   100}, 
+	     {1000,   1000}, 
+	     {1000,  10000}, 
+	     {1000, 100000},
+	     {100, 1000000}],
+
+    C = getClient(),
+    profiler:profile({prefix, "/tmp/client_profiler_results"}),
+    profiler:profile({noop, false}),
+
+    ColRunFun = 
+	fun(Ncol) ->
+		[runTsLatencyTests(C, Nrow, Ncol, Niter, round(NbyteTotal/Ncol)) || {Niter, NbyteTotal} <- Bytes]
+	end,
+
+    [ColRunFun(Ncol) || Ncol <- Ncols].
+
+runTsLatencyTests(C, Nrow, Ncol, Niter, Nbyte) ->
+    tsLatencyPutTest(C, Nrow, Ncol, Niter, Nbyte).
+
+tsLatencyTestData(Ncol, Nbyte) ->    
+    tsLatencyTestData(Ncol, Nbyte, 0, []).
+
+tsLatencyTestData(_Ncol, _Nbyte, _Ncol, Acc) ->
+    Acc;
+tsLatencyTestData(Ncol, Nbyte, Icol, Acc) ->
+    tsLatencyTestData(Ncol, Nbyte, Icol+1, [crypto:rand_bytes(Nbyte)|Acc]).
+
+tsLatencyPutTest(C, Nrow, Ncol, Niter, Nbyte) ->
+    Name = list_to_atom("put_" ++ integer_to_list(Ncol) ++ "_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(Nrow*Niter)),
+    profiler:profile({start, Name}),
+    FieldData = tsLatencyTestData(Ncol, Nbyte),
+    Bucket = "Gen" ++ integer_to_list(Ncol),
+    tsLatencyPutTest({C, Bucket, FieldData}, Name, Nrow, 0, Niter, 1).
+tsLatencyPutTest(_ArgTuple, Name, _Nrow, _Nrow, _Niter, _Niter) ->
+    profiler:profile({stop, Name}),
+    profiler:profile({debug}),
+    ok;
+tsLatencyPutTest(ArgTuple, Name, Nrow, Nrow, Niter, AccIter) ->
+    tsLatencyPutTest(ArgTuple, Name, Nrow, 0, Niter, AccIter+1);
+tsLatencyPutTest(ArgTuple, Name, Nrow, AccRow, Niter, AccIter) ->
+    {C, Bucket, FieldData} = ArgTuple,
+    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, AccRow+1] ++ FieldData)],
+    riakc_ts:put(C, Bucket, Data),
+    tsLatencyPutTest(ArgTuple, Name, Nrow, AccRow+1, Niter, AccIter).
+
+%%----------------------------------------------------------------------- 
+%% KV PUT/GET Latency tests
+%%----------------------------------------------------------------------- 
+
+runKvLatencyTests() ->
+    Bytes = [{10000,       1}, 
+	     {10000,      10}, 
+	     {10000,     100}, 
+	     {10000,    1000}, 
+	     {10000,   10000}, 
+	     {1000,   100000}, 
+	     {1000,  1000000}, 
+	     {100,  10000000}],
+    [runKvLatencyTest(N, Nbyte) || {N, Nbyte} <- Bytes].
+
+runKvLatencyTest(N, Nbyte) ->
+    kvPutTest(N, Nbyte),
+    kvGetTest(N, Nbyte).
+    
+runKvLatencyTest(Args) ->
+    [Nstr, NbyteStr] = Args,
+    N = list_to_integer(Nstr),
+    Nbyte = list_to_integer(NbyteStr),
+    kvPutTest(N, Nbyte),
+    kvGetTest(N, Nbyte).
+     
+kvTestData(Nbyte) ->
+    crypto:rand_bytes(Nbyte).
+
+kvPutTest(N,Nbyte) ->
+    C = getClient(),
+    profiler:profile({prefix, "/tmp/client_profiler_results"}),
+    profiler:profile({noop, false}),
+    Name = list_to_atom("put_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
+    profiler:profile({start, Name}),
+    io:format("Generating data ~n", []),
+    Data = kvTestData(Nbyte),
+    io:format("Done generating data ~n", []),
+    kvPutTest(C,Data,Name,N,0).
+kvPutTest(_C,_Data,Name,_N,_N) ->
+    profiler:profile({stop, Name}),
+    profiler:profile({debug}),
+    ok;
+kvPutTest(C,Data,Name, N,Acc) ->
+    Obj = riakc_obj:new({<<"TestBucketType">>, <<"GeoCheckin">>}, <<"key1">>, Data),
+    riakc_pb_socket:put(C, Obj),
+    kvPutTest(C,Data,Name,N,Acc+1).
+
+kvGetTest(N,Nbyte) ->
+    C = getClient(),
+    profiler:profile({prefix, "/tmp/client_profiler_results"}),
+    profiler:profile({noop, false}),
+    Name = list_to_atom("get_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
+    profiler:profile({start, Name}),
+    kvGetTest(C,Name,N,0).
+kvGetTest(_C,Name,_N,_N) ->
+    profiler:profile({stop, Name}),
+    profiler:profile({debug}),
+    ok;
+kvGetTest(C,Name,N,Acc) ->
+    riakc_pb_socket:get(C, {<<"TestBucketType">>, <<"GeoCheckin">>}, <<"key1">>),
+    kvGetTest(C,Name,N,Acc+1).

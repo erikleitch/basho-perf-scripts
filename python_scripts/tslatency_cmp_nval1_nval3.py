@@ -44,7 +44,6 @@ def getProfilerOutput(fileName):
       pbytes.append(np.log10(float(s[2])))
       ntrial = np.int(s[3])
       putus.append(np.log10(d[key]['usec']/ntrial))
-
   x,y,z = getGriddedData(pcols, pbytes, putus)
   return x,y,z
 
@@ -112,6 +111,7 @@ fig.set_facecolor('white');
 
 ax = fig.add_subplot(1,3,1, projection='3d')
 makePlot(ax, x1, y1, z1, 'c', 'TS Put Latency nval=1')
+
 ax = fig.add_subplot(1,3,2, projection='3d')
 makePlot(ax, x2, y2, z2, 'm', 'TS Put Latency nval=3')
 ax = fig.add_subplot(1,3,3, projection='3d')

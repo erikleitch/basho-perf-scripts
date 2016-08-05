@@ -1,5 +1,9 @@
 #!/bin/bash
 
+#------------------------------------------------------------
+# Export the head of the basho-perf-scripts dir to the environment
+#------------------------------------------------------------
+
 SRCPATH=""
 if [[ ${BASH_SOURCE[0]} == *"/"* ]]
 then
@@ -12,16 +16,32 @@ CWD="$( cd $SRCPATH; pwd )"
 
 export RIAK_TEST_BASE=$CWD
 
+#------------------------------------------------------------
+# Add relevant directories to our python path
+#------------------------------------------------------------
+
 export PYTHONPATH=${PYTHONPATH}:${RIAK_TEST_BASE}/python_scripts
+
+#------------------------------------------------------------
+# Clone profiler, if it doesn't already exist
+#------------------------------------------------------------
 
 if [ ! -d $RIAK_TEST_BASE/erlang_scripts/profiler ]
 then
     git clone "git@github.com:erikleitch/profiler.git" -b master $RIAK_TEST_BASE/erlang_scripts/profiler
 fi
 
+#------------------------------------------------------------
+# Now build and erlang modules we may need
+#------------------------------------------------------------
+
 pushd .
 cd $RIAK_TEST_BASE/erlang_scripts; make
 popd
+
+#------------------------------------------------------------
+# Finally, source bash scripts
+#------------------------------------------------------------
 
 source $RIAK_TEST_BASE/bash_scripts/utilities.sh
 source $RIAK_TEST_BASE/bash_scripts/riak_test_scripts.sh

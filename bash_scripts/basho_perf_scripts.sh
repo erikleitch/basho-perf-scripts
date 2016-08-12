@@ -63,8 +63,6 @@ getCellsize()
     cellsize=$5
     iter=$6
 
-    echo "inside getCellsize with celsize=$cellsize" >> /tmp/debug.out
-    
     if [ $param1 == 'cell_size' ]; then
 	echo $val1
     elif [ $param2 == 'cell_size' ]; then
@@ -87,7 +85,6 @@ getCellsize()
 # empty string if none is available
 #-----------------------------------------------------------------------
 
-
 getBytes()
 {
     local av=$1
@@ -97,11 +94,7 @@ getBytes()
     val2=$5
     iter=$7
 
-    echo "About to call getCellsize with 6=$6 7=$7" >> /tmp/debug.out
-    
     cellsize=$(getCellsize $param1 $val1 $param2 $val2 "$6" $7)
-
-    echo "cellsize = $cellsize" >>/tmp/debug.out
     
     if [ $param1 == 'columns' ] && [ ! -z "$cellsize" ]; then
 	echo $av"*"$val1"*"$cellsize | bc
@@ -185,6 +178,8 @@ getTestDataSingle()
     first="true"
     haveEnd="false"
 
+    echo "Here 1"
+	
     while read p; do
 	case "$p" in
 
@@ -193,12 +188,14 @@ getTestDataSingle()
 	    #------------------------------------------------------------
 	    
 	    *config=*)
+		echo "p = $p"
 		case "$p" in
 		    *'parent_id=None'*)
 		    ;;
 		    *)
 			if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
 			    sub=${BASH_REMATCH[1]}
+			    echo "sub = $sub"
 			    if [[ $sub =~ [a-z]*{(.*)}[a-z]* ]]; then
 				sub=${BASH_REMATCH[1]}
 
@@ -218,6 +215,80 @@ getTestDataSingle()
 			fi
 			;;
 		esac
+		;;
+
+	    #------------------------------------------------------------
+	    # Else accumulate throughputs for this set of parameters
+	    # if this is a throughput report
+	    #------------------------------------------------------------
+	    
+	    *deploy_basho_perf*)
+		startdate=$(getDate "$p")
+		haveEnd="false"
+		;;
+
+	    #------------------------------------------------------------
+	    # Else accumulate throughputs for this set of parameters
+	    # if this is a throughput report
+	    #------------------------------------------------------------
+	    
+	    *\[INFO\]\ Throughput*)
+		if [[ $p =~ [a-z]*Throughput:(.*) ]]; then
+		    av+="+"${BASH_REMATCH[1]}
+		fi
+
+		if [ $haveEnd == "false" ]; then
+		    enddate=$(getDate "$p")
+		    haveEnd="true"
+		fi
+		;;
+	esac
+    done <$file
+
+    writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+}
+
+getTestDataSingleNew()
+{
+    file=$1
+    param1=$2
+    param2=$3
+    cellsize=$4
+    iter=$5
+    stat=$6
+    
+    printf "\rProcessing $file..."
+    
+    first="true"
+    haveEnd="false"
+
+    while read p; do
+	case "$p" in
+
+	    #------------------------------------------------------------
+	    # If this is a config line, extract the parameter vals from it
+	    #------------------------------------------------------------
+	    
+	    *'event_type=start'*)
+		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
+		    sub=${BASH_REMATCH[1]}
+		    if [[ $sub =~ [a-z]*{(.*)}[a-z]* ]]; then
+			sub=${BASH_REMATCH[1]}
+			
+			if [ $first == "true" ]; then
+			    first="false"
+			    rm "/tmp/dat"$iter".txt"
+			else
+			    writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+			fi
+			
+			val1=$(parseparam "$sub" $param1)
+			val2=$(parseparam "$sub" $param2)
+			
+			av="scale=4;(0.0"
+		    fi
+		    
+		fi
 		;;
 
 	    #------------------------------------------------------------
@@ -663,8 +734,8 @@ generatePythonPlots()
 	pycomm+="plt.savefig('${output//\"/}.png', format='png');\n"
     fi
 
+    printf "$pycomm" > /tmp/pyplottest.py
     printf "$pycomm" | python
-    printf "$pycomm" > /tmp/emltest.py
 }
 
 #-----------------------------------------------------------------------
@@ -773,6 +844,11 @@ runAllCassSjb()
     batchRunCassSjb cellsize="10 200 500"
 }
 
+runAllRiakSjb()
+{
+    batchRunRiakSjb cellsize="1 10 100 200 500"
+}
+
 batchRunCassSjb()
 {
     cellsize=$(valOrDef cellsize '' "$@")
@@ -782,6 +858,99 @@ batchRunCassSjb()
     do
 	runCassSjb cellsize=$cell
     done
+}
+
+batchRunRiakSjb()
+{
+    cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+
+    for cell in $cellsize
+    do
+	runRiakSjb cellsize=$cell
+    done
+}
+
+runRiakSjb()
+{
+    cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+
+    suffix=$(valOrDef suffix '' "$@")
+    suffix=${suffix//\"/}
+    
+    cd=`pwd`
+    echo "test = \"$cd/lib/tests/riak-simple_java_bench\";" > riak.run
+    parentdir="$(dirname "$(pwd)")"
+    echo "hosts = \"$parentdir/etc/hosts.d/softlayer-b\";" >> riak.run
+    echo "" >> riak.run
+
+    echo "simple_java_bench = {" >> riak.run
+    echo "         threads = [32, 64, 128, 256];" >> riak.run
+    echo "         columns = [1, 5, 10, 15];" >> riak.run
+    echo "         cell_size = $cellsize;" >> riak.run
+    echo "}" >> riak.run
+
+    source $parentdir/etc/profile.d/internal_utilities.sh 
+    source activate
+
+    hosts softlayer-b
+
+    if [ -z $suffix ]; then
+	outputFile="riak_sjb_thread_v_columns_"$cellsize".log"
+    else
+	outputFile="riak_sjb_thread_v_columns_"$cellsize"_"$suffix".log"
+    fi
+    
+    basho-perf run riak.run &> $outputFile
+}
+
+runRiakSjbGeneric()
+{
+    cellsize=$(valOrDef cellsize '1' "$@")
+    cellsize=${cellsize//\"/}
+
+    columns=$(valOrDef columns '[1,5,10,15]' "$@")
+    columns=${columns//\"/}
+
+    threads=$(valOrDef threads '[32,64,128,256]' "$@")
+    threads=${threads//\"/}
+
+    suffix=$(valOrDef suffix '' "$@")
+    suffix=${suffix//\"/}
+
+    branch=$(valOrDef branch '' "$@")
+    branch=${branch//\"/}
+
+    bashoPerfDir="$(dirname "${RIAK_TEST_BASE}")"
+    internalUtilDir="$(dirname "$bashoPerfDir")"
+
+    echo "test = \"$bashoPerfDir/lib/tests/riak-simple_java_bench\";" > riak.run
+    echo "hosts = \"$internalUtilDir/etc/hosts.d/softlayer-b\";" >> riak.run
+    echo "" >> riak.run
+
+    echo "simple_java_bench = {" >> riak.run
+    echo "         threads = $threads;" >> riak.run
+    echo "         columns = $columns;" >> riak.run
+    echo "         cell_size = $cellsize;" >> riak.run
+    echo "}" >> riak.run
+
+    echo "riak_ts = {" >> riak.run
+    echo "         branch = $branch;" >> riak.run
+    echo "}" >> riak.run
+
+    source $internalUtilDir/etc/profile.d/internal_utilities.sh 
+    source activate
+
+    hosts softlayer-b
+
+    if [ -z $suffix ]; then
+	outputFile="riak_sjb_thread_v_columns_"$cellsize".log"
+    else
+	outputFile="riak_sjb_thread_v_columns_"$cellsize"_"$suffix".log"
+    fi
+    
+#    basho-perf run riak.run &> $outputFile
 }
 
 testRunCassSjb()
@@ -943,4 +1112,131 @@ emltest()
     if [ $output == \"\" ]; then
 	echo "hello"
     fi
+}
+
+runTsBranchComp()
+{
+    branch1=$(valOrDef branch1 'riak_ts_ee-1.3.1' "$@")
+    branch1=${branch1//\"/}
+
+    branch2=$(valOrDef branch2 'riak_ts_ee-1.4.0rc1' "$@")
+    branch2=${branch2//\"/}
+
+    threads=$(valOrDef threads '64' "$@")
+    threads=${threads//\"/}
+    
+    columns=$(valOrDef columns '1' "$@")
+    columns=${columns//\"/}
+    
+    cellsize=$(valOrDef cellsize '1' "$@")
+    cellsize=${cellsize//\"/}
+    
+    type=$(valOrDef type 'put' "$@")
+
+    runRiakSjbGeneric threads=$threads columns=$columns cellsize=$cellsize suffix="branch1" branch=$branch1
+    runRiakSjbGeneric threads=$threads columns=$columns cellsize=$cellsize suffix="branch2" branch=$branch2
+}
+
+#-----------------------------------------------------------------------
+# Script to compare two branches of TS (currently, using SJB with puts
+# only, because YCSB is under development)
+#-----------------------------------------------------------------------
+
+runTsBranchComp1D()
+{
+    runTsBranchComp threads="64" columns="[1,1,1]" cellsize="1"
+}
+
+#-----------------------------------------------------------------------
+# Generate python plots of the data we scraped from the logfile
+#-----------------------------------------------------------------------
+
+generatePythonComp()
+{
+    files="$1"
+
+    local pycomm="import scipy.stats as stats;\n"
+    pycomm+="import numpy as np;\n"
+    pycomm+="\n"
+    pycomm+="def getMeanAndStd(fileNames):\n"
+    pycomm+="\n"
+    pycomm+="  means = []\n"
+    pycomm+="  stds = []\n"
+    pycomm+="  iFile=0\n"
+    pycomm+="  ncolmax=0\n"
+    pycomm+="\n"
+    pycomm+="  for file in fileNames:\n"
+    pycomm+="    dat = np.loadtxt(file);\n"
+    pycomm+="    nline = np.shape(dat)[0];\n"
+    pycomm+="    vals  = dat[0:nline, 3]\n"
+    pycomm+="    means.append(np.mean(vals))\n"
+    pycomm+="    stds.append(np.std(vals, ddof=1))\n"
+    pycomm+="\n"
+    pycomm+="  return means,stds\n"
+    pycomm+="\n"
+
+    #------------------------------------------------------------
+    # Generate a list of data files
+    #------------------------------------------------------------
+    
+    iIter="0"
+    fileNames=""
+    first=true
+    for i in $files; do
+	if [ $first == "true" ]; then
+	    fileNames+="['/tmp/dat"$iIter".txt'"
+	    first=false
+	else
+	    fileNames+=", '/tmp/dat"$iIter".txt'"
+	fi
+        iIter=$[$iIter+1]
+    done
+    fileNames+="]"
+
+    pycomm+="files=$fileNames;\n"
+    pycomm+="\n"
+    pycomm+="mean,std = getMeanAndStd(files)\n"
+    pycomm+="print 'Means = ' + str(mean[0]) + ', ' + str(mean[1])\n"
+    pycomm+="print 'Stdds = ' + str(std[0]) + ', ' + str(std[1])\n"
+    
+    pycomm+="chi2 = np.power((mean[0] - mean[1]),2) / (np.power(std[0],2) + np.power(std[1],2))\n"
+    pycomm+="\n"
+    pycomm+="print 'Chi2 = ' + str(chi2) + ' PTE = ' + str(1.0-stats.chi2.cdf(chi2, 1.0))\n"
+
+    printf "$pycomm" > /tmp/pytest.py
+    printf "$pycomm" | python
+}
+
+#------------------------------------------------------------
+# Compare a single test on two branches
+#------------------------------------------------------------
+
+bashoPerfDiff1D()
+{
+    runTsBranchComp threads="64" columns="[1,1,1,1,1]" cellsize="1"
+    
+    file1=riak_sjb_thread_v_columns_1_branch1.log
+    file2=riak_sjb_thread_v_columns_1_branch2.log
+    
+    getTestDataSingleNew $file1 threads columns 1 0 "\"ops\""
+    getTestDataSingleNew $file2 threads columns 1 1 "\"ops\""
+
+    echo ""
+    
+    generatePythonComp "/tmp/dat0.txt /tmp/dat1.txt"
+}
+
+bashoPerfDiff2d()
+{
+        echo "hello"
+}
+
+bashoPerfDiff3d()
+{
+        echo "hello"
+}
+
+generatePythonPlotTest()
+{
+    generatePythonPlots "/tmp/dat1.txt /tmp/dat2.txt" threads columns false "(16,18)" "label1 label2" title 2 12 outputtest "(30,135)" p
 }

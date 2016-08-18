@@ -452,8 +452,8 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  dat = np.loadtxt(fileName);\n"
     pycomm+="  nline = np.shape(dat)[0];\n"
-    pycomm+="  x = dat[0:nline,0];\n"
-    pycomm+="  y = dat[0:nline,1];\n"
+    pycomm+="  x = np.log10(dat[0:nline,0]);\n"
+    pycomm+="  y = np.log10(dat[0:nline,1]);\n"
     pycomm+="  [d, unit] = getDataAndUnits(dat, nline, index);\n"
     pycomm+="  npoints=np.size(x);\n"
     pycomm+="  points = np.ndarray((npoints, 2), np.double);\n"
@@ -468,6 +468,8 @@ generatePythonPlots()
     pycomm+="  x1=np.linspace(np.min(ux), np.max(ux), 200);\n"
     pycomm+="  y1=np.linspace(np.min(uy), np.max(uy), 200);\n"
     pycomm+="  x2,y2 = np.meshgrid(x1, y1);\n"
+    pycomm+="  print 'x2 = ' + str(x2);\n"
+    pycomm+="  print 'y2 = ' + str(y2);\n"
     pycomm+="  z2=int.griddata(points, d, (x2, y2), method='cubic');\n"
     pycomm+="  return x2, y2, z2, unit\n"
     pycomm+="\n"
@@ -799,6 +801,15 @@ plotlogfile()
     generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction
 }
 
+makeplot()
+{
+    #    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log riak_sjb_thread_v_columns_200.log" threads columns cellsize="1 10 100 200" figsize="(18,5)"
+    
+    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log" threads columns cellsize="1 10 100" figsize="(18,5)" overplot=false
+
+#    plotlogfile "riak_sjb_thread_v_columns_100.log" threads columns cellsize="100" figsize="(18,5)" overplot=false
+}
+
 makeplots()
 {
     plotlogfile "threads_v_columns_riak_v3.log threads_v_columns_riak_v2.log threads_v_columns_riak_v6.log threads_v_columns_riak_v5.log threads_v_columns_riak_v4.log" threads columns "1 10 200 500 1000"
@@ -887,8 +898,14 @@ runRiakSjb()
 
     echo "simple_java_bench = {" >> riak.run
     echo "         threads = [32, 64, 128, 256];" >> riak.run
-    echo "         columns = [1, 5, 10, 15];" >> riak.run
+    #    echo "         columns = [1, 5, 10, 15];" >> riak.run
+    echo "         columns = [1, 10, 200, 500];" >> riak.run
     echo "         cell_size = $cellsize;" >> riak.run
+    echo "}" >> riak.run
+    echo "" >> riak.run
+    echo "riak_ts = {" >> riak.run
+    echo "         object.size.maximum = 100GB;" >> riak.run
+    echo "         object.size.warning_threshold = 100GB;" >> riak.run
     echo "}" >> riak.run
 
     source $parentdir/etc/profile.d/internal_utilities.sh 
@@ -935,10 +952,15 @@ runRiakSjbGeneric()
     echo "         cell_size = $cellsize;" >> riak.run
     echo "}" >> riak.run
 
-    echo "riak_ts = {" >> riak.run
-    echo "         branch = $branch;" >> riak.run
-    echo "}" >> riak.run
-
+    echo "branch = $branch"
+    
+    if [ "$branch" != "" ]
+    then
+	echo "riak_ts = {" >> riak.run
+	echo "         branch = $branch;" >> riak.run
+	echo "}" >> riak.run
+    fi
+    
     source $internalUtilDir/etc/profile.d/internal_utilities.sh 
     source activate
 
@@ -950,7 +972,7 @@ runRiakSjbGeneric()
 	outputFile="riak_sjb_thread_v_columns_"$cellsize"_"$suffix".log"
     fi
     
-#    basho-perf run riak.run &> $outputFile
+    basho-perf run riak.run &> $outputFile
 }
 
 testRunCassSjb()

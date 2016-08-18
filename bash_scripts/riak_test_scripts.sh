@@ -242,7 +242,9 @@ tsInsertLatencyTestSequence()
     nIter=$(simpleValOrDef iter '1' $@)
     startIter=$(simpleValOrDef start '0' $@)
 
-    echo $nIter, $startIter
+    endIter=$[$startIter + $nIter]
+
+    echo $startIter, $endIter, $nIter
 
     #------------------------------------------------------------
     # Make the output directory if it doesn't already exist
@@ -262,7 +264,7 @@ tsInsertLatencyTestSequence()
     rerun target=locked-all script=ts_setup_gen args=--keep nodes=1
     
     iIter=$startIter
-    while [ $iIter -lt $nIter ]
+    while [ $iIter -lt $endIter ]
     do
 	runTsInsertLatencyTest args="1 false" disp=false
 	echo "Copying last profiler output to $RIAK_TEST_BASE/data/tsinsertlatency_ts1.4_1row_int_iter$iIter.txt"
@@ -271,7 +273,7 @@ tsInsertLatencyTestSequence()
     done
 
     iIter=$startIter
-    while [ $iIter -lt $nIter ]
+    while [ $iIter -lt $endIter ]
     do
 	runTsInsertLatencyTest args="1 true" disp=false
 	echo "Copying last profiler output to $RIAK_TEST_BASE/data/tsinsertlatency_ts1.4_1row_date_iter$iIter.txt"
@@ -298,7 +300,7 @@ runTsPutLatencyTest()
     disp=$(valOrDef disp 'false' "$@")
     disp=${disp//\"/}
 
-    runerl mod=riak_prof_tests fn=runTsLatencyTests args=$1
+    runerl mod=riak_prof_tests fn=runTsPutLatencyTests args=$1
     
     if [ $disp == "true" ]; then
 	parseTsPutLatencyTestProfilerOutput `getlast /tmp/client_profiler_results`
@@ -374,6 +376,131 @@ tsPutLatencyTestSequenceTs1.3VsTs1.4()
     done
 
     python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_1row*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_1row*.txt`" $'TS1.3 Put Latency' $'TS1.4 Put Latency' $'$\Delta$ Put Latency' $'$\Delta$Latency (%)' False
+}
+
+tsPutLatencyTestSequenceW()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startIter=$(simpleValOrDef start '0' $@)
+
+    endIter=$[$startIter + $nIter]
+
+    echo $startIter, $endIter, $nIter
+
+    #------------------------------------------------------------
+    # Make the output directory if it doesn't already exist
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+    
+    #------------------------------------------------------------
+    # Set up TS1.3 devrel for 1-node cluster, and run the riak_test
+    # script to create the cluster
+    #------------------------------------------------------------
+    
+    \rm riak_ee
+    ln -s branches/riak_ee_riak_ts_ee_1.3.0 riak_ee
+
+    rerun target=locked-all script=ts_setup_gen_nval3_w1 args=--keep nodes=3
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsPutLatencyTest "1" disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_w1_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+	
+    riaktest ts_setup_gen_nval3_def --keep
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsPutLatencyTest "1" disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_def_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+    riaktest ts_setup_gen_nval3_w3 --keep
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsPutLatencyTest "1" disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_w3_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+}
+
+tsPutLatencyTestSequenceNval3VsNval1()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startIter=$(simpleValOrDef start '0' $@)
+
+    endIter=$[$startIter + $nIter]
+
+    echo $startIter, $endIter, $nIter
+
+    #------------------------------------------------------------
+    # Make the output directory if it doesn't already exist
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+    
+    #------------------------------------------------------------
+    # Set up TS1.3 devrel for 1-node cluster, and run the riak_test
+    # script to create the cluster
+    #------------------------------------------------------------
+    
+    \rm riak_ee
+    ln -s branches/riak_ee_riak_ts_ee_1.3.0 riak_ee
+
+    rerun target=locked-all script=ts_setup_gen_nval3_def args=--keep nodes=3
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsPutLatencyTest "1" disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+	
+    riaktest ts_setup_gen_nval1_def --keep
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsPutLatencyTest "1" disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval1_def_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+}
+
+makeTSPlot()
+{
+python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval1_def_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_iter*.txt`" $'TS1.3 Put Latency\nnval=1 (split)' $'TS1.3 Put Latency\nval=3' $'$\Delta$ Put Latency (nval=3 - nval=1)' $'$\Delta$Latency (%)' True
+}
+
+makeTSPlot2()
+{
+python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tslatency_2d_nval1.txt`" "`echo $RIAK_TEST_BASE/data/tslatency_2d_nval3.txt`" $'TS1.3 Put Latency\nnval=1 (split)' $'TS1.3 Put Latency\nval=3' $'$\Delta$ Put Latency (nval=3 - nval=1)' $'$\Delta$Latency (%)' False
+}
+
+makeYlPlot()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_w1_iter[0,2,4,6,8,10,12,14,16,18,20].txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_w1_iter[1,3,5,7,9,11,13,15,17,19].txt`" $'TS1.3 Put Latency\nw=1 (split)' $'TS1.3 Put Latency\nw=1 (split)' $'$\Delta$ Put Latency (w=1 - w=1)' $'$\Delta$Latency (%)' False
+
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_w1*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_def*.txt`" $'TS1.3 Put Latency\nw=1' $'TS1.3 Put Latency\nw=def (w=2)' $'$\Delta$ Put Latency (w=2 - w=1) ' $'$\Delta$Latency (%)' False
+
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_w1*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_w3*.txt`" $'TS1.3 Put Latency\nw=1' $'TS1.3 Put Latency\nw=3' $'$\Delta$ Put Latency (w=3 - w=1)' $'$\Delta$Latency (%)' False
+
+#    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_def*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_w3*.txt`" $'TS1.3 Put Latency\nw=1' $'TS1.3 Put Latency\nw=3' $'$\Delta$ Put Latency (w=3 - w=2)' $'$\Delta$Latency (%)' False
 }
 
 bashTest()

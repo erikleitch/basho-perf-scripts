@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.interpolate as int;
 from mpl_toolkits.mplot3d import Axes3D;
+import os
 
 def getLine(label, content):
   for line in content:
@@ -103,8 +104,10 @@ def makePlot(ax, x, y, z, Color, Title=None):
   retick(ax, 'y')
   retick(ax, 'z')
 
-x1, y1, z1 = getProfilerOutput('../data/tslatency_2d_nval1.txt')
-x2, y2, z2 = getProfilerOutput('../data/tslatency_2d_nval3.txt')
+dataDir = str(os.environ['RIAK_TEST_BASE']) + '/data/'
+
+x1, y1, z1 = getProfilerOutput(dataDir + 'tslatency_2d_nval1.txt')
+x2, y2, z2 = getProfilerOutput(dataDir + 'tslatency_2d_nval3.txt')
 
 fig = plt.figure()
 fig.set_facecolor('white');

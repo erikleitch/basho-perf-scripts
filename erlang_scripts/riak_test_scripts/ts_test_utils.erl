@@ -119,6 +119,15 @@ create_ts_bucket(Node, NVal, Bucket, DDL) ->
     Args = ["bucket-type", "create", Bucket, lists:flatten(Props)],
     rt:admin(Node, Args).
 
+create_ts_bucket(Node, NVal, W, Bucket, DDL) ->
+    Props = io_lib:format("{\\\"props\\\": {" ++ 
+			      "\\\"n_val\\\": " ++ integer_to_list(NVal) ++
+			      ", \\\"w\\\": " ++ integer_to_list(W) ++
+			      ", \\\"dw\\\": " ++ integer_to_list(W) ++
+			      ", \\\"table_def\\\": \\\"~s\\\"}}", [DDL]),
+    Args = ["bucket-type", "create", Bucket, lists:flatten(Props)],
+    rt:admin(Node, Args).
+
 activate_bucket(Node, Bucket) ->
     rt:admin(Node, ["bucket-type", "activate", Bucket]).
 
@@ -225,6 +234,18 @@ setup_ts_gen_cluster(ClusterType, Nval, ColList) ->
 		Bucket = "Gen" ++ integer_to_list(Ncol),
 		io:format("Creating bucket ~p with DDL = ~p~n", [Bucket, DDL]),
 		{ok, _} = create_ts_bucket(Node, Nval, Bucket, DDL),
+		{ok, _} = activate_bucket(Node, Bucket)
+	end,
+    [Fun(Ncol) || Ncol <- ColList].
+
+setup_ts_gen_cluster(ClusterType, Nval, W, ColList) ->
+    [Node | _] = build_cluster(ClusterType),
+    Fun = 
+	fun(Ncol) ->
+		DDL = get_ddl(Ncol),
+		Bucket = "Gen" ++ integer_to_list(Ncol),
+		io:format("Creating bucket ~p with DDL = ~p~n", [Bucket, DDL]),
+		{ok, _} = create_ts_bucket(Node, Nval, W, Bucket, DDL),
 		{ok, _} = activate_bucket(Node, Bucket)
 	end,
     [Fun(Ncol) || Ncol <- ColList].

@@ -188,14 +188,12 @@ getTestDataSingle()
 	    #------------------------------------------------------------
 	    
 	    *config=*)
-		echo "p = $p"
 		case "$p" in
 		    *'parent_id=None'*)
 		    ;;
 		    *)
 			if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
 			    sub=${BASH_REMATCH[1]}
-			    echo "sub = $sub"
 			    if [[ $sub =~ [a-z]*{(.*)}[a-z]* ]]; then
 				sub=${BASH_REMATCH[1]}
 
@@ -352,12 +350,15 @@ generatePythonPlots()
 
     echo "figsize = $figsize"
     echo "figview = $figview"
+    echo "labels = $labels"
     
     pycomm="import scipy.interpolate as int;\n"
     pycomm+="import numpy as np;\n"
     pycomm+="import matplotlib.pyplot as plt;\n"
     pycomm+="from matplotlib import rcParams;\n"
     pycomm+="from mpl_toolkits.mplot3d import Axes3D;\n"
+
+    pycomm+="defaultFontsize=14\n"
 
     pycomm+="\n"
     pycomm+="def getScalesAndUnits(fileNames):\n"
@@ -469,8 +470,6 @@ generatePythonPlots()
     pycomm+="  x1=np.linspace(np.min(ux), np.max(ux), 200);\n"
     pycomm+="  y1=np.linspace(np.min(uy), np.max(uy), 200);\n"
     pycomm+="  x2,y2 = np.meshgrid(x1, y1);\n"
-    pycomm+="  print 'x2 = ' + str(x2);\n"
-    pycomm+="  print 'y2 = ' + str(y2);\n"
     pycomm+="  z2=int.griddata(points, d, (x2, y2), method='cubic');\n"
     pycomm+="  return x2, y2, z2, unit\n"
     pycomm+="\n"
@@ -508,11 +507,12 @@ generatePythonPlots()
     pycomm+="  x,y,z,unit2 = getData(fileName, index);\n"
     pycomm+="  plt.hold(doHold);\n"
     pycomm+="  ax.plot_surface(x, y, z/scale, color=Color);\n"
-    pycomm+="  ax.set_xlabel('\\\\n' + xlabel);\n"
-    pycomm+="  ax.set_ylabel('\\\\n' + ylabel);\n"
-    pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
+    pycomm+="  ax.set_xlabel('\\\\n' + xlabel, fontsize=defaultFontsize);\n"
+    pycomm+="  ax.set_ylabel('\\\\n' + ylabel, fontsize=defaultFontsize);\n"
+    pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
     pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
     pycomm+="  retick(ax, 'y')\n"
+    pycomm+="  ax.tick_params(labelsize=defaultFontsize)\n"
     pycomm+="\n"
     pycomm+="def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal):\n"
     pycomm+="\n"
@@ -678,11 +678,30 @@ generatePythonPlots()
     fi
 
     #------------------------------------------------------------
+    # Generate a list of cell sizes
+    #------------------------------------------------------------
+    
+    iIter="0"
+    cells=""
+    first=true
+    for i in $cellsizes; do
+	if [ $first == "true" ]; then
+	    cells+="[$i"
+	    first=false
+	else
+	    cells+=", $i"
+	fi
+        iIter=$[$iIter+1]
+    done
+    cells+="]"
+
+    #------------------------------------------------------------
     # Write the file names
     #------------------------------------------------------------
     
     pycomm+="files=$fileNames;\n"
     pycomm+="colors=['b', 'c', 'm', 'g', 'y', 'k'];\n"
+    pycomm+="cellsizes=$cells;\n"
     pycomm+="\n"
 
     #------------------------------------------------------------
@@ -708,13 +727,36 @@ generatePythonPlots()
 	pycomm+="scales,units,maxs  = getScalesAndUnits(files);\n"
     fi
 
+
+    pycomm+="plt.axis('off')\n"
+    pycomm+="plt.title('${title//\"/}')\n"
+    
+    if [ $overplot == \""true\"" ]; then
+	pycomm+="axes = getSubplots(files, True)\n"
+    else
+        pycomm+="axes = getSubplots(files, False)\n"
+    fi
+
+    pycomm+="\n"
+
+    if [ $plotwith == "true" ]; then
+	pycomm+="plotFiles(files, plotwithfiles, '${plotwithaction//\"/}', axes, colors, scales, units, maxs)\n"
+    else
+	pycomm+="plotFiles(files, None, None, axes, colors, scales, units, maxs)\n"
+    fi
+
+    pycomm+="plt.tight_layout(w_pad=2,pad=5)\n"
+    pycomm+="print str(plt.rcParams)\n"
+	
     if [ "$labels" != \"\" ]; then
 
 	pycomm+="nFile=np.shape(files)[0]\n"
 	pycomm+="top=plt.rcParams['figure.subplot.top']\n"
 	pycomm+="bottom=plt.rcParams['figure.subplot.bottom']\n"
+	pycomm+="hspace=plt.rcParams['figure.subplot.hspace']\n"
 	pycomm+="yrange=top-bottom\n"
-	pycomm+="yint = yrange / nFile\n"
+	pycomm+="yint = (yrange - hspace) / nFile\n"
+	pycomm+="sint = hspace / (nFile-1)\n"
 	pycomm+="\n"
 
 	labarr=(`echo $labels`)
@@ -736,44 +778,17 @@ generatePythonPlots()
 	    pyLabs+="]"
 	    pycomm+="labels = $pyLabs\n"
 	    pycomm+="for i in range(0,nFile):\n"
-	    pycomm+="  plt.figtext(0.05, top - (i + 0.5)*yint, labels[i])\n"
+	    pycomm+="  y = top - (i + 0.5)*yint - i*sint\n"
+	    pycomm+="  plt.figtext(0.03, y, labels[i], fontsize=defaultFontsize)\n"
 	else
-	    pycomm+="plt.figtext(0.05, 0.5, '${labels//\"/}')\n"
-	fi  
+	    pycomm+="plt.figtext(0.03, 0.5, '${labels//\"/}', fontsize=defaultFontsize)\n"
+	fi
     fi
 
-    pycomm+="plt.axis('off')\n"
-    pycomm+="plt.title('${title//\"/}')\n"
-    
-    if [ $overplot == \""true\"" ]; then
-	pycomm+="axes = getSubplots(files, True)\n"
-    else
-        pycomm+="axes = getSubplots(files, False)\n"
-    fi
-
-    pycomm+="\n"
-
-    if [ $plotwith == "true" ]; then
-	pycomm+="plotFiles(files, plotwithfiles, '${plotwithaction//\"/}', axes, colors, scales, units, maxs)\n"
-    else
-	pycomm+="plotFiles(files, None, None, axes, colors, scales, units, maxs)\n"
-    fi
-    
-    pycomm+="\n"
-    pycomm+="nPlot = np.size(files)\n"
-    pycomm+="\n"
-    pycomm+="top = rcParams['figure.subplot.top']\n"
-    pycomm+="dy = (rcParams['figure.subplot.top'] - rcParams['figure.subplot.bottom']) / nPlot\n"
-    pycomm+="\n"
-    pycomm+="for i in range(0, nPlot):\n"
-    pycomm+="  plt.figtext(0.05, top - i*dy - dy/2, 'Fig' + str(i))\n"
-    pycomm+="\n"
-    
-    echo "output = $output"
     if [ $output == \"\" ]; then
 	pycomm+="plt.show();\n"
     else
-	pycomm+="plt.savefig('${output//\"/}.png', format='png');\n"
+	pycomm+="plt.savefig('${output//\"/}.png', format='png', dpi=fig.dpi);\n"
     fi
 
     printf "$pycomm" > /tmp/pyplottest.py
@@ -841,12 +856,18 @@ plotlogfile()
 
     echo "allcells = $allcellsize"
     
-    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction
+    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize"
 }
 
 makeplot()
 {
-    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log riak_sjb_thread_v_columns_200.log" threads columns cellsize="1 10 100 200" figsize="(18,16)"
+    output=$(valOrDef output '' "$@")
+    output=${output//\"/}
+
+    figsize=$(valOrDef figsize '(15,18)' "$@")
+    figsize=${figsize//\"/}
+    
+    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log riak_sjb_thread_v_columns_200.log" threads columns cellsize="1 10 100 200" figsize="$figsize" labels="Cellsize=1 Cellsize=10 Cellsize=100 Cellsize=200" output=$output title="Riak PUT (SJB)"
     
 #    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log" threads columns cellsize="1 10 100" figsize="(18,5)" overplot=false
 
@@ -1259,6 +1280,7 @@ generatePythonComp()
     fileNames+="]"
 
     pycomm+="files=$fileNames;\n"
+
     pycomm+="\n"
     pycomm+="mean,std = getMeanAndStd(files)\n"
     pycomm+="print 'Means = ' + str(mean[0]) + ', ' + str(mean[1])\n"

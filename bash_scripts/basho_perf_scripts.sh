@@ -356,6 +356,7 @@ generatePythonPlots()
     pycomm="import scipy.interpolate as int;\n"
     pycomm+="import numpy as np;\n"
     pycomm+="import matplotlib.pyplot as plt;\n"
+    pycomm+="from matplotlib import rcParams;\n"
     pycomm+="from mpl_toolkits.mplot3d import Axes3D;\n"
 
     pycomm+="\n"
@@ -452,7 +453,7 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  dat = np.loadtxt(fileName);\n"
     pycomm+="  nline = np.shape(dat)[0];\n"
-    pycomm+="  x = np.log10(dat[0:nline,0]);\n"
+    pycomm+="  x = dat[0:nline,0];\n"
     pycomm+="  y = np.log10(dat[0:nline,1]);\n"
     pycomm+="  [d, unit] = getDataAndUnits(dat, nline, index);\n"
     pycomm+="  npoints=np.size(x);\n"
@@ -473,6 +474,35 @@ generatePythonPlots()
     pycomm+="  z2=int.griddata(points, d, (x2, y2), method='cubic');\n"
     pycomm+="  return x2, y2, z2, unit\n"
     pycomm+="\n"
+    pycomm+="def retick(ax, axname):\n"
+    pycomm+="  if axname == 'x':\n"
+    pycomm+="    rng = ax.get_xlim()\n"
+    pycomm+="  elif axname == 'y':\n"
+    pycomm+="    rng = ax.get_ylim()\n"
+    pycomm+="  else:\n"
+    pycomm+="    rng = ax.get_zlim()\n"
+    pycomm+="\n"
+    pycomm+="  mn = np.int(np.floor(rng[0]))\n"
+    pycomm+="  mx = np.int(np.ceil(rng[1]))\n"
+    pycomm+="  ticks = []\n"
+    pycomm+="  ticklabels = []\n"
+    pycomm+="  for i in range(mn, mx):\n"
+    pycomm+="    if np.float(i) >= rng[0]:\n"
+    pycomm+="      ticks.append(np.float(i))\n"
+    pycomm+="      ticklabels.append('\$10^{' + (\"%%d\" %% i) + '}\$')\n"
+    pycomm+="\n"
+    pycomm+="  if axname == 'x':\n"
+    pycomm+="    ax.set_xticks(ticks)\n"
+    pycomm+="    ax.set_xticklabels(ticklabels)\n"
+    pycomm+="  elif axname == 'y':\n"
+    pycomm+="    ax.set_yticks(ticks)\n"
+    pycomm+="    ax.set_yticklabels(ticklabels)\n"
+    pycomm+="  else:\n"
+    pycomm+="    ax.set_zticks(ticks)\n"
+    pycomm+="    ax.set_zticklabels(ticklabels)\n"
+    pycomm+="\n"
+    pycomm+="  return\n"
+    pycomm+="\n"
     pycomm+="def makeSubPlot(fileName, index, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal):\n"
     pycomm+="\n"
     pycomm+="  x,y,z,unit2 = getData(fileName, index);\n"
@@ -482,6 +512,7 @@ generatePythonPlots()
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel);\n"
     pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
     pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
+    pycomm+="  retick(ax, 'y')\n"
     pycomm+="\n"
     pycomm+="def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal):\n"
     pycomm+="\n"
@@ -500,7 +531,8 @@ generatePythonPlots()
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel);\n"
     pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
     pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
-    
+    pycomm+="  retick(ax, 'y')\n"
+
     echo "view = $figview"
     if [ $figview != \"\" ]; then
 	pycomm+="  ax.view_init${figview//\"/};\n"
@@ -728,7 +760,15 @@ generatePythonPlots()
     fi
     
     pycomm+="\n"
-
+    pycomm+="nPlot = np.size(files)\n"
+    pycomm+="\n"
+    pycomm+="top = rcParams['figure.subplot.top']\n"
+    pycomm+="dy = (rcParams['figure.subplot.top'] - rcParams['figure.subplot.bottom']) / nPlot\n"
+    pycomm+="\n"
+    pycomm+="for i in range(0, nPlot):\n"
+    pycomm+="  plt.figtext(0.05, top - i*dy - dy/2, 'Fig' + str(i))\n"
+    pycomm+="\n"
+    
     echo "output = $output"
     if [ $output == \"\" ]; then
 	pycomm+="plt.show();\n"
@@ -798,14 +838,17 @@ plotlogfile()
     if [ $output == \"\" ]; then
 	echo "output is null"
     fi
+
+    echo "allcells = $allcellsize"
+    
     generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction
 }
 
 makeplot()
 {
-    #    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log riak_sjb_thread_v_columns_200.log" threads columns cellsize="1 10 100 200" figsize="(18,5)"
+    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log riak_sjb_thread_v_columns_200.log" threads columns cellsize="1 10 100 200" figsize="(18,16)"
     
-    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log" threads columns cellsize="1 10 100" figsize="(18,5)" overplot=false
+#    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log" threads columns cellsize="1 10 100" figsize="(18,5)" overplot=false
 
 #    plotlogfile "riak_sjb_thread_v_columns_100.log" threads columns cellsize="100" figsize="(18,5)" overplot=false
 }

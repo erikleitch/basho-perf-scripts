@@ -134,6 +134,8 @@ def getDiffProfilerOutput(fileName1, fileName2):
     statstr = '$\mu$ = ' + ("%.0f" % av) + '%'
   else:
     statstr = '$\mu$ = ' + ("%.0f" % av) + '%, $\chi^2_{' + str(ndof) + '}$ = ' + ("%.2f" % chi2) + ' (PTE = ' + ("%.2g" % pte) + ')'
+
+  print 'stattsr = ' + str(statstr)
   
   x,y,z = getGriddedData(c, r, diff)
   return x,y,z,statstr

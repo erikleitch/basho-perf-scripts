@@ -141,6 +141,10 @@ build_cluster(single) ->
     build_cluster(1);
 build_cluster(single_bitcask) ->
     build_cluster(1, [], bitcask);
+build_cluster(single_expiryon) ->
+    build_cluster(1, [], expiryon);
+build_cluster(single_expiryoff) ->
+    build_cluster(1, [], expiryoff);
 build_cluster(multiple) ->
     build_cluster(3);
 build_cluster(multiple_bitcask) ->
@@ -150,6 +154,13 @@ build_cluster(large) ->
 
 build_cluster(Size, Config) ->
     build_cluster(Size, Config, eleveldb).
+
+build_cluster(Size, Config, expiryon) ->
+    set_expiry(true),
+    build_cluster(Size, Config, eleveldb);
+build_cluster(Size, Config, expiryoff) ->
+    set_expiry(false),
+    build_cluster(Size, Config, eleveldb);
 
 build_cluster(Size, Config, Backend) ->
     rt:set_backend(Backend),
@@ -198,6 +209,9 @@ set_max_concurrent(N) ->
 
 set_ring_size(Ringsize) ->
     set_riak_core_option(ring_creation_size, Ringsize).
+
+set_expiry(State) ->
+    set_riak_option(eleveldb, expiry_enabled, State).
 
 %%=======================================================================
 %% Cluster setup

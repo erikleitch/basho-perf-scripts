@@ -482,6 +482,56 @@ tsPutLatencyTestSequenceNval3VsNval1()
 
 }
 
+tsPutLatencyTestSequenceExpiryOnVsOff()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startIter=$(simpleValOrDef start '0' $@)
+
+    endIter=$[$startIter + $nIter]
+
+    echo $startIter, $endIter, $nIter
+
+    #------------------------------------------------------------
+    # Make the output directory if it doesn't already exist
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+    
+    #------------------------------------------------------------
+    # Set up TS1.3 devrel for 1-node cluster, and run the riak_test
+    # script to create the cluster
+    #------------------------------------------------------------
+    
+    \rm riak_ee
+    ln -s branches/riak_ee_riak_ts_ee_1.4.0rc7 riak_ee
+
+    rerun target=locked-all script=ts_setup_expiry_off args=--keep nodes=3
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsPutLatencyTest "1" disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsputlatency_ts1.4_expiry_off_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+	
+    riaktest ts_setup_expiry_on --keep
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsPutLatencyTest "1" disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsputlatency_ts1.4_expiry_on_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+}
+makeExpiryPlot()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_expiry_off_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_expiry_on_iter*.txt`" $'TS1.4 Put Latency\nexpiry off' $'TS1.4 Put Latency\nexpiry on' $'$\Delta$ Put Latency (on - off)' $'$\Delta$Latency (%)' False
+}
+
 makeTSPlot()
 {
 python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval1_def_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_nval3_iter*.txt`" $'TS1.3 Put Latency\nnval=1 (split)' $'TS1.3 Put Latency\nval=3' $'$\Delta$ Put Latency (nval=3 - nval=1)' $'$\Delta$Latency (%)' True
@@ -926,6 +976,59 @@ makeGroupByCompPlot()
     python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_nogroup*txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_group*.txt`" $'TS Query Latency\n(1 byte per column, no group by)' $'TS Query Latency\n(1 byte per column, group by)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False 'tsquerycomp_ts1.4_groupby.png'
 
     cp 'tsquerycomp_ts1.4_groupby.png' $RIAK_TEST_BASE/images
+}
+
+tsQueryLatencyTestSequenceExpiryOnVsOff()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startIter=$(simpleValOrDef start '0' $@)
+
+    endIter=$[$startIter + $nIter]
+
+    echo $startIter, $endIter, $nIter
+
+    #------------------------------------------------------------
+    # Make the output directory if it doesn't already exist
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+    
+    #------------------------------------------------------------
+    # Set up TS1.3 devrel for 1-node cluster, and run the riak_test
+    # script to create the cluster
+    #------------------------------------------------------------
+    
+    \rm riak_ee
+    ln -s branches/riak_ee_riak_ts_ee_1.4.0rc7 riak_ee
+
+    rerun target=locked-all script=ts_setup_expiry_off args=--keep nodes=3
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="1 time none"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_off_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+	
+    riaktest ts_setup_expiry_on --keep
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="1 time none"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_on_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+    makeExpiryQueryCompPlot
+}
+
+makeExpiryQueryCompPlot()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_off_iter*txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_on_iter*.txt`" $'TS Query Latency\n(1 byte per column, expiry off)' $'TS Query Latency\n(1 byte per column, expiry on)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False
 }
 
 runTsQueryLatencyTest()

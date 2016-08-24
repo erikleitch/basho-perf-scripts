@@ -200,6 +200,19 @@ def makePlot(ax, x, y, z, zmin, zmax, Color, Title=None, retickz=True, zlabel=No
 def str2bool(v):
   return v.lower() in ("yes", "true", "t", "1")
 
+def getOptArgs(args, name, defval):
+    d = {}
+    for arg in args:
+      if '=' in arg:
+        splargs = arg.split('=')
+        d[splargs[0]] = splargs[1]
+
+
+    if name in d.keys():
+      return d[name]
+    else:
+      return defval
+
 print 'Args = ' + str(sys.argv)
 
 dataDir = str(os.environ['RIAK_TEST_BASE']) + '/data/'
@@ -215,15 +228,8 @@ if np.size(sys.argv) > 6:
 else:
   zlabel=None
 
-if np.size(sys.argv) > 7:
-  overplot = str2bool(sys.argv[7])
-else:
-  overplot = True
-
-figfile = None
-if np.size(sys.argv) > 8:
-  figfile = sys.argv[8]
-  print 'figfile = ' + figfile
+overplot = str2bool(getOptArgs(sys.argv, 'overplot', True))
+figfile  = getOptArgs(sys.argv, 'figfile',  None)
   
 x1, y1, z1, bytes1 = getProfilerOutput(file1)
 x2, y2, z2, bytes2 = getProfilerOutput(file2)

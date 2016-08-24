@@ -295,6 +295,11 @@ makeInsertCompPlot()
     cp tsinsertcomp_ts1.4_intvdate.png $RIAK_TEST_BASE/images
 }
 
+makeInsertPutCompPlot()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_1row_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsinsertlatency_ts1.4_1row_int_iter*.txt`" $'TS1.4 PUT Latency' $'TS1.4 INSERT Latency' $'Latency Ratio (INSERT/PUT)' $'Ratio' overplot=False op='/'
+}
+
 runTsPutLatencyTest()
 {
     disp=$(valOrDef disp 'false' "$@")
@@ -527,9 +532,12 @@ tsPutLatencyTestSequenceExpiryOnVsOff()
 	iIter=$[$iIter+1]
     done
 }
-makeExpiryPlot()
+
+makeExpiryPutCompPlot()
 {
-    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_expiry_off_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_expiry_on_iter*.txt`" $'TS1.4 Put Latency\nexpiry off' $'TS1.4 Put Latency\nexpiry on' $'$\Delta$ Put Latency (on - off)' $'$\Delta$Latency (%)' False
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_expiry_off_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_expiry_on_iter*.txt`" $'TS1.4 Put Latency\nexpiry off' $'TS1.4 Put Latency\nexpiry on' $'$\Delta$ Put Latency (on - off)' $'$\Delta$Latency (%)' overplot=False figfile='tsputcomp_ts1.4_expiry.png'
+
+    cp tsputcomp_ts1.4_expiry.png $RIAK_TEST_BASE/images
 }
 
 makeTSPlot()
@@ -586,7 +594,7 @@ makePutCompPlot()
 
 makeQueryCompPlot()
 {
-    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.3_1000bytespercol*[10-20]*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_1000bytespercol*[10-20]*.txt`" $'TS1.3 Query Latency\n(1000 bytes per column)' $'TS1.4 Query Latency\n(1000 bytes per column)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False 'tsquerycomp_ts1.3v1.4.png'
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.3_1000bytespercol*[0-20]*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_1000bytespercol*[0-20]*.txt`" $'TS1.3 Query Latency\n(1000 bytes per column)' $'TS1.4 Query Latency\n(1000 bytes per column)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False 'tsquerycomp_ts1.3v1.4.png'
 
     cp tsquerycomp_ts1.3v1.4.png $RIAK_TEST_BASE/images
 
@@ -973,7 +981,7 @@ makeGroupByCompPlot()
 
 #    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_group*[0,2,4,6,8]*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_group*[1,3,5,7,9]*.txt`" $'TS Query Latency\n(1 byte per column, no group by)' $'TS Query Latency\n(1 byte per column, group by)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False
 
-    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_nogroup*txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_group*.txt`" $'TS Query Latency\n(1 byte per column, no group by)' $'TS Query Latency\n(1 byte per column, group by)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False 'tsquerycomp_ts1.4_groupby.png'
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_nogroup*txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_group*.txt`" $'TS Query Latency\n(1 byte per column, no group by)' $'TS Query Latency\n(1 byte per column, group by)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' overplot=False figfile='tsquerycomp_ts1.4_groupby.png'
 
     cp 'tsquerycomp_ts1.4_groupby.png' $RIAK_TEST_BASE/images
 }
@@ -1028,7 +1036,9 @@ tsQueryLatencyTestSequenceExpiryOnVsOff()
 
 makeExpiryQueryCompPlot()
 {
-    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_off_iter*txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_on_iter*.txt`" $'TS Query Latency\n(1 byte per column, expiry off)' $'TS Query Latency\n(1 byte per column, expiry on)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_off_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_on_iter*.txt`" $'TS Query Latency\n(1 byte per column, expiry off)' $'TS Query Latency\n(1 byte per column, expiry on)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' overplot=False figfile='tsquerycomp_ts1.4_expiry.png'
+
+    cp tsquerycomp_ts1.4_expiry.png $RIAK_TEST_BASE/images
 }
 
 runTsQueryLatencyTest()
@@ -1178,4 +1188,5 @@ makeCompPlots()
     makeQueryCompPlot
     makeInsertCompPlot
     makeGroupByCompPlot
+    makeExpiryPutCompPlot
 }

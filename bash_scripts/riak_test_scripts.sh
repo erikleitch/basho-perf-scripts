@@ -222,6 +222,20 @@ kvLatencyTestSequence()
     python $RIAK_TEST_BASE/python_scripts/kvlatency_cmp.py
 }
 
+kvLatencyTestSequencyAae()
+{
+    # Set up devrel for 3-node cluster, and run the riak_test script
+    # to create the cluster
+    
+    rerun script=ts_setup_kv_nval3 args=--keep nodes=3
+    runKvLatencyTest disp=false
+    cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_aae_passive.txt
+
+    riaktest ts_setup_kv_nval3_aae --keep
+    runKvLatencyTest disp=false
+    cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_aae_active.txt
+}
+
 runTsInsertLatencyTest()
 {
     disp=$(valOrDef disp 'false' "$@")

@@ -78,11 +78,13 @@ bytes1, puts1, gets1 = getProfilerOutput(dataDir + 'kvlatency_nval1.txt')
 bytes3, puts3, gets3 = getProfilerOutput(dataDir + 'kvlatency_nval3.txt')
 bytesw1c3, putsw1c3, getsw1c3 = getProfilerOutput(dataDir + 'kvlatency_nval3_w1c.txt')
 bytesb3, putsb3, getsb3 = getProfilerOutput(dataDir + 'kvlatency_nval3_bitcask.txt')
+bytesaaeoff, putsaaeoff, getsaaeoff = getProfilerOutput(dataDir + 'kvlatency_nval3_aae_passive.txt')
+bytesaaeon, putsaaeon, getsaaeon = getProfilerOutput(dataDir + 'kvlatency_nval3_aae_active.txt')
 
 fig = plt.figure()
 fig.set_facecolor('white');
 
-ax = fig.add_subplot(1,3,1)
+ax = fig.add_subplot(2,2,1)
 retick(ax, 14)
 makePlot(bytes3, puts3, gets3)
 makePlot(bytes1, puts1, gets1)
@@ -90,7 +92,7 @@ makePlot(bytes1, puts1, gets1)
 plt.legend(['leveldb GET (nval=3)', 'leveldb PUT (nval=3)', 'leveldb GET (nval=1)', 'leveldb PUT (nval=1)'],loc='upper left')
 plt.title('Riak KV Round-trip Latencies\nleveldb nval=3 vs. nval=1, erlang client',fontsize=16)
 
-ax = fig.add_subplot(1,3,2)
+ax = fig.add_subplot(2,2,2)
 retick(ax, 14)
 makePlot(bytes3, puts3, gets3)
 makePlot(bytesb3, putsb3, getsb3)
@@ -98,12 +100,20 @@ makePlot(bytesb3, putsb3, getsb3)
 plt.legend(['leveldb GET', 'leveldb PUT', 'bitcask GET', 'bitcask PUT)'],loc='upper left')
 plt.title('Riak KV Round-trip Latencies\nleveldb vs. bitcask, nval=3, erlang client',fontsize=16)
 
-ax = fig.add_subplot(1,3,3)
+ax = fig.add_subplot(2,2,3)
 retick(ax, 14)
 makePlot(bytes3, puts3, gets3)
 makePlot(bytesw1c3, putsw1c3, getsw1c3)
 
 plt.legend(['normal GET', 'normal PUT', 'w1c GET', 'w1c PUT'],loc='upper left')
 plt.title('Riak KV Round-trip Latencies\nnormal vs. write-once, nval=3, erlang client',fontsize=16)
+
+ax = fig.add_subplot(2,2,4)
+retick(ax, 14)
+makePlot(bytesaaeoff, putsaaeoff, getsaaeoff)
+makePlot(bytesaaeon, putsaaeon, getsaaeon)
+
+plt.legend(['normal GET, AAE off', 'normal PUT, AAE off', 'normal GET, AAE on', 'normal PUT, AAE off'],loc='upper left')
+plt.title('Riak KV Round-trip Latencies\nAAE off vs. on, normal bucket, nval=3, erlang client',fontsize=16)
 
 plt.show()

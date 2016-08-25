@@ -149,6 +149,8 @@ build_cluster(multiple) ->
     build_cluster(3);
 build_cluster(multiple_bitcask) ->
     build_cluster(3, [], bitcask);
+build_cluster(multiple_aae) ->
+    build_cluster(3, [], eleveldb, active);
 build_cluster(large) ->
     build_cluster(5).
 
@@ -163,8 +165,11 @@ build_cluster(Size, Config, expiryoff) ->
     build_cluster(Size, Config, eleveldb);
 
 build_cluster(Size, Config, Backend) ->
+    build_cluster(Size, Config, Backend, passive).
+
+build_cluster(Size, Config, Backend, Aae) ->
     rt:set_backend(Backend),
-    disable_aae(),
+    set_aae_state(Aae),
     set_worker_pool_size(),
     set_max_object_size("50MB"),
     [_Node1|_] = Nodes = rt:deploy_nodes(Size, Config),
@@ -185,8 +190,8 @@ set_riak_kv_option(OptName, OptVal) ->
 set_riak_core_option(OptName, OptVal) ->
     set_riak_option(riak_core, OptName, OptVal).
     
-disable_aae() ->
-    set_riak_kv_option(anti_entropy, {off, []}).
+set_aae_state(State) ->
+    set_riak_kv_option(anti_entropy, {State, []}).
 
 set_worker_pool_size() ->
     set_worker_pool_size(8).

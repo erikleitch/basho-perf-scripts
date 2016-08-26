@@ -150,7 +150,7 @@ build_cluster(multiple) ->
 build_cluster(multiple_bitcask) ->
     build_cluster(3, [], bitcask);
 build_cluster(multiple_aae) ->
-    build_cluster(3, [], eleveldb, active);
+    build_cluster(3, [], eleveldb, on);
 build_cluster(large) ->
     build_cluster(5).
 
@@ -165,7 +165,7 @@ build_cluster(Size, Config, expiryoff) ->
     build_cluster(Size, Config, eleveldb);
 
 build_cluster(Size, Config, Backend) ->
-    build_cluster(Size, Config, Backend, passive).
+    build_cluster(Size, Config, Backend, off).
 
 build_cluster(Size, Config, Backend, Aae) ->
     rt:set_backend(Backend),
@@ -180,18 +180,28 @@ build_cluster(Size, Config, Backend, Aae) ->
 %% Riak conf options
 %%=======================================================================
 
-set_riak_option(Module, OptName, OptVal) ->
+set_riak_conf_option(OptName, OptVal) ->
+    Opts = [{OptName, OptVal}],
+    rtdev:set_conf(all, Opts).
+
+set_riak_advanced_option(Module, OptName, OptVal) ->
     Opts = [{OptName, OptVal}],
     rtdev:update_app_config(all, [{Module, Opts}]).
 
 set_riak_kv_option(OptName, OptVal) ->
-    set_riak_option(riak_kv, OptName, OptVal).
+    set_riak_advanced_option(riak_kv, OptName, OptVal).
 
 set_riak_core_option(OptName, OptVal) ->
-    set_riak_option(riak_core, OptName, OptVal).
+    set_riak_advanced_option(riak_core, OptName, OptVal).
     
 set_aae_state(State) ->
-    set_riak_kv_option(anti_entropy, {State, []}).
+    set_riak_kv_option(anti_entropy, {State, []}),
+    case State of
+	on ->
+	    set_riak_conf_option(anti_entropy, active);
+	off ->
+	    set_riak_conf_option(anti_entropy, passive)
+    end.
 
 set_worker_pool_size() ->
     set_worker_pool_size(8).
@@ -216,7 +226,7 @@ set_ring_size(Ringsize) ->
     set_riak_core_option(ring_creation_size, Ringsize).
 
 set_expiry(State) ->
-    set_riak_option(eleveldb, expiry_enabled, State).
+    set_riak_advanced_option(eleveldb, expiry_enabled, State).
 
 %%=======================================================================
 %% Cluster setup

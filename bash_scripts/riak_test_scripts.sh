@@ -184,6 +184,7 @@ kvLatencyTestSequence()
 {
     nIter=$(simpleValOrDef iter '1' $@)
     startIter=$(simpleValOrDef start '0' $@)
+    prefix=$(simpleValOrDef prefix 'kv' $@)
     
     endIter=$[$startIter + $nIter]
 
@@ -191,8 +192,13 @@ kvLatencyTestSequence()
 	mkdir /tmp/client_profiler_results
     fi
 
+    \rm riak_ee
+    ln -s branches/riak_riak_2.1.4 riak_ee
+
+    #------------------------------------------------------------
     # Set up devrel for 3-node cluster, and run the riak_test script
     # to create the cluster
+    #------------------------------------------------------------
     
     rerun script=ts_setup_kv_nval3 args=--keep nodes=3
 
@@ -200,11 +206,13 @@ kvLatencyTestSequence()
     while [ $iIter -lt $endIter ]
     do
 	runKvLatencyTest disp=false
-	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_iter$iIter.txt
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_"$prefix"_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
-    
+
+    #------------------------------------------------------------
     # Create with w1c bucket, and rerun latency tests
+    #------------------------------------------------------------
 
     riaktest ts_setup_kv_nval3_w1c --keep
 
@@ -212,11 +220,13 @@ kvLatencyTestSequence()
     while [ $iIter -lt $endIter ]
     do
 	runKvLatencyTest disp=false
-	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_w1c_iter$iIter.txt
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_w1c_"$prefix"_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
 
+    #------------------------------------------------------------
     # Create with nval1, and rerun latency tests
+    #------------------------------------------------------------
 
     riaktest ts_setup_kv_nval1 --keep
 
@@ -224,11 +234,13 @@ kvLatencyTestSequence()
     while [ $iIter -lt $endIter ]
     do
 	runKvLatencyTest disp=false
-	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval1_iter$iIter.txt
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval1_"$prefix"_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
 
+    #------------------------------------------------------------
     # Create with nval1, w1c and rerun latency tests
+    #------------------------------------------------------------
 
     riaktest ts_setup_kv_nval1_w1c --keep
 
@@ -236,11 +248,13 @@ kvLatencyTestSequence()
     while [ $iIter -lt $endIter ]
     do
 	runKvLatencyTest disp=false
-	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval1_w1c_iter$iIter.txt
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval1_w1c_"$prefix"_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
 
+    #------------------------------------------------------------
     # Create with nval3, bitcask
+    #------------------------------------------------------------
 
     riaktest ts_setup_kv_nval3_bitcask --keep
 
@@ -248,11 +262,13 @@ kvLatencyTestSequence()
     while [ $iIter -lt $endIter ]
     do
 	runKvLatencyTest disp=false
-	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_bitcask_iter$iIter.txt
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_bitcask_"$prefix"_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
 
+    #------------------------------------------------------------
     # Create with nval3, bitcask
+    #------------------------------------------------------------
 
     riaktest ts_setup_kv_nval1_bitcask --keep
 
@@ -260,46 +276,21 @@ kvLatencyTestSequence()
     while [ $iIter -lt $endIter ]
     do
 	runKvLatencyTest disp=false
-	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval1_bitcask_iter$iIter.txt
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval1_bitcask_"$prefix"_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
 
-    python $RIAK_TEST_BASE/python_scripts/kvlatency_cmp.py
-}
+    #------------------------------------------------------------
+    # Create with AAE turned on
+    #------------------------------------------------------------
 
-kvLatencyTestSequenceAae()
-{
-    nIter=$(simpleValOrDef iter '1' $@)
-    startIter=$(simpleValOrDef start '0' $@)
-    
-    endIter=$[$startIter + $nIter]
-
-    if [ ! -d /tmp/client_profiler_results ]; then
-	mkdir /tmp/client_profiler_results
-    fi
-
-    # Set up devrel for 3-node cluster, and run the riak_test script
-    # to create the cluster
-
-#    \rm riak_ee
-#    ln -s branches/riak_ee_riak_ts_ee_1.3.0 riak_ee
-
-#    rerun script=ts_setup_kv_nval3 args=--keep nodes=3
-
-#    iIter=$startIter
-#    while [ $iIter -lt $endIter ]
-#    do
-#	runKvLatencyTest disp=false
-#	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_aae_passive_iter$iIter.txt
-#	iIter=$[$iIter+1]
- #   done
+    riaktest ts_setup_kv_nval3_aae --keep
 
     iIter=$startIter
     while [ $iIter -lt $endIter ]
     do
-	riaktest ts_setup_kv_nval3_aae --keep
 	runKvLatencyTest disp=false
-	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_aae_active_iter$iIter.txt
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_aae_active_"$prefix"_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
 }
@@ -317,6 +308,14 @@ runTsInsertLatencyTest()
     if [ $disp == "true" ]; then
 	parseTsPutLatencyTestProfilerOutput `getlast /tmp/client_profiler_results`
     fi
+}
+
+runKvLatencyTestSequence()
+{
+    kvLatencyTestSequence iter=5 start=20 prefix="2.1.4"
+    kvLatencyTestSequence iter=5 start=25 prefix="2.1.4"
+    kvLatencyTestSequence iter=5 start=30 prefix="2.1.4"
+    kvLatencyTestSequence iter=5 start=35 prefix="2.1.4"
 }
 
 tsInsertLatencyTestSequence()

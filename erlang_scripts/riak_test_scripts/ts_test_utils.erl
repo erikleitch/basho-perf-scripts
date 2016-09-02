@@ -44,6 +44,9 @@ get_bucket(Ind) when is_integer(Ind) ->
 get_bucket(geo) ->
     "GeoCheckin";
 
+get_bucket(geoextra) ->
+    "GeoCheckin";
+
 %%------------------------------------------------------------
 %% Else return the argument as the bucket name
 %%------------------------------------------------------------
@@ -89,7 +92,23 @@ get_ddl(geo) ->
 	"myfloat     double      not null, " ++
 	"mybool      boolean     not null, " ++
 	"PRIMARY KEY ((myfamily, myseries, quantum(time, 15, 'm')), " ++
-	"myfamily, myseries, time))".
+	"myfamily, myseries, time))";
+
+%%------------------------------------------------------------
+%% Non-standard DDL
+%%------------------------------------------------------------
+
+get_ddl(geoextra) ->
+    _SQL = "CREATE TABLE GeoCheckin (" ++
+	"myfamily    varchar     not null, " ++
+	"myseries    varchar     not null, " ++
+	"time        timestamp   not null, " ++
+	"myint       sint64      not null, " ++
+	"mybin       varchar     not null, " ++
+	"myfloat     double      not null, " ++
+	"mybool      boolean     not null, " ++
+	"PRIMARY KEY ((myfamily, myseries, quantum(time, 15, 'm')), " ++
+	"myfamily, myseries, time, myint))".
 
 %%=======================================================================
 %% Bucket creation
@@ -172,6 +191,7 @@ build_cluster(Size, Config, Backend, Aae) ->
     set_aae_state(Aae),
     set_worker_pool_size(),
     set_max_object_size("50MB"),
+    set_ring_size(8),
     [_Node1|_] = Nodes = rt:deploy_nodes(Size, Config),
     rt:join_cluster(Nodes),
     Nodes.

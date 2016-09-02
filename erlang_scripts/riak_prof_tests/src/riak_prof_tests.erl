@@ -328,6 +328,27 @@ putQueryTestData(Args, Nrow, AccRow, GenInd) ->
     riakc_ts:put(C, Bucket, Data),
     putQueryTestData(Args, Nrow, AccRow+1, NewInd).
 
+%%-----------------------------------------------------------------------
+%% TS cluster population tests
+%%-----------------------------------------------------------------------
+
+putRandomTsData([Nrow, MsRange]) when is_list(Nrow) ->
+    io:format("Running putRandomTsData with Nrow = ~p MsRange = ~p~n", [Nrow, MsRange]),
+    putRandomTsData(list_to_integer(Nrow), list_to_integer(MsRange)).
+
+putRandomTsData(Nrow, MsRange) ->
+    C = getClient(),
+    Bucket = <<"GeoCheckin">>,
+    putRandomTsData({C, Bucket, MsRange}, Nrow, 0).
+
+putRandomTsData(_Args, _Nrow, _Nrow) ->
+    ok;
+putRandomTsData(Args, Nrow, AccRow) ->
+    {C, Bucket, MsRange} = Args,
+    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, random:uniform(MsRange)+1, 1, <<"binval">>, 1.234, true])],
+    riakc_ts:put(C, Bucket, Data),
+    putRandomTsData(Args, Nrow, AccRow+1).
+
 %%----------------------------------------------------------------------- 
 %% KV PUT/GET Latency tests
 %%----------------------------------------------------------------------- 
@@ -345,7 +366,8 @@ runKvLatencyTests() ->
 
 runKvLatencyTest(N, Nbyte) ->
     kvPutTest(N, Nbyte),
-    kvGetTest(N, Nbyte).
+    kvGetTest(N, Nbyte),
+    kvDelTest(N, Nbyte).
     
 runKvLatencyTest(Args) ->
     [Nstr, NbyteStr] = Args,
@@ -390,6 +412,21 @@ kvGetTest(_C,Name,_N,_N) ->
 kvGetTest(C,Name,N,Acc) ->
     riakc_pb_socket:get(C, {<<"TestBucketType">>, <<"GeoCheckin">>}, <<"key1">>),
     kvGetTest(C,Name,N,Acc+1).
+
+kvDelTest(N,Nbyte) ->
+    C = getClient(),
+    profiler:profile({prefix, "/tmp/client_profiler_results"}),
+    profiler:profile({noop, false}),
+    Name = list_to_atom("del_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
+    profiler:profile({start, Name}),
+    kvDelTest(C,Name,N,0).
+kvDelTest(_C,Name,_N,_N) ->
+    profiler:profile({stop, Name}),
+    profiler:profile({debug}),
+    ok;
+kvDelTest(C,Name,N,Acc) ->
+    riakc_pb_socket:delete(C, {<<"TestBucketType">>, <<"GeoCheckin">>}, <<"key1">>),
+    kvDelTest(C,Name,N,Acc+1).
 
 keys(Bucket) ->
     {ok, Riak} = riakc_pb_socket:start_link("127.0.0.1", 10017),

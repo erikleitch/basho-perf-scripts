@@ -79,7 +79,7 @@ riaktest()
 }
 
 #------------------------------------------------------------
-# Rerun the KV latency test sequence
+# Parse output from a single KV latency test sequence and plot it
 #------------------------------------------------------------
 
 parseKvLatencyTestProfilerOutput()
@@ -122,8 +122,10 @@ parseKvLatencyTestProfilerOutput()
     pycomm+="  d = parseProfilerOutput(fileName, {})\n"
     pycomm+="  gbytes = []\n"
     pycomm+="  pbytes = []\n"
+    pycomm+="  dbytes = []\n"
     pycomm+="  getus = []\n"
     pycomm+="  putus = []\n"
+    pycomm+="  delus = []\n"
     pycomm+="  for key in d.keys():\n"
     pycomm+="    s = key.split('_')\n"
     pycomm+="    if s[0] == 'put':\n"
@@ -134,39 +136,51 @@ parseKvLatencyTestProfilerOutput()
     pycomm+="      gbytes.append(float(s[1]))\n"
     pycomm+="      ntrial = int(s[2])\n"
     pycomm+="      getus.append(d[key]['usec']/ntrial)\n"
+    pycomm+="    elif s[0] == 'del':\n"
+    pycomm+="      dbytes.append(float(s[1]))\n"
+    pycomm+="      ntrial = int(s[2])\n"
+    pycomm+="      delus.append(d[key]['usec']/ntrial)\n"
     pycomm+="  btes = []\n"
     pycomm+="  puts = []\n"
     pycomm+="  gets = []\n"
+    pycomm+="  dels = []\n"
     pycomm+="  ps = np.argsort(pbytes)\n"
     pycomm+="  gs = np.argsort(gbytes)\n"
+    pycomm+="  ds = np.argsort(dbytes)\n"
     pycomm+="  for i in range(0,np.size(ps)):\n"
     pycomm+="    btes.append(pbytes[ps[i]])\n"
     pycomm+="    puts.append(putus[ps[i]])\n"
     pycomm+="    gets.append(getus[gs[i]])\n"
+    pycomm+="    dels.append(delus[gs[i]])\n"
     pycomm+="\n"
-    pycomm+="  return btes,puts,gets\n"
+    pycomm+="  return btes,puts,gets,dels\n"
     pycomm+="\n"
-    pycomm+="def makePlot(bytes, puts, gets):\n"
+    pycomm+="def makePlot(bytes, puts, gets, dels):\n"
     pycomm+="  fig = plt.figure()\n"
     pycomm+="  fig.set_facecolor('white');\n"
     pycomm+="  ax = fig.add_subplot(1,1,1)\n"
     pycomm+="  plt.plot(bytes,gets)\n"
     pycomm+="  plt.hold(True)\n"
     pycomm+="  plt.plot(bytes,puts,'m')\n"
+    pycomm+="  plt.plot(bytes,dels,'y')\n"
     pycomm+="  ax.set_xscale('log')\n"
     pycomm+="  ax.set_yscale('log')\n"
     pycomm+="  plt.xlabel('Data size (bytes)',fontsize=16)\n"
     pycomm+="  plt.ylabel('Latency (\$\mu\$sec)',fontsize=16)\n"
-    pycomm+="  plt.legend(['Riak KV Get Latency', 'Riak KV Put Latency'],loc='upper left')\n"
+    pycomm+="  plt.legend(['Riak KV Get Latency', 'Riak KV Put Latency', 'Riak KV Del Latency'],loc='upper left')\n"
     pycomm+="  plt.title('Round-trip Riak KV Latencies',fontsize=16)\n"
     pycomm+="  plt.show()\n"
     pycomm+="\n"
-    pycomm+="bytes, puts, gets = getProfilerOutput('$fileName')\n"
-    pycomm+="makePlot(bytes, puts, gets)\n"
+    pycomm+="bytes, puts, gets, dels = getProfilerOutput('$fileName')\n"
+    pycomm+="makePlot(bytes, puts, gets, dels)\n"
 
     printf "$pycomm" > /tmp/pytest.py
     printf "$pycomm" | python
 }
+
+#-----------------------------------------------------------------------
+# Run a single iteration of the KV latency test
+#-----------------------------------------------------------------------
 
 runKvLatencyTest()
 {
@@ -179,6 +193,12 @@ runKvLatencyTest()
 	parseKvLatencyTestProfilerOutput `getlast /tmp/client_profiler_results`
     fi
 }
+
+#-----------------------------------------------------------------------
+# Run a complete sequence of KV latency tests, doing 'iter' iterations
+# of each step, starting at index 'start'.  Files will be saved with
+# prefix 'prefix'
+#-----------------------------------------------------------------------
 
 kvLatencyTestSequence()
 {
@@ -239,20 +259,6 @@ kvLatencyTestSequence()
     done
 
     #------------------------------------------------------------
-    # Create with nval1, w1c and rerun latency tests
-    #------------------------------------------------------------
-
-    riaktest ts_setup_kv_nval1_w1c --keep
-
-    iIter=$startIter
-    while [ $iIter -lt $endIter ]
-    do
-	runKvLatencyTest disp=false
-	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval1_w1c_"$prefix"_iter$iIter.txt
-	iIter=$[$iIter+1]
-    done
-
-    #------------------------------------------------------------
     # Create with nval3, bitcask
     #------------------------------------------------------------
 
@@ -263,20 +269,6 @@ kvLatencyTestSequence()
     do
 	runKvLatencyTest disp=false
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_bitcask_"$prefix"_iter$iIter.txt
-	iIter=$[$iIter+1]
-    done
-
-    #------------------------------------------------------------
-    # Create with nval3, bitcask
-    #------------------------------------------------------------
-
-    riaktest ts_setup_kv_nval1_bitcask --keep
-
-    iIter=$startIter
-    while [ $iIter -lt $endIter ]
-    do
-	runKvLatencyTest disp=false
-	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval1_bitcask_"$prefix"_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
 
@@ -294,6 +286,30 @@ kvLatencyTestSequence()
 	iIter=$[$iIter+1]
     done
 }
+
+#-----------------------------------------------------------------------
+# Run a chunked-up series of KV latency test sequences.  In each
+# chunk, the entire test sequence is run for 'iter' iterations at each
+# step, and the sequence is run 'chunk' times
+#-----------------------------------------------------------------------
+
+kvLatencyTestSequenceChunk()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startChunk=$(simpleValOrDef start '0' $@)
+    nChunk=$(simpleValOrDef chunk '5' $@)
+    prefix=$(simpleValOrDef prefix 'kv' $@)
+
+    iChunk=$startChunk
+    while [ $iChunk -lt $nChunk ]
+    do
+	start=$[$nIter * $iChunk]
+	echo "Calling seq with iter=$nIter start=$start"
+	kvLatencyTestSequence iter=$nIter start=$start prefix=$prefix
+	iChunk=$[$iChunk+1]
+    done
+}
+
 
 runTsInsertLatencyTest()
 {

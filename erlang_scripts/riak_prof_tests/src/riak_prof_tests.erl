@@ -8,12 +8,17 @@
 %% Utilities
 %%=======================================================================
 
-getClient(_) ->
-    getClient().
-
-getClient() ->
-    {ok, C} = riakc_pb_socket:start_link("127.0.0.1", 10017),
+getClient(Ip, Port) ->
+    {ok, C} = riakc_pb_socket:start_link(Ip, Port),
     C.
+    
+getClient() ->
+    getClient("127.0.0.1", 10017).
+
+getClient(slb) ->
+    getClient("10.109.234.238", 8087);
+getClient(_) ->
+    getClient("127.0.0.1", 10017).
 
 %%=======================================================================
 %% TS PUT Latency tests
@@ -429,8 +434,10 @@ kvDelTest(C,Name,N,Acc) ->
     kvDelTest(C,Name,N,Acc+1).
 
 keys(Bucket) ->
-    {ok, Riak} = riakc_pb_socket:start_link("127.0.0.1", 10017),
-    riakc_ts:stream_list_keys(Riak, Bucket, []),
+    keys(getClient(), Bucket).
+
+keys(C, Bucket) ->
+    riakc_ts:stream_list_keys(C, Bucket, []),
     receive_keys([]).
 
 receive_keys(Keys) ->

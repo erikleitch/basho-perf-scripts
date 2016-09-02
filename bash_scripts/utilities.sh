@@ -99,13 +99,13 @@ getlast()
 erlt_flags() {
     unset ERL_AFLAGS
     export CURR_DIR=`pwd`
-    echo "-pa ${CURR_DIR}/.eunit ${CURR_DIR}/ebin -pa ${CURR_DIR}/deps/*/ebin -pa riak_ee/deps/*/ebin -pa ${RIAK_TEST_BASE}/erlang_scripts/*/ebin"
+    echo "-pa ${CURR_DIR}/.eunit ${CURR_DIR}/ebin -pa ${CURR_DIR}/deps/*/ebin -pa ${CURR_DIR}/lib/*/ebin -pa riak_ee/deps/*/ebin -pa ${RIAK_TEST_BASE}/erlang_scripts/*/ebin"
 }
 
 erlt_fn() {
     unset ERL_AFLAGS
     export CURR_DIR=`pwd`
-    alias erlt="erl -pa ${CURR_DIR}/.eunit ${CURR_DIR}/ebin -pa ${CURR_DIR}/deps/*/ebin -pa riak_ee/deps/*/ebin -pa ${RIAK_TEST_BASE}/erlang_scripts/*/ebin"
+    alias erlt="erl -pa ${CURR_DIR}/.eunit ${CURR_DIR}/ebin -pa ${CURR_DIR}/deps/*/ebin -pa ${CURR_DIR}/lib/*/ebin -pa riak_ee/deps/*/ebin -pa ${RIAK_TEST_BASE}/erlang_scripts/*/ebin"
 }
 
 #------------------------------------------------------------

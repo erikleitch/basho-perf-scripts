@@ -1506,3 +1506,64 @@ getring()
 
     printf "$pycomm"
 }
+
+getRingBytes()
+{
+    node=$1
+    prefixdir=$2
+
+    #------------------------------------------------------------
+    # Get the list of hash partitions from disk
+    #------------------------------------------------------------
+
+    ring=("`ls $prefixdir/data/leveldb`")
+
+    #------------------------------------------------------------
+    # Now iterate over hash partitions for this node
+    #------------------------------------------------------------
+
+    local erlstr=""
+    first=true
+    for seg in $ring
+    do
+	# Construct a python list of segment hashes
+
+	if [ -z $size ]
+	then
+	    size="0"
+	fi
+
+	if [ $first == true ]
+	then
+	    erlstr+="$prefixdir/data/leveldb/$seg"
+	    first=false
+	else
+	    erlstr+=" $prefixdir/data/leveldb/$seg"
+	fi
+
+    done
+    #------------------------------------------------------------
+    # Now get the number of bytes for each segment, and
+    # construct relevant python strings
+    #------------------------------------------------------------
+
+    bytes=`runerl mod=riak_prof_tests fn=printLeveldbBytes args="$erlstr" riak=$prefixdir`
+
+    local sizes="ringSizes['$node'] = ["
+    first=true
+
+    for size in $bytes
+    do
+	if [ $first == true ]
+	then
+	    sizes+="$size"
+	    first=false
+	else
+	    sizes+=", $size"
+	fi
+    done
+    sizes+="]"
+
+    pycomm="$sizes\n"
+    printf "$pycomm"
+}

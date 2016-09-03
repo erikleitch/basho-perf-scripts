@@ -1608,9 +1608,11 @@ issueSystemHostCmd()
 {
     cluster=$1
     rdir=$(getSLRiakDir)
+    bpdir=$(getSLBashoPerfDir)
     hosts=$(systemhosts $cluster)
     for host in $hosts
     do
-	env_ssh $host "ls $rdir"
+	echo "Issuing command to host $host"
+	env_ssh $host "source $bpdir/basho-perf-scripts_master/prof_source > /dev/null;getRingBytes $host $rdir"
     done
 }

@@ -144,3 +144,8 @@ runerl()
     flags=$(erlt_flags riak=$riak)
     erl $flags -noshell -run ${mod//\"/} ${fn//\"/} ${args//\"/} -run init stop
 }
+
+echoerr()
+{
+    echo "$@" 1>&2;
+}

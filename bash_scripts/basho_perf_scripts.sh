@@ -1604,15 +1604,103 @@ systemhosts()
     fi
 }
 
-issueSystemHostCmd()
+#-----------------------------------------------------------------------
+# Query SL system hosts for ring size
+#
+# Usage:
+#
+#    getSLRingBytes clusterName
+#
+#-----------------------------------------------------------------------
+
+getSLRingBytes()
 {
     cluster=$1
+
+    echoerr "Querying Riak dir on $cluster"
+
     rdir=$(getSLRiakDir)
+
+    echoerr "Querying basho-perf dir on $cluster"
+    
     bpdir=$(getSLBashoPerfDir)
+
+    echoerr "Getting system hosts for $cluster"
+    
     hosts=$(systemhosts $cluster)
+    ret=""
+
+    #------------------------------------------------------------
+    # First query the ring partitions from the first system host
+    #------------------------------------------------------------
+
+    echoerr "Getting ring partitions $cluster"
+    
+    firsthost=($hosts)
+    dirlist=`env_ssh $firsthost "ls $rdir/data/leveldb"`
+
+    ret+="ringSegments = ["
+    ret+=$(commaSeparatedResponses "$dirlist")
+    ret+="]\n"
+
+    #------------------------------------------------------------
+    # Now iterate over all system hosts, querying for actual ring sizes
+    #------------------------------------------------------------
+    
     for host in $hosts
     do
-	echo "Issuing command to host $host"
-	env_ssh $host "source $bpdir/basho-perf-scripts_master/prof_source > /dev/null;getRingBytes $host $rdir"
+	echoerr "Getting ring size for $host"
+	
+	resp=`env_ssh $host "source $bpdir/basho-perf-scripts_master/prof_source > /dev/null;getRingBytes $host $rdir"`
+	ret+=$(stripSLResp "$resp")
+	ret+="\n"
     done
+    
+    printf "$ret"
+}
+
+stripSLResp()
+{
+    resp="$1"
+    ret=""
+
+    first=true
+    for item in $resp
+    do
+	if [ $first == true ]
+	then
+	    first=false
+	else
+	    ret+=$item
+	fi
+    done
+
+    echo $ret
+}
+
+commaSeparatedResponses()
+{
+    resp="$1"
+    ret=""
+
+    firstitem=true
+    first=true
+    for item in $resp
+    do
+	if [ $first == true ]
+	then
+	    first=false
+	else
+	    if [ $firstitem == true ]
+	    then
+		firstitem=false
+		ret+="'"$item"'"
+	    else
+		ret+=", '"$item"'"
+	    fi
+	    first=true
+	fi
+    done
+
+    echo "$ret"
 }

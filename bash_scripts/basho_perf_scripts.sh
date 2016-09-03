@@ -21,11 +21,33 @@ parseparam()
     sub=`echo "$sub" | tr " " "\0"`
 
     array=(`echo "$sub" | tr "," " "`)
-    
+
     for i in "${!array[@]}"	   
     do	
 	arr=${array[i]}
 	if [[ $arr =~ \'$param\':(.*)L ]]; then
+	    echo ${BASH_REMATCH[1]}
+	    return
+	fi
+    done
+}
+
+parseparamnew()
+{
+    local sub=$1
+    param=$2
+
+    sub=`echo "$sub" | tr " " "\0"`
+    sub=`echo "$sub" | tr "\"" "\0"`
+    sub=`echo "$sub" | tr "{" ","`
+    sub=`echo "$sub" | tr "}" ","`
+
+    array=(`echo "$sub" | tr "," " "`)
+
+    for i in "${!array[@]}"	   
+    do	
+	arr=${array[i]}
+	if [[ $arr =~ $param':'(.*) ]]; then
 	    echo ${BASH_REMATCH[1]}
 	    return
 	fi
@@ -49,6 +71,10 @@ getWrites()
 	echo $av"*"$val1 | bc
     elif [[ $param2 == 'columns' ]]; then
 	echo $av"*"$val2 | bc
+    elif [[ $param1 == 'fieldcount' ]]; then
+	echo $av"*"$val1 | bc
+    elif [[ $param2 == 'fieldcount' ]]; then
+	echo $av"*"$val2 | bc
     else
 	echo ""
     fi
@@ -66,6 +92,8 @@ getCellsize()
     if [ $param1 == 'cell_size' ]; then
 	echo $val1
     elif [ $param2 == 'cell_size' ]; then
+	echo $val2
+    elif [ $param2 == 'fieldsize' ]; then
 	echo $val2
     elif [ ! -z "$cellsize" ]; then
 	cellarr=(`echo $cellsize`)
@@ -100,6 +128,10 @@ getBytes()
 	echo $av"*"$val1"*"$cellsize | bc
     elif [ $param2 == 'columns' ] && [ ! -z "$cellsize" ]; then
 	echo $av"*"$cellsize"*"$val2 | bc
+    elif [ $param1 == 'fieldcount' ] && [ ! -z "$cellsize" ]; then
+	echo $av"*"$cellsize"*"$val2 | bc
+    elif [ $param2 == 'fieldcount' ] && [ ! -z "$cellsize" ]; then
+	echo $av"*"$cellsize"*"$val2 | bc
     else
 	echo ""
     fi
@@ -123,11 +155,53 @@ writeVal()
     enddate="$9"
     stat=${10}
 
+    echo "Inside writeVal with stat=$stat"
     total=0.0
     if [ $stat == \"ops\" ]; then
 	av+=")"
 	total=`echo $av | bc`
 
+
+	writes=$(getWrites "$av" $param1 $val1 $param2 $val2)
+	bytes=$(getBytes "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter)
+
+	echo "Inside writeVal with stat=$stat total=$total writes=$writes"
+	if [ $total != "0" ]; then
+	    if [ ! -z "$bytes" ]; then
+		echo $val1 " " $val2 " " $total " " $writes " " $bytes >> "/tmp/dat"$iter".txt"
+	    elif [ ! -z "$writes" ]; then
+		echo $val1 " " $val2 " " $total " " $writes >> "/tmp/dat"$iter".txt"
+	    else
+		echo $val1 " " $val2 " " $total >> "/tmp/dat"$iter".txt"
+	    fi
+	fi
+
+    elif [ $stat == \"cpu\" ]; then
+	total=$(pythonInfluxQuery "$startdate" "$enddate")
+	echo $val1 " " $val2 " " $total >> "/tmp/dat"$iter".txt"
+    fi
+}
+
+writeValNew()
+{
+    local av=$1
+    param1=$2
+    val1=$3
+    param2=$4
+    val2=$5
+    cellsize=$6
+    iter=$7
+    startdate="$8"
+    enddate="$9"
+    stat=${10}
+
+    echo "Inside writeVal with stat=$stat"
+    total=0.0
+    if [ $stat == \"ops\" ]; then
+	av+=")"
+	total=`echo $av | bc`
+
+	echo "Inside writeVal with stat=$stat total=$total"
 	writes=$(getWrites "$av" $param1 $val1 $param2 $val2)
 	bytes=$(getBytes "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter)
 
@@ -164,6 +238,18 @@ getTestData()
     printf "\n"
 }
 
+getTestDataYcsb()
+{
+    local files="$1"
+
+    iIter="0"                                                                      
+    for i in $files; do
+	getTestDataSingleYcsb $i $2 $3 "$4" $iIter $5
+        iIter=$[$iIter+1] 
+    done
+    printf "\n"
+}
+
 getTestDataSingle()
 {
     file=$1
@@ -172,7 +258,7 @@ getTestDataSingle()
     cellsize=$4
     iter=$5
     stat=$6
-    
+
     printf "\rProcessing $file..."
     
     first="true"
@@ -318,6 +404,88 @@ getTestDataSingleNew()
     done <$file
 
     writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+}
+
+ycsbtest()
+{
+    getTestDataSingleYcsb output.log threadcount fieldcount 1 0 "ops"
+}
+
+getTestDataSingleYcsb()
+{
+    file=$1
+    param1=$2
+    param2=$3
+    cellsize=$4
+    iter=$5
+    stat=$6
+
+    echo "Inside YCSB with file=$file param1=$param1 param2=$param2 cellsize=$cellsize $iter=$iter stat=$stat"
+    printf "\rProcessing $file..."
+    
+    first="true"
+    haveEnd="false"
+
+    while read p; do
+	case "$p" in
+
+	    #------------------------------------------------------------
+	    # If this is a config line, extract the parameter vals from it
+	    #------------------------------------------------------------
+	    
+	    *'event_type="start"'*)
+		echo "Found line: $p"
+		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
+		    sub=${BASH_REMATCH[1]}
+		    echo "Found sub: $sub"
+
+		    if [ $first == "true" ]; then
+			first="false"
+			rm "/tmp/dat"$iter".txt"
+		    else
+			echo "Calling writeVal with val1 = $val1 val2 = $val2"
+			writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+		    fi
+		    
+		    val1=$(parseparamnew "$sub" $param1)
+		    val2=$(parseparamnew "$sub" $param2)
+
+		    echo "param1 = $param1 val1 = $val1"
+		    av="scale=4;(0.0"
+		fi
+		;;
+
+	    #------------------------------------------------------------
+	    # Else accumulate throughputs for this set of parameters
+	    # if this is a throughput report
+	    #------------------------------------------------------------
+	    
+	    *deploy_basho_perf*)
+		startdate=$(getDate "$p")
+		haveEnd="false"
+		;;
+
+	    #------------------------------------------------------------
+	    # Else accumulate throughputs for this set of parameters
+	    # if this is a throughput report
+	    #------------------------------------------------------------
+	    
+	    *\[OVERALL\],\ Throughput*)
+		echo "Found a throughput line: $p"
+		if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
+		    av+="+"${BASH_REMATCH[1]}
+		    echo "av = $av"
+		fi
+
+		if [ $haveEnd == "false" ]; then
+		    enddate=$(getDate "$p")
+		    haveEnd="true"
+		fi
+		;;
+	esac
+    done <$file
+
+    writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
 }
 
 getDate()
@@ -859,6 +1027,76 @@ plotlogfile()
     generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize"
 }
 
+plotlogfileycsb()
+{
+    cellsize=$(valOrDef cellsize '' "$@")
+    overplot=$(valOrDef overplot false "$@")
+    figsize=$(valOrDef figsize '' "$@")
+    labels=$(valOrDef labels '' "$@")
+    title=$(valOrDef title '' "$@")
+    scaleto=$(valOrDef scaleto '' "$@")
+    plotwithfiles=$(valOrDef plotwith '' "$@")
+    plotwithaction=$(valOrDef plotwithaction 'p' "$@")
+    stat=$(valOrDef stat 'ops' "$@")
+    output=$(valOrDef output '' "$@")
+    figview=$(valOrDef figview '' "$@")
+
+    echo "figsize = $figsize"
+    files="$1"
+
+    allfiles=$files
+    allcellsize=$cellsize
+    scale=false
+    plotwith=false
+    
+    #------------------------------------------------------------
+    # If overplotting with another set of files, add those files to
+    # the allfiles list for extraction, and duplicate the cellsize
+    # parameters for those files
+    #------------------------------------------------------------
+
+    if [ "$plotwithfiles" != \"\" ]; then
+	plotwith=true
+	allfiles=$allfiles" "${plotwithfiles//\"/}
+	allcellsize=$allcellsize" "$cellsize
+    fi
+
+    #------------------------------------------------------------
+    # If scaling to another set of files, add those files to the
+    # allfiles list for extraction, and duplicate the cellsize
+    # parameters for those files
+    #------------------------------------------------------------
+    
+    if [ "$scaleto" != \"\" ]; then
+	scale=true
+	allfiles=$allfiles" "${scaleto//\"/}
+	allcellsize=$allcellsize" "$cellsize
+    fi
+
+    getTestDataYcsb "$allfiles" $2 $3 "$allcellsize" $stat
+    echo "output(1) = $output"
+    if [ $output == \"\" ]; then
+	echo "output is null"
+    fi
+
+    echo "allcells = $allcellsize figsize=$figsize"
+    
+    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize"
+}
+
+makeycsbplot()
+{
+    output=$(valOrDef output '' "$@")
+    output=${output//\"/}
+
+    figsize=$(valOrDef figsize '(15,18)' "$@")
+    figsize=${figsize//\"/}
+
+#    plotlogfileycsb "output.log output.log" threadcount fieldcount cellsize="1 1" figsize="$figsize" labels="Cellsize=1 Cellsize=1" title="Riak PUT (YCSB)"
+
+    plotlogfileycsb "ycsb2.log ycsb2.log" threadcount fieldcount cellsize="1 1" figsize="$figsize" labels="Cellsize=1 Cellsize=1" title="Riak PUT (YCSB)"
+}
+
 makeplot()
 {
     output=$(valOrDef output '' "$@")
@@ -1326,4 +1564,53 @@ bashoPerfDiff3d()
 generatePythonPlotTest()
 {
     generatePythonPlots "/tmp/dat1.txt /tmp/dat2.txt" threads columns false "(16,18)" "label1 label2" title 2 12 outputtest "(30,135)" p
+}
+
+getSLRiakDir()
+{
+    vals=(`echo $(systemhosts softlayer-b) | tr " " "\n"`)
+    host=${vals[0]}
+    vals=`env_ssh $host 'which riak'`
+    tvals=(`echo $vals | tr " " "\n"`)
+    dirname `dirname ${tvals[1]}`
+}
+
+getSLBashoPerfDir()
+{
+    vals=(`echo $(systemhosts softlayer-b) | tr " " "\n"`)
+    host=${vals[0]}
+    vals=`env_ssh $host 'which basho-perf'`
+    tvals=(`echo $vals | tr " " "\n"`)
+    dirname `dirname ${tvals[1]}`
+}
+
+harnesshosts()
+{
+    cluster=$1
+    slhosts=`hosts $cluster 2>&1`
+    if [[ "$slhosts" =~ [[:print:]]*"harness_hosts: hosts (4):"([[:print:]]*) ]]
+    then
+	echo ${BASH_REMATCH[1]}
+    fi
+}
+
+systemhosts()
+{
+    cluster=$1
+    slhosts=`hosts $cluster 2>&1`
+    if [[ "$slhosts" =~ [[:print:]]*"system_hosts: hosts (5):"([[:print:]]*) ]]
+    then
+	echo ${BASH_REMATCH[1]}
+    fi
+}
+
+issueSystemHostCmd()
+{
+    cluster=$1
+    rdir=$(getSLRiakDir)
+    hosts=$(systemhosts $cluster)
+    for host in $hosts
+    do
+	env_ssh $host "ls $rdir"
+    done
 }

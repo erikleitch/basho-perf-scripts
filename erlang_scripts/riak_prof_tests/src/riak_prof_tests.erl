@@ -449,3 +449,156 @@ receive_keys(Keys) ->
 	Ret ->
 	    io:format(user, "Ret = ~p~n", [Ret])
     end.
+
+testQuery(Range) ->
+    C = getClient(),
+    riakc_ts:query(C, "select * from GeoCheckin where myfamily='family1' and myseries='seriesX' and time > 0 and time < " ++ integer_to_list(Range)).
+
+getDb(0) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/0",
+    getDb(File);
+getDb(1096) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/1096126227998177188652763624537212264741949407232",
+    getDb(File);
+getDb(1278) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/1278813932664540053428224228626747642198940975104",
+    getDb(File);
+getDb(1826) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/182687704666362864775460604089535377456991567872",
+    getDb(File);
+getDb(3653) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/365375409332725729550921208179070754913983135744",
+    getDb(File);
+getDb(5480) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/548063113999088594326381812268606132370974703616",
+    getDb(File);
+getDb(7307) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/730750818665451459101842416358141509827966271488",
+    getDb(File);
+getDb(9134) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/913438523331814323877303020447676887284957839360",
+    getDb(File);
+getDb(File) ->
+    LockFile = File ++ "/LOCK",
+    os:cmd("rm " ++ LockFile),
+    Opts = [{total_memory, 14307360768}, {block_cache_threshold, 33554432}, {block_restart_interval, 16}, {block_size_steps, 16}, {cache_object_warming, true}, {compression, lz4}, {create_if_missing, true}, {delete_threshold, 1000}, {eleveldb_threads, 71}, {expiry_enabled, false}, {expiry_minutes, 0}, {fadvise_willneed, false}, {limited_developer_mem, true}, {sst_block_size, 4096}, {tiered_slow_level, 0}, {total_leveldb_mem_percent, 70}, {use_bloomfilter, true}, {whole_file_expiry, true}, {write_buffer_size, 39817495}],
+    {ok, DbRef} = eleveldb:open(File, Opts),
+    DbRef.
+
+iteratorTest(0) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/0",
+    iteratorTest(File);
+iteratorTest(1096) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/1096126227998177188652763624537212264741949407232",
+    iteratorTest(File);
+iteratorTest(1278) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/1278813932664540053428224228626747642198940975104",
+    iteratorTest(File);
+iteratorTest(1826) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/182687704666362864775460604089535377456991567872",
+    iteratorTest(File);
+iteratorTest(3653) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/365375409332725729550921208179070754913983135744",
+    iteratorTest(File);
+iteratorTest(5480) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/548063113999088594326381812268606132370974703616",
+    iteratorTest(File);
+iteratorTest(7307) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/730750818665451459101842416358141509827966271488",
+    iteratorTest(File);
+iteratorTest(9134) ->
+    File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/913438523331814323877303020447676887284957839360",
+    iteratorTest(File);
+
+iteratorTest(File) ->
+    LockFile = File ++ "/LOCK",
+    os:cmd("rm " ++ LockFile),
+    Opts = [{total_memory, 14307360768}, {block_cache_threshold, 33554432}, {block_restart_interval, 16}, {block_size_steps, 16}, {cache_object_warming, true}, {compression, lz4}, {create_if_missing, true}, {delete_threshold, 1000}, {eleveldb_threads, 71}, {expiry_enabled, false}, {expiry_minutes, 0}, {fadvise_willneed, false}, {limited_developer_mem, true}, {sst_block_size, 4096}, {tiered_slow_level, 0}, {total_leveldb_mem_percent, 70}, {use_bloomfilter, true}, {whole_file_expiry, true}, {write_buffer_size, 39817495}],
+
+    {ok, DbRef} = eleveldb:open(File, Opts),
+    {ok, Iter} = eleveldb:iterator(DbRef, []),
+
+    try 
+	{ok, Key, Val} = eleveldb:iterator_move(Iter, first),
+	io:format("Key = ~p Val = ~p~n", [Key, Val]),
+	printNextKey(DbRef, Iter)
+    catch
+	Err:Msg ->
+	    io:format("Caught an error: ~p ~p~n", [Err, Msg]),
+	    ok
+    after
+	eleveldb:iterator_close(Iter),
+	eleveldb:close(DbRef)
+    end.
+
+printNextKey(DbRef, Iter) ->
+    {ok, Key, Val} = eleveldb:iterator_move(Iter, next),
+    DecodedKey = riak_kv_eleveldb_backend:orig_from_object_key(Key),
+    DecodedValue = riak_object:get_values(riak_object:from_binary(<<"GeoCheckin">>, Key, Val)),
+    io:format("Key = ~p Value = ~p~n", [DecodedKey, DecodedValue]),
+    printNextKey(DbRef, Iter).
+
+countKeys(File) ->
+    LockFile = File ++ "/LOCK",
+    os:cmd("rm " ++ LockFile),
+    Opts = [{total_memory, 14307360768}, {block_cache_threshold, 33554432}, {block_restart_interval, 16}, {block_size_steps, 16}, {cache_object_warming, true}, {compression, lz4}, {create_if_missing, true}, {delete_threshold, 1000}, {eleveldb_threads, 71}, {expiry_enabled, false}, {expiry_minutes, 0}, {fadvise_willneed, false}, {limited_developer_mem, true}, {sst_block_size, 4096}, {tiered_slow_level, 0}, {total_leveldb_mem_percent, 70}, {use_bloomfilter, true}, {whole_file_expiry, true}, {write_buffer_size, 39817495}],
+
+    {ok, DbRef} = eleveldb:open(File, Opts),
+    {ok, Iter} = eleveldb:iterator(DbRef, []),
+
+    Nkeys = 
+    try 
+	{ok, _Key, _Val} = eleveldb:iterator_move(Iter, first),
+	countKey(DbRef, Iter, 0)
+    catch
+	Err:Msg ->
+	    io:format("Caught an error: ~p ~p~n", [Err, Msg]),
+	    ok
+    after
+	eleveldb:iterator_close(Iter),
+	eleveldb:close(DbRef)
+    end,
+    Nkeys.
+
+countKey(DbRef, Iter, Acc) ->
+    case eleveldb:iterator_move(Iter, next) of
+	{ok, _Key, _Val} ->
+	    countKey(DbRef, Iter, Acc+1);
+	{error, invalid_iterator} ->
+	    Acc
+    end.
+
+dbFiles() ->
+    Nodes = [0,182687704666362864775460604089535377456991567872,
+             365375409332725729550921208179070754913983135744,
+             548063113999088594326381812268606132370974703616,
+             730750818665451459101842416358141509827966271488,
+             913438523331814323877303020447676887284957839360,
+             1096126227998177188652763624537212264741949407232,
+	     1278813932664540053428224228626747642198940975104],
+    ["/Users/eml/rt/riak/current/dev/dev1/data/leveldb/" ++ integer_to_list(Node) || Node <- Nodes].
+
+printLeveldbBytes() ->
+    printLeveldbBytes(dbFiles()).
+
+printLeveldbBytes([File]) when is_list(File) ->
+    io:format("~p~n", [getLeveldbBytes(File)]);
+printLeveldbBytes(List) ->
+    [io:format("~p~n", [getLeveldbBytes(File)]) || File <- List].
+
+getLeveldbBytes(DbFile) ->
+    LockFile = DbFile ++ "/LOCK",
+    os:cmd("rm " ++ LockFile),
+    {ok, DbRef} = eleveldb:open(DbFile, [{create_if_missing, true}]),
+    {ok, Bytes} = eleveldb:status(DbRef, <<"leveldb.total-bytes">>),
+    binary_to_integer(Bytes).
+
+printLeveldbKeys([File]) when is_list(File) ->
+    io:format("~p~n", [iteratorTest(File)]);
+printLeveldbKeys(List) ->
+    [io:format("~p~n", [iteratorTest(File)]) || File <- List].
+
+countLeveldbKeys([File]) when is_list(File) ->
+    io:format("~p~n", [countKeys(File)]);
+countLeveldbKeys(List) ->
+    [io:format("~p~n", [countKeys(File)]) || File <- List].

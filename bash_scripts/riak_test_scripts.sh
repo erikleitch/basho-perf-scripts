@@ -1287,3 +1287,222 @@ makeCompPlots()
     makeGroupByCompPlot
     makeExpiryPutCompPlot
 }
+
+makeringplot()
+{
+    local pycomm="from mpl_toolkits.mplot3d import Axes3D\n"
+    pycomm+="import matplotlib.pyplot as plt\n"
+    pycomm+="import matplotlib\n"
+    pycomm+="import numpy as np\n"
+    pycomm+="\n"
+    pycomm+="def plot2DRing(ax, ringSize, radius, dr, ringSegments):\n"
+    pycomm+="  nPoint = 100\n"
+    pycomm+="  dTheta = (2*np.pi)/(nPoint-1)\n"
+    pycomm+="  theta = np.ndarray(nPoint)\n"
+    pycomm+="  for iRing in range(0, nPoint):\n"
+    pycomm+="    theta[iRing] = iRing * dTheta\n"
+    pycomm+="\n"
+    pycomm+="    x1 = (radius*0.9) * np.cos(theta)\n"
+    pycomm+="    y1 = (radius*0.9) * np.sin(theta)\n"
+    pycomm+="\n"
+    pycomm+="    x2 = (radius*1.3) * np.cos(theta)\n"
+    pycomm+="    y2 = (radius*1.3) * np.sin(theta)\n"
+    pycomm+="\n"
+    pycomm+="# Draw the ring\n"
+    pycomm+="\n"
+    pycomm+="  transval = 0.1\n"
+    pycomm+="  ax.plot(x1, y1, zs=0, zdir='z', color='b', alpha=transval)\n"
+    pycomm+="  plt.hold(True)\n"
+    pycomm+="  ax.plot(x2, y2, zs=0, zdir='z', color='b', alpha=transval)\n"
+    pycomm+="\n"
+    pycomm+="# Draw segments\n"
+    pycomm+="\n"
+    pycomm+="  dTheta = (2*np.pi)/(ringSize)\n"
+    pycomm+="  for iRing in range(0, ringSize):\n"
+    pycomm+="    theta = iRing * dTheta\n"
+    pycomm+="    x1 = (radius*0.9) * np.cos(theta)\n"
+    pycomm+="    x2 = (radius*1.3) * np.cos(theta)\n"
+    pycomm+="\n"
+    pycomm+="    y1 = (radius*0.9) * np.sin(theta)\n"
+    pycomm+="    y2 = (radius*1.3) * np.sin(theta)\n"
+    pycomm+="\n"
+    pycomm+="    ax.plot([x1, x2], [y1, y2], zs=0, zdir='z', color='b', alpha=transval)\n"
+    pycomm+="\n"
+    pycomm+="    xt = 1.7*radius * np.cos(theta + dTheta/2)\n"
+    pycomm+="    yt = 1.7*radius * np.sin(theta + dTheta/2)\n"
+    pycomm+="\n"
+    pycomm+="    textdir=(xt,yt,0)\n"
+    pycomm+="    textstr =  textstr = ringSegments[iRing]\n"
+    pycomm+="    ax.text(xt, yt, 0.0, textstr[:5], zdir=textdir, horizontalalignment='center', alpha=0.3)\n"
+    pycomm+="\n"
+    pycomm+="def getColorNames():\n"
+    pycomm+="  cnames = []\n"
+    pycomm+="  for name in matplotlib.colors.cnames:\n"
+    pycomm+="    cnames.append(name)\n"
+    pycomm+="  return cnames\n"
+    pycomm+="\n"
+    pycomm+="def plot3DRing(ax, iNode, ringSize, nNode, radius, dw, d):\n"
+    pycomm+="\n"
+    pycomm+="  cnames = getColorNames()\n"
+    pycomm+="  colorName = cnames[iNode]\n"
+    pycomm+="\n"
+    pycomm+="  dTheta = (2*np.pi)/(ringSize)\n"
+    pycomm+="  theta = []\n"
+    pycomm+="  dx    = []\n"
+    pycomm+="  dy    = []\n"
+    pycomm+="  dz    = []\n"
+    pycomm+="  xpos  = []\n"
+    pycomm+="  ypos  = []\n"
+    pycomm+="  zpos  = []\n"
+    pycomm+="\n"
+    pycomm+="  dev = 'dev' + str(iNode + 1)\n"
+    pycomm+="\n"
+    pycomm+="  for iRing in range(0, ringSize):\n"
+    pycomm+="    if d[dev][iRing] > 0.0:\n"
+    pycomm+="      theta = iRing * dTheta + dTheta/2\n"
+    pycomm+="      dx.append(dw)\n"
+    pycomm+="      dy.append(dw)\n"
+    pycomm+="      dz.append(d[dev][iRing])\n"
+    pycomm+="      xpos.append(radius * (1.3 - (nNode - iNode) * 0.1) * np.cos(theta))\n"
+    pycomm+="      ypos.append(radius * (1.3 - (nNode - iNode) * 0.1) * np.sin(theta))\n"
+    pycomm+="      zpos.append(theta * 0.0 + 0.1)\n"
+    pycomm+="\n"
+    pycomm+="  ax.bar3d(xpos, ypos, zpos, dx, dy, dz, color=colorName, alpha=1.0)\n"
+    pycomm+="\n"
+    pycomm+="def totals(ringSizes):\n"
+    pycomm+="  nNode = np.size(ringSizes.keys())\n"
+    pycomm+="  nodeSizes = np.zeros(nNode)\n"
+    pycomm+="\n"
+    pycomm+="  total = 0.0\n"
+    pycomm+="  for iNode in range(0, nNode):\n"
+    pycomm+="    name = 'dev' + str(iNode + 1)\n"
+    pycomm+="    sizes = ringSizes[name]\n"
+    pycomm+="\n"
+    pycomm+="    for size in sizes:\n"
+    pycomm+="      total += size\n"
+    pycomm+="      nodeSizes[iNode] += size\n"
+    pycomm+="\n"
+    pycomm+="\n"
+    pycomm+="  cnames = getColorNames()\n"
+    pycomm+="\n"
+    pycomm+="  for iNode in range(0, nNode):\n"
+    pycomm+="    name = 'dev' + str(iNode + 1)\n"
+    pycomm+="    if total > 0.0:\n"
+    pycomm+="      label = name + ' ' + (\"%%d\" %% (100*(nodeSizes[iNode]/total))) + '%%'\n"
+    pycomm+="    else:\n"
+    pycomm+="      label = name + ' 0.00' + '%%'\n"
+    pycomm+="    ax.text2D(0.05, 0.95 - iNode*0.05, label, transform=ax.transAxes, color=cnames[iNode])\n"
+
+    echo "Here 1"
+    pycomm+="$(getring)"
+
+    pycomm+="\n"
+    pycomm+="fig = plt.figure(figsize=(20,10))\n"
+    pycomm+="ax = fig.add_subplot(111, projection='3d')\n"
+    pycomm+="ax.view_init(elev = 60.0, azim= 0.0)\n"
+    pycomm+="\n"
+    pycomm+="ringSize = np.size(ringSegments)\n"
+    pycomm+="nNode    = np.size(ringSizes.keys())\n"
+    pycomm+="\n"
+    pycomm+="radius = 100.0\n"
+    pycomm+="dw = 3.0\n"
+    pycomm+="plot2DRing(ax, ringSize, radius, 10*dw, ringSegments)\n"
+    pycomm+="\n"
+    pycomm+="for i in range(0,nNode):\n"
+    pycomm+="  plot3DRing(ax, i, ringSize, nNode, radius, dw, ringSizes)\n"
+    pycomm+="  plt.hold(True)\n"
+    pycomm+="\n"
+    pycomm+="ax.set_axis_off()\n"
+    pycomm+="fig.set_facecolor('white')\n"
+    pycomm+="totals(ringSizes)\n"
+    pycomm+="plt.show()\n"
+
+    printf "$pycomm" > /tmp/pytest.py
+    printf "$pycomm" | python
+}
+
+getring()
+{
+    prefixdir="/Users/eml/rt/riak/current/dev"
+
+    nodedirs=("`ls $prefixdir`")
+
+    local pycomm="ringSizes = {}\n"
+    
+    for node in $nodedirs
+    do
+	if [ -d $prefixdir/$node/data/leveldb ]
+	then
+
+	    #------------------------------------------------------------
+	    # Get the list of hash partitions from disk
+	    #------------------------------------------------------------
+	    
+	    ring=("`ls $prefixdir/$node/data/leveldb`")
+
+	    #------------------------------------------------------------
+	    # Now iterate over hash partitions for this node
+	    #------------------------------------------------------------
+	    
+	    str="ringSegments = ["
+	    erlstr=""
+	    first=true
+	    for seg in $ring
+	    do
+		# Construct a python list of segment hashes
+		
+		size=`ls -l $prefixdir/$node/data/leveldb/$seg | grep sst | awk '{total += ($5 - 68)}; END {print total}'`
+		if [ -z $size ]
+		then
+		    size="0"
+		fi
+		
+		if [ $first == true ]
+		then
+		    str+="'$seg'"
+		    erlstr+="$prefixdir/$node/data/leveldb/$seg"
+		    first=false
+		else
+		    str+=", '$seg'"
+		    erlstr+=" $prefixdir/$node/data/leveldb/$seg"
+		fi
+
+
+	    done
+	    str+="]"
+
+	    #------------------------------------------------------------
+	    # Now get the number of bytes for each segment, and
+	    # construct relevant python strings
+	    #------------------------------------------------------------
+	    
+	    bytes=`runerl mod=riak_prof_tests fn=printLeveldbBytes args="$erlstr"`
+
+#	    echo "Running countLeveldbKeys with erlstr = $erlstr"
+	    
+	    #	    bytes=`runerl mod=riak_prof_tests fn=countLeveldbKeys args="$erlstr"`
+
+	    sizes="ringSizes['$node'] = ["
+	    first=true
+
+	    for size in $bytes
+	    do
+		if [ $first == true ]
+		then
+		    sizes+="$size"
+		    first=false
+		else
+		    sizes+=", $size"
+		fi
+	    done
+	    sizes+="]"
+
+	    pycomm+="$sizes\n"
+
+	fi
+    done
+
+    pycomm+="$str\n"
+
+    printf "$pycomm"
+}

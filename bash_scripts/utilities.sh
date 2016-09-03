@@ -119,7 +119,7 @@ erlt_flags() {
     riak=${riak//\"/}
     unset ERL_AFLAGS
     export CURR_DIR=`pwd`
-        echo "-pa ${CURR_DIR}/.eunit ${CURR_DIR}/ebin -pa ${CU\
+    echo "-pa ${CURR_DIR}/.eunit ${CURR_DIR}/ebin -pa ${CU\
 RR_DIR}/deps/*/ebin -pa riak_ee/deps/*/ebin -pa ${RIAK_TES\
 T_BASE}/erlang_scripts/*/ebin -pa $riak/lib/*/ebin"
 }
@@ -141,6 +141,6 @@ runerl()
     args=$(valOrDef args '' "$@")
     riak=$(valOrDef riak '' "$@")
     
-    flags=$(erlt_flags)
+    flags=$(erlt_flags riak=$riak)
     erl $flags -noshell -run ${mod//\"/} ${fn//\"/} ${args//\"/} -run init stop
 }

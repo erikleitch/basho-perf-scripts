@@ -49,6 +49,24 @@ valOrDef()
     echo $retval
 }
 
+sep()
+{
+    s=$1
+    sep=$2
+    case $s in
+	(*"$sep"*)
+	    before=${s%%"$sep"*}
+	    after=${s#*"$sep"}
+	    ;;
+	(*)
+	    before=$s
+	    after=
+	    ;;
+    esac
+    after=${after//\"/\\\"}
+    echo "\"$before\" \"$after\""
+}
+
 #------------------------------------------------------------
 # Return the most recent file in the specified directory
 #------------------------------------------------------------
@@ -97,9 +115,13 @@ getlast()
 #------------------------------------------------------------
 
 erlt_flags() {
+    riak=$(valOrDef riak '' "$@")
+    riak=${riak//\"/}
     unset ERL_AFLAGS
     export CURR_DIR=`pwd`
-    echo "-pa ${CURR_DIR}/.eunit ${CURR_DIR}/ebin -pa ${CURR_DIR}/deps/*/ebin -pa ${CURR_DIR}/lib/*/ebin -pa riak_ee/deps/*/ebin -pa ${RIAK_TEST_BASE}/erlang_scripts/*/ebin"
+        echo "-pa ${CURR_DIR}/.eunit ${CURR_DIR}/ebin -pa ${CU\
+RR_DIR}/deps/*/ebin -pa riak_ee/deps/*/ebin -pa ${RIAK_TES\
+T_BASE}/erlang_scripts/*/ebin -pa $riak/lib/*/ebin"
 }
 
 erlt_fn() {
@@ -117,7 +139,8 @@ runerl()
     mod=$(valOrDef mod '' "$@")
     fn=$(valOrDef fn '' "$@")
     args=$(valOrDef args '' "$@")
-
+    riak=$(valOrDef riak '' "$@")
+    
     flags=$(erlt_flags)
     erl $flags -noshell -run ${mod//\"/} ${fn//\"/} ${args//\"/} -run init stop
 }

@@ -602,3 +602,6 @@ countLeveldbKeys([File]) when is_list(File) ->
     io:format("~p~n", [countKeys(File)]);
 countLeveldbKeys(List) ->
     [io:format("~p~n", [countKeys(File)]) || File <- List].
+
+testFn([File]) when is_list(File) ->
+    io:format("~p~n", [File]).

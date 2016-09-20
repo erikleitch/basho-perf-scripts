@@ -36,6 +36,8 @@ class Cluster(object):
                 self.tagTotals = node.tagTotals
             else:
                 for key in self.tagLims.keys():
+                    print 'node = ' + str(node.fileName) + ' tags = ' + str(node.tagLims)
+                    print 'key  = ' + str(key) + ' totals = ' + str(node.tagTotals)
                     self.tagTotals[key] += node.tagTotals[key]
 
                     if node.tagLims[key] > self.tagLims[key]:
@@ -143,6 +145,7 @@ class Node(object):
         # For each key, extract counters for all partitions
         
         for key in self.tagLims:
+            print 'key = ' + str(key) + ' fileName  = ' + str(self.fileName)
             vals = self.getOrderedCounts(counters, key)
             self.tagTotals[key] += vals
             if int(np.max(vals)) > int(self.tagLims[key]):
@@ -279,5 +282,14 @@ ring = Cluster(ax, tag, files.split(' '))
 
 anim = animation.FuncAnimation(fig, ring.update, ring.nLine, interval=10,
                                blit=False, repeat=False)
+
+# Set up formatting for the movie files
+
+print 'Writers = ' + str(animation.writers)
+
+Writer = animation.writers['ffmpeg']
+writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+
+anim.save('im.mp4', writer=writer)
 
 plt.show()

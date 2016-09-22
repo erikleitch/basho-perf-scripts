@@ -9,7 +9,7 @@ basho-perf runs and plot summary statistics, via calls to the python matplotlib 
 * <a href=#surface_plots>Surface Plots</a>
 * <a href=#dynamic_ring_analyzer>Dynamic Ring Analysis</a>
 
-<a name="surface_plots">Surface Plots</a>
+<a name="surface_plots">**Surface Plots**</a>
 
 Suppose you have a basho-perf run script like:
 
@@ -71,3 +71,6 @@ or
 
 if ```overplot=true``` is specified.
 
+<a name="dynamic_ring_analyzer">**Dynamic Ring Analysis**</a>
+
+These tools are meant to be used with a special branch of riak_ee: `perf/riak_ts_analyzer`

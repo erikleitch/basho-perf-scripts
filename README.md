@@ -134,3 +134,10 @@ how to configure the underlying python script), a screen capture of which is sho
 <center>
 ![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/ycsb_frame.png)
 </center>
+
+Each inner ring represents a separate physical node, and partitions
+are highlighted in the movie, with brightness proportional to the rate
+of operations against those partitions (relative to the maximum
+instantaneous rate of any partition).  The outermost ring shows the
+cumulative operations against every partition in the ring, summed over
+all nodes.

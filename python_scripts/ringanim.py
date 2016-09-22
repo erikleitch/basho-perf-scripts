@@ -241,8 +241,8 @@ class Cluster(object):
             ccolor = [0.3,0.5,1.0]
             text = tag
 
-
-
+        print 'Tag is ' + str(tag)
+        
         ax = axes[tagInd]
         ax.clear()
         ax.axis('off')
@@ -275,6 +275,8 @@ class Cluster(object):
 
         self.totalNode.drawRing(val, tagInd, self.tagLims, self.totals[tag], self.tagTotals, self.floor, ccolor)
 
+        print 'printing text = ' + str(text)
+        
         ax.text(0, 0, text, color=color, ha='center', size=18)
         
 class Node(object):

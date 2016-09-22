@@ -1,14 +1,32 @@
 # Synopsis
 
-basho-perf-scripts is a collection of bash scripts for use with
-basho-perf. In particular, bash_scripts/basho_perf_scripts.sh provides scripts to parse output log files from
-basho-perf runs and plot summary statistics, via calls to the python matplotlib library.
+basho-perf-scripts is a collection of bash, erlang and python scripts for use with
+basho-perf and riak_test.
+
+For basho-perf, bash_scripts/basho_perf_scripts.sh provides scripts to
+parse various output files from basho-perf runs and make summary
+plots, via calls to the python matplotlib library.
 
 # Usage
 
+* <a href=#general>General</a>
 * <a href=#surface_plots>Surface Plots</a>
 * <a href=#dynamic_ring_analyzer>Dynamic Ring Analysis</a>
 
+<hr>
+<a name="general">**General**</a>
+
+In general, `basho-perf-script` is meant to be used from your
+basho-perf (or riak_test) directory, so best to check it out and run
+it from there.
+
+To make all commands in `basho-perf-script` available in bash, do:
+
+```
+source basho-perf-scripts/prof_source
+```
+
+<hr>
 <a name="surface_plots">**Surface Plots**</a>
 
 Suppose you have a basho-perf run script like:
@@ -71,6 +89,38 @@ or
 
 if ```overplot=true``` is specified.
 
+<hr>
 <a name="dynamic_ring_analyzer">**Dynamic Ring Analysis**</a>
 
-These tools are meant to be used with a special branch of riak_ee: `perf/riak_ts_analyzer`
+These tools are meant to be used with a special branch of riak_ee: `perf/riak_ts_analyzer`.
+
+Suppose you've run a basho-perf test with the following config file:
+
+```
+test = "riak_ts-ycsb";
+hosts = "softlayer-dev-a";
+
+riak_ts = {
+        n_val = 1
+	branch=perf/riak_ts_analyzer
+	}
+
+YCSB = {
+        riak.r_val=1
+	riak.w_val=1
+
+        readproportion=0
+	updateproportion=0
+	scanproportion=0
+	insertproportion=1
+
+        fieldcount=10
+	fieldlength=1
+
+        threadcount=8
+
+        maxexecutiontime=60
+	}
+```
+
+

@@ -123,4 +123,12 @@ YCSB = {
 	}
 ```
 
+By default, this branch logs time-resolved counters to a file (on the softlayer clusters, these end up as `/tmp/riak_atomicCounters.txt`).
 
+Running the command `retrieveAnalyzerFiles softlayer-dev-a` will fetch and rename the log files locally.
+
+Running the command `animate` will display a movie of those logs (see
+`basho-perf-scripts/bash_scripts/basho-perf-scripts.sh` for details of
+how to configure the underlying python script), like this:
+
+![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/ycsb.mp4)

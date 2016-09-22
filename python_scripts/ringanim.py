@@ -3,7 +3,6 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Polygon
-import profiler_util as pu
 import sys
 
 #=======================================================================
@@ -234,13 +233,15 @@ class Cluster(object):
             print 'Frame: ' + str(("%4d" % val)) + ' (' + ("%3d" % (100*float(val)/self.nLine)) + '%) ts = ' + str(self.nodes[0].ts)
 
         if val == self.nLine:
-            color = [0.3,0.5,1.0]
+            color  = [0.3,0.5,0.8]
+            ccolor = [0.3,0.5,1.0]
             text = tag + '\n(cumulative)'
         else:
             color = [0.5,0.3,1.0]
+            ccolor = [0.3,0.5,1.0]
             text = tag
 
-        ccolor = [0.3,0.5,1.0]
+
 
         ax = axes[tagInd]
         ax.clear()

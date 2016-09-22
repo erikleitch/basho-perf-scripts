@@ -6,6 +6,11 @@ basho-perf runs and plot summary statistics, via calls to the python matplotlib 
 
 # Usage
 
+* <a href=#surface_plots>Surface Plots</a>
+* <a href=#dynamic_ring_analyzer>Dynamic Ring Analysis</a>
+
+<a name="surface_plots">Surface Plots</a>
+
 Suppose you have a basho-perf run script like:
 
 ```

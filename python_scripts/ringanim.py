@@ -155,7 +155,8 @@ class Cluster(object):
         #------------------------------------------------------------
 
         self.getLimits()
-
+        self.ndig = int(np.floor(np.log10(float(self.nLine))) + 1)
+        
     #=======================================================================
     # Update limits against values for the current line
     #=======================================================================
@@ -221,7 +222,8 @@ class Cluster(object):
                 node.getNextCounters()
 
         date = self.epoch + timedelta(microseconds=self.nodes[0].ts)
-        tsStr = date.strftime('%d %b %Y %H:%M:%S (UTC)')
+        fmtStr = '%0' + str(self.ndig) + 'd'
+        tsStr = date.strftime('UTC: %d %b %Y %H:%M:%S') + ' (' + (fmtStr % val) + ')'
 
         # And iterate over tags we are plotting
         
@@ -282,10 +284,12 @@ class Cluster(object):
 
         ax.text(0, 0, text, color=color, size=18, ha='center', va='center')
 
+        # Print the timestamp too
+        
         if val > 0:
-            plt.figtext(0.5, 0.1, self.lastTsStr, color=color, size=18, ha='center', bbox=dict(facecolor='black'))
+            plt.figtext(0.5, 0.1, self.lastTsStr, color=color, size=16, ha='center', bbox=dict(facecolor='black'))
 
-        plt.figtext(0.5, 0.1, tsStr, color=color, size=18, ha='center')
+        plt.figtext(0.5, 0.1, tsStr, color=color, size=16, ha='center')
         self.lastTsStr = tsStr
         
 class Node(object):

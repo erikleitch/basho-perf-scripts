@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Polygon
 import sys
+import pytz
+from datetime import datetime, timedelta
 
 #=======================================================================
 # A file object
@@ -101,6 +103,7 @@ class Cluster(object):
         self.files     = []
         self.floor     = floor
         self.firstFrame=True
+        self.epoch = datetime(1970, 1, 1, tzinfo=pytz.UTC)
         
         for fileName in fileNames:
             if fileName != '':
@@ -122,6 +125,7 @@ class Cluster(object):
                 lastCommonTimestamp = f.lastTimestamp
 
         for f in self.files:
+            f.advanceToTimestamp(firstCommonTimestamp)
             f.advanceStartFrame(skipstart)
             f.setNframe(nFrame)
             
@@ -216,16 +220,19 @@ class Cluster(object):
             for node in self.nodes:
                 node.getNextCounters()
 
+        date = self.epoch + timedelta(microseconds=self.nodes[0].ts)
+        tsStr = date.strftime('%d %b %Y %H:%M:%S (UTC)')
+
         # And iterate over tags we are plotting
         
         for i in range(0, self.ntag):
-            self.drawRing(val, i)
+            self.drawRing(val, i, tsStr)
 
     #=======================================================================
     # Cluster::drawRing calls down to Node::drawRing for all nodes
     #=======================================================================
     
-    def drawRing(self, val, tagInd):
+    def drawRing(self, val, tagInd, tsStr):
 
         tag = self.tags[tagInd]
 
@@ -239,10 +246,8 @@ class Cluster(object):
         else:
             color = [0.5,0.3,1.0]
             ccolor = [0.3,0.5,1.0]
-            text = tag
+            text = tag + '\n'
 
-        print 'Tag is ' + str(tag)
-        
         ax = axes[tagInd]
         ax.clear()
         ax.axis('off')
@@ -275,9 +280,13 @@ class Cluster(object):
 
         self.totalNode.drawRing(val, tagInd, self.tagLims, self.totals[tag], self.tagTotals, self.floor, ccolor)
 
-        print 'printing text = ' + str(text)
-        
-        ax.text(0, 0, text, color=color, ha='center', size=18)
+        ax.text(0, 0, text, color=color, size=18, ha='center', va='center')
+
+        if val > 0:
+            plt.figtext(0.5, 0.1, self.lastTsStr, color=color, size=18, ha='center', bbox=dict(facecolor='black'))
+
+        plt.figtext(0.5, 0.1, tsStr, color=color, size=18, ha='center')
+        self.lastTsStr = tsStr
         
 class Node(object):
 
@@ -496,6 +505,8 @@ def getAxes(tags):
 #=======================================================================
 # Main script
 #=======================================================================
+
+#plt.rcParams["font.family"] = "cursive"
 
 #------------------------------------------------------------
 # Get optional args, and instantiate the Cluster object

@@ -1568,7 +1568,8 @@ generatePythonPlotTest()
 
 getSLRiakDir()
 {
-    vals=(`echo $(systemhosts softlayer-b) | tr " " "\n"`)
+    cluster=$1
+    vals=(`echo $(systemhosts $cluster) | tr " " "\n"`)
     host=${vals[0]}
     vals=`env_ssh $host 'which riak'`
     tvals=(`echo $vals | tr " " "\n"`)
@@ -1577,7 +1578,8 @@ getSLRiakDir()
 
 getSLBashoPerfDir()
 {
-    vals=(`echo $(systemhosts softlayer-b) | tr " " "\n"`)
+    cluster=$1
+    vals=(`echo $(systemhosts $cluster) | tr " " "\n"`)
     host=${vals[0]}
     vals=`env_ssh $host 'which basho-perf'`
     tvals=(`echo $vals | tr " " "\n"`)
@@ -1624,12 +1626,12 @@ getSLRingBytes()
 
     echoerr "Querying Riak dir on $cluster:\n"
 
-    rdir=$(getSLRiakDir)
+    rdir=$(getSLRiakDir $cluster)
 
     echoerr "$(colorize $rdir "green")\n"
     echoerr "Querying basho-perf dir on $cluster:\n"
     
-    bpdir=$(getSLBashoPerfDir)
+    bpdir=$(getSLBashoPerfDir $cluster)
 
     echoerr "$(colorize $bpdir "green")\n"
     echoerr "Getting system hosts for $cluster:"

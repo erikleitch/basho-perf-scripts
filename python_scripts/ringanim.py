@@ -248,7 +248,7 @@ class Cluster(object):
         else:
             color = [0.5,0.3,1.0]
             ccolor = [0.3,0.5,1.0]
-            text = tag + '\n'
+            text = tag
 
         ax = axes[tagInd]
         ax.clear()
@@ -257,7 +257,8 @@ class Cluster(object):
         #------------------------------------------------------------
         # Now iterate over nodes, drawing the instantaneous records
         #------------------------------------------------------------
-        
+
+        self.nonzero = 0
         for node in self.nodes:
 
             # If this is the last frame, display cumulative totals for all nodes
@@ -275,12 +276,16 @@ class Cluster(object):
                     self.firstLine = False
                 else:
                     self.totals[tag] += node.vals[tag]
+                    self.nonzero += np.count_nonzero(node.vals[tag])
 
         #------------------------------------------------------------
         # Finally, draw the outermost ring with the cumulative totals
         #------------------------------------------------------------
 
         self.totalNode.drawRing(val, tagInd, self.tagLims, self.totals[tag], self.tagTotals, self.floor, ccolor)
+
+        if val != self.nLine:
+            text += '\n' + 'n_active = ' + str(self.nonzero)
 
         ax.text(0, 0, text, color=color, size=18, ha='center', va='center')
 
@@ -517,7 +522,7 @@ files     = getOptArgs(sys.argv,       'files',     'dev1_atomicCounters.txt dev
 tags      = getOptArgs(sys.argv,       'tags',      'syncput')
 skipstart = int(getOptArgs(sys.argv,   'skipstart', 0))
 nframe    = int(getOptArgs(sys.argv,   'nframe',    0))
-save      = bool(getOptArgs(sys.argv,  'save',      False))
+save      = getOptArgs(sys.argv,  'save',      False) == "True"
 floor     = float(getOptArgs(sys.argv, 'floor',     0.0))
 
 fig, axes = getAxes(tags.split(' '))
@@ -528,7 +533,7 @@ ring = Cluster(axes, tags.split(' '), files.split(' '), skipstart, nframe, floor
 # And run the animation
 #------------------------------------------------------------
 
-print 'Running with ring.nLine = ' + str(ring.nLine)
+print 'Save = ' + str(save) + ' Running with ring.nLine = ' + str(ring.nLine)
 
 anim = animation.FuncAnimation(fig, ring.update, ring.nLine+1, interval=1,
                                blit=False, repeat=False)

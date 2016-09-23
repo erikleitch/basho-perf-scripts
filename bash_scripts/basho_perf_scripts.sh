@@ -1740,8 +1740,9 @@ animate()
     # frames
 
     skip=$(valOrDef skip '175' "$@")
+    save=$(valOrDef save 'False' "$@")
     nframe=$(valOrDef nframe '45' "$@")
 
-    
-    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="syncput query" skipstart=${skip//\"/} nframe=${nframe//\"/}
+    echo "save = $save"
+    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="syncput query" skipstart=${skip//\"/} nframe=${nframe//\"/} save=${save//\"/}
 }

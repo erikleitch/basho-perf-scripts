@@ -1738,6 +1738,10 @@ animate()
 {
     # Animate 45 frames of the output files, skipping the first 175
     # frames
+
+    skip=$(valOrDef skip '175' "$@")
+    nframe=$(valOrDef nframe '45' "$@")
+
     
-    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="syncput query" skipstart=175 nframe=45
+    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="syncput query" skipstart=${skip//\"/} nframe=${nframe//\"/}
 }

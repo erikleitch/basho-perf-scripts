@@ -421,17 +421,13 @@ class Node(object):
         for i in range(0, self.nPart):
             theta = dtheta * i
             
-            xa1 = radiusa * np.cos(theta)
-            xb1 = radiusb * np.cos(theta)
-            ya1 = radiusa * np.sin(theta)
-            yb1 = radiusb * np.sin(theta)
+            # Construct a patch.  For large number of partitions, we
+            # don't need many points for our partitions to look
+            # circular (3 is sufficient for npart = 64).  But we need
+            # more as the number of partitions gets small, else the
+            # 'ring' will look very angular
             
-            xa2 = radiusa * np.cos(theta + dtheta)
-            xb2 = radiusb * np.cos(theta + dtheta)
-            ya2 = radiusa * np.sin(theta + dtheta)
-            yb2 = radiusb * np.sin(theta + dtheta)
-            
-            patch = self.getPatch(theta, dtheta, 30)
+            patch = self.getPatch(theta, dtheta, int(24 * (8.0/self.nPart)))
 
             if vals[i] == 0:
                 mult = floorval
@@ -446,6 +442,7 @@ class Node(object):
             self.vals[tag] = vals
         
     def getPatch(self, theta, dtheta, npt):                        
+
         patch = []
         dt = float(dtheta) / npt
         

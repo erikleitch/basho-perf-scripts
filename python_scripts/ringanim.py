@@ -434,7 +434,6 @@ class Node(object):
             
             patch = self.getPatch(theta, dtheta, int(24 * (8.0/self.nPart)))
 
-            floorval = 0.2
             if vals[i] == 0:
                 mult = floorval
             else:

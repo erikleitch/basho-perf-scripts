@@ -1568,7 +1568,8 @@ generatePythonPlotTest()
 
 getSLRiakDir()
 {
-    vals=(`echo $(systemhosts softlayer-b) | tr " " "\n"`)
+    cluster=$1
+    vals=(`echo $(systemhosts $cluster) | tr " " "\n"`)
     host=${vals[0]}
     vals=`env_ssh $host 'which riak'`
     tvals=(`echo $vals | tr " " "\n"`)
@@ -1577,7 +1578,8 @@ getSLRiakDir()
 
 getSLBashoPerfDir()
 {
-    vals=(`echo $(systemhosts softlayer-b) | tr " " "\n"`)
+    cluster=$1
+    vals=(`echo $(systemhosts $cluster) | tr " " "\n"`)
     host=${vals[0]}
     vals=`env_ssh $host 'which basho-perf'`
     tvals=(`echo $vals | tr " " "\n"`)
@@ -1598,9 +1600,14 @@ systemhosts()
 {
     cluster=$1
     slhosts=`hosts $cluster 2>&1`
-    if [[ "$slhosts" =~ [[:print:]]*"system_hosts: hosts (5):"([[:print:]]*) ]]
+    if [[ "$slhosts" =~ [[:print:]]*"system_hosts:"([[:print:]]*) ]]
     then
-	echo ${BASH_REMATCH[1]}
+	subs=${BASH_REMATCH[1]}
+	if [[ "$subs" =~ [[:print:]]*"):"([[:print:]]*) ]]
+	then
+	    echo ${BASH_REMATCH[1]}
+	fi
+	
     fi
 }
 
@@ -1617,15 +1624,17 @@ getSLRingBytes()
 {
     cluster=$1
 
-    echoerr "Querying Riak dir on $cluster"
+    echoerr "Querying Riak dir on $cluster:\n"
 
-    rdir=$(getSLRiakDir)
+    rdir=$(getSLRiakDir $cluster)
 
-    echoerr "Querying basho-perf dir on $cluster"
+    echoerr "$(colorize $rdir "green")\n"
+    echoerr "Querying basho-perf dir on $cluster:\n"
     
-    bpdir=$(getSLBashoPerfDir)
+    bpdir=$(getSLBashoPerfDir $cluster)
 
-    echoerr "Getting system hosts for $cluster"
+    echoerr "$(colorize $bpdir "green")\n"
+    echoerr "Getting system hosts for $cluster:"
     
     hosts=$(systemhosts $cluster)
     ret=""
@@ -1634,7 +1643,8 @@ getSLRingBytes()
     # First query the ring partitions from the first system host
     #------------------------------------------------------------
 
-    echoerr "Getting ring partitions $cluster"
+    echoerr "$(colorize "$hosts" "green")\n"
+    echoerr "Getting ring partitions $cluster...\n"
     
     firsthost=($hosts)
     dirlist=`env_ssh $firsthost "ls $rdir/data/leveldb"`
@@ -1649,7 +1659,7 @@ getSLRingBytes()
     
     for host in $hosts
     do
-	echoerr "Getting ring size for $host"
+	echoerr "Getting ring size for $host\n"
 	
 	resp=`env_ssh $host "source $bpdir/basho-perf-scripts_master/prof_source > /dev/null;getRingBytes $host $rdir"`
 	ret+=$(stripSLResp "$resp")
@@ -1703,4 +1713,36 @@ commaSeparatedResponses()
     done
 
     echo "$ret"
+}
+
+retrieveAnalyzerFiles()
+{
+    cluster=$1
+
+    hosts=$(systemhosts $cluster)
+
+    echo "Hosts are: $hosts"
+    
+    files=""
+    for host in $hosts
+    do
+	echoerr "Getting counters for $host\n"
+	hscp $host:/tmp/riak_atomicCounters.txt $host"_counters.txt"
+	files+=$host"_counters.txt "
+    done
+
+    export analyzerFiles=$files
+}
+
+animate()
+{
+    # Animate 45 frames of the output files, skipping the first 175
+    # frames
+
+    skip=$(valOrDef skip '175' "$@")
+    save=$(valOrDef save 'False' "$@")
+    nframe=$(valOrDef nframe '45' "$@")
+
+    echo "save = $save"
+    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="syncput query" skipstart=${skip//\"/} nframe=${nframe//\"/} save=${save//\"/}
 }

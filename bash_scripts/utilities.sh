@@ -147,5 +147,45 @@ runerl()
 
 echoerr()
 {
-    echo "$@" 1>&2;
+    printf "$@" 1>&2;
 }
+
+getColorizedString()
+{
+    local str=$1
+    local color=$2
+    GREEN="\033[32m"
+    YELLOW="\033[33m"
+    LIGHTRED="\033[91m"
+    NORM="\033[0m"
+
+    case $color in
+	"green")
+	    outStr=$GREEN$str$NORM
+	    echo "$outStr"
+	    ;;
+	"yellow")
+	    outStr=$YELLOW$str$NORM
+	    echo "$outStr"
+	    ;;
+	"lightred")
+	    outStr=$LIGHTRED$str$NORM
+	    echo "$outStr"
+	    ;;
+	"red")
+	    outStr=$LIGHTRED$str$NORM
+	    echo "$outStr"
+	    ;;
+	*)
+	    ;;
+    esac
+}
+
+colorize()
+{
+    local inStr=$1
+    local color=$2
+
+    echo -e $(getColorizedString "$inStr" "$color")
+}
+

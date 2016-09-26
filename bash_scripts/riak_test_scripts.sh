@@ -1304,7 +1304,7 @@ makeringplot()
     pycomm+="  for iRing in range(0, nPoint):\n"
     pycomm+="    theta[iRing] = iRing * dTheta\n"
     pycomm+="\n"
-    pycomm+="    x1 = (radius*0.9) * np.cos(theta)\n"
+    pycomm+="    x1 = (radius*0.7) * np.cos(theta)\n"
     pycomm+="    y1 = (radius*0.7) * np.sin(theta)\n"
     pycomm+="\n"
     pycomm+="    x2 = (radius*1.3) * np.cos(theta)\n"
@@ -1422,7 +1422,7 @@ makeringplot()
     pycomm+="dw = 3.0\n"
     pycomm+="plot2DRing(ax, ringSize, radius, 10*dw, ringSegments)\n"
     pycomm+="\n"
-    iNode=0
+    pycomm+="iNode=0\n"
     pycomm+="for key in ringSizes.keys():\n"
     pycomm+="  plot3DRing(ax, iNode, key, ringSize, nNode, radius, dw, ringSizes)\n"
     pycomm+="  plt.hold(True)\n"

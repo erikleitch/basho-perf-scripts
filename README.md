@@ -1,10 +1,33 @@
 # Synopsis
 
-basho-perf-scripts is a collection of bash scripts for use with
-basho-perf. In particular, bash_scripts/basho_perf_scripts.sh provides scripts to parse output log files from
-basho-perf runs and plot summary statistics, via calls to the python matplotlib library.
+basho-perf-scripts is a collection of bash, erlang and python scripts for use with
+basho-perf and riak_test.
+
+For basho-perf, bash_scripts/basho_perf_scripts.sh provides scripts to
+parse various output files from basho-perf runs and make summary
+plots, via calls to the python matplotlib library.
 
 # Usage
+
+* <a href=#general>General</a>
+* <a href=#surface_plots>Surface Plots</a>
+* <a href=#dynamic_ring_analyzer>Dynamic Ring Analysis</a>
+
+<hr>
+<a name="general">**General**</a>
+
+In general, `basho-perf-script` is meant to be used from your
+basho-perf (or riak_test) directory, so best to check it out and run
+it from there.
+
+To make all commands in `basho-perf-script` available in bash, do:
+
+```
+source basho-perf-scripts/prof_source
+```
+
+<hr>
+<a name="surface_plots">**Surface Plots**</a>
 
 Suppose you have a basho-perf run script like:
 
@@ -66,3 +89,55 @@ or
 
 if ```overplot=true``` is specified.
 
+<hr>
+<a name="dynamic_ring_analyzer">**Dynamic Ring Analysis**</a>
+
+These tools are meant to be used with a special branch of riak_ee: `perf/riak_ts_analyzer`.
+
+Suppose you've run a basho-perf test with the following config file:
+
+```
+test = "riak_ts-ycsb";
+hosts = "softlayer-dev-a";
+
+riak_ts = {
+        n_val = 1
+	branch=perf/riak_ts_analyzer
+	}
+
+YCSB = {
+        riak.r_val=1
+	riak.w_val=1
+
+        readproportion=0
+	updateproportion=0
+	scanproportion=0
+	insertproportion=1
+
+        fieldcount=10
+	fieldlength=1
+
+        threadcount=8
+
+        maxexecutiontime=60
+	}
+```
+
+By default, this branch logs time-resolved counters to a file (on the softlayer clusters, these end up as `/tmp/riak_atomicCounters.txt`).
+
+Running the command `retrieveAnalyzerFiles softlayer-dev-a` will fetch and rename the log files locally.
+
+Running the command `animate` will display a movie of those logs (see
+`basho-perf-scripts/bash_scripts/basho-perf-scripts.sh` for details of
+how to configure the underlying python script), a screen capture of which is shown below:
+
+<center>
+![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/ycsb_frame.png)
+</center>
+
+Each inner ring represents a separate physical node, and partitions
+are highlighted in the movie, with brightness proportional to the rate
+of operations against those partitions (relative to the maximum
+instantaneous rate of any partition).  The outermost ring shows the
+cumulative operations against every partition in the ring, summed over
+all nodes.

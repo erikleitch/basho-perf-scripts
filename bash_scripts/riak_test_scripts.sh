@@ -1584,3 +1584,28 @@ getRingBytes()
     printf "$pycomm"
 }
 
+
+getRingKeys()
+{
+    prefixdir=$1
+
+    #------------------------------------------------------------
+    # Get the list of hash partitions from disk
+    #------------------------------------------------------------
+
+    ring=("`ls $prefixdir/data/leveldb`")
+
+    #------------------------------------------------------------
+    # Now iterate over hash partitions for this node
+    #------------------------------------------------------------
+
+    local erlstr=""
+    first=true
+    for seg in $ring
+    do
+	erlstr="$prefixdir/data/leveldb/$seg"
+	nkeys=`runerl mod=riak_prof_tests fn=countLeveldbKeys args="$erlstr" riak=$prefixdir`
+	echo "$erlstr nkeys = $nkeys"
+    done
+}
+

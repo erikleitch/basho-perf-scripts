@@ -205,15 +205,16 @@ class Node(object):
             
             patch = self.getPatch(theta, dtheta, 30)
 
+            floorval = 0.2
             if vals[i] == 0:
-                mult = 0.1
+                mult = floorval
             else:
-                mult = float(vals[i]) / tagMax
+                mult = (float(vals[i]) / tagMax + floorval) / (1.0 + floorval)
 
             r = 0.5 * mult
             g = 0.3 * mult
             b = 1.0 * mult
-            self.ax.add_patch(Polygon(patch, closed=True, facecolor=[r,g,b]))
+            self.ax.add_patch(Polygon(patch, closed=True, facecolor=[r,g,b], linewidth=0.1))
 
             self.vals = vals
         
@@ -285,11 +286,11 @@ anim = animation.FuncAnimation(fig, ring.update, ring.nLine, interval=10,
 
 # Set up formatting for the movie files
 
-print 'Writers = ' + str(animation.writers)
+#print 'Writers = ' + str(animation.writers)
 
-Writer = animation.writers['ffmpeg']
-writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+#Writer = animation.writers['ffmpeg']
+#writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
 
-anim.save('im.mp4', writer=writer)
+#anim.save('im.mp4', writer=writer)
 
 plt.show()

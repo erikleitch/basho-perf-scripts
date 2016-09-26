@@ -26,22 +26,18 @@ export PYTHONPATH=${PYTHONPATH}:${RIAK_TEST_BASE}/python_scripts:/usr/local/lib/
 # Clone profiler, if it doesn't already exist
 #------------------------------------------------------------
 
-case $RIAK_TEST_BASE in
-    *riak_test*)
-	if [ ! -d $RIAK_TEST_BASE/erlang_scripts/profiler ]
-	then
-	    git clone "git@github.com:erikleitch/profiler.git" -b master $RIAK_TEST_BASE/erlang_scripts/profiler
-	fi
+if [ ! -d $RIAK_TEST_BASE/erlang_scripts/profiler ]
+then
+    git clone "git@github.com:erikleitch/profiler.git" -b master $RIAK_TEST_BASE/erlang_scripts/profiler
+fi
 
-	#------------------------------------------------------------
-	# Now build and erlang modules we may need
-	#------------------------------------------------------------
-	
-	pushd .
-	cd $RIAK_TEST_BASE/erlang_scripts; make
-	popd
-	;;
-esac
+#------------------------------------------------------------
+# Now build any erlang modules we may need
+#------------------------------------------------------------
+
+pushd .
+cd $RIAK_TEST_BASE/erlang_scripts; make
+popd
 
 #------------------------------------------------------------
 # Finally, source bash scripts

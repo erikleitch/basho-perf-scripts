@@ -15,8 +15,8 @@ getClient(Ip, Port) ->
 getClient() ->
     getClient("127.0.0.1", 10017).
 
-getClient(slb) ->
-    getClient("10.109.234.238", 8087);
+getClient(sl) ->
+    getClient("120.0.0.1", 8087);
 getClient(_) ->
     getClient("127.0.0.1", 10017).
 
@@ -386,6 +386,12 @@ putSequentialIntellicoreData(Nrow, {StartTime, StopTime, LapsFrac}) ->
     Delta = round((StopTime - StartTime) / Nrow),
     putSequentialIntellicoreData({C, Bucket, StartTime, Delta, LapsFrac}, Nrow, 0).
 
+putSequentialIntellicoreData(sl, Nrow, {StartTime, StopTime, LapsFrac}) ->
+    C = getClient(sl),
+    Bucket = <<"TIM_motorsport_formula_e_2015">>,
+    Delta = round((StopTime - StartTime) / Nrow),
+    putSequentialIntellicoreData({C, Bucket, StartTime, Delta, LapsFrac}, Nrow, 0);
+
 putSequentialIntellicoreData(_Args, _Nrow, _Nrow) ->
     ok;
 putSequentialIntellicoreData(Args, Nrow, AccRow) ->
@@ -404,6 +410,9 @@ putSequentialIntellicoreData(Args, Nrow, AccRow) ->
 
 intellicoreTest() ->
     putSequentialIntellicoreData(137000, {1467554400000, 1467563400000, 1404.0/137000}).
+
+intellicoreTest(sl) ->
+    putSequentialIntellicoreData(sl, 137000, {1467554400000, 1467563400000, 1404.0/137000}).
 
 getIntellicoreData(SportEventUuid, Timestamp, LapsFrac) ->
     VarcharSize = length(binary_to_list(SportEventUuid)),

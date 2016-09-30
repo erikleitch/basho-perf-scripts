@@ -354,6 +354,107 @@ putRandomTsData(Args, Nrow, AccRow) ->
     riakc_ts:put(C, Bucket, Data),
     putRandomTsData(Args, Nrow, AccRow+1).
 
+putSequentialTsData([Nrow, MsDelta]) when is_list(Nrow) ->
+    putSequentialTsData(list_to_integer(Nrow, MsDelta)).
+
+putSequentialTsData(Nrow, MsDelta) ->
+    C = getClient(),
+    Bucket = <<"GeoCheckin">>,
+    putSequentialTsData({C, Bucket, MsDelta}, Nrow, 0).
+
+putSequentialTsData(_Args, _Nrow, _Nrow) ->
+    ok;
+putSequentialTsData(Args, Nrow, AccRow) ->
+    {C, Bucket, MsDelta} = Args,
+    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, (AccRow+1)*MsDelta, 1, <<"binval">>, 1.234, true])],
+    riakc_ts:put(C, Bucket, Data),
+    putSequentialTsData(Args, Nrow, AccRow+1).
+
+%%=======================================================================
+%% Intellicore testing
+%%=======================================================================
+
+%%-----------------------------------------------------------------------
+%% Populate
+%%-----------------------------------------------------------------------
+putSequentialIntellicoreData([Nrow, StartTime, StopTime]) when is_list(Nrow) ->
+    putSequentialTsData(list_to_integer(Nrow), {StartTime, StopTime}).
+
+putSequentialIntellicoreData(Nrow, {StartTime, StopTime, LapsFrac}) ->
+    C = getClient(),
+    Bucket = <<"TIM_motorsport_formula_e_2015">>,
+    Delta = round((StopTime - StartTime) / Nrow),
+    putSequentialIntellicoreData({C, Bucket, StartTime, Delta, LapsFrac}, Nrow, 0).
+
+putSequentialIntellicoreData(_Args, _Nrow, _Nrow) ->
+    ok;
+putSequentialIntellicoreData(Args, Nrow, AccRow) ->
+    {C, Bucket, StartTime, Delta, LapsFrac} = Args,
+    Data = getIntellicoreData(<<"596044d8-86f5-462f-8d94-65b25e7d3fe9">>, StartTime + AccRow * Delta, LapsFrac),
+
+    case AccRow rem 1000 of 
+	0 ->
+	    io:format("Putting row ~p for Bucket ~p Data = ~p~n", [AccRow, Bucket, Data]);
+	_ ->
+	    ok
+    end,
+
+    riakc_ts:put(C, Bucket, Data),
+    putSequentialIntellicoreData(Args, Nrow, AccRow+1).
+
+intellicoreTest() ->
+    putSequentialIntellicoreData(137000, {1467554400000, 1467563400000, 1404.0/137000}).
+
+getIntellicoreData(SportEventUuid, Timestamp, LapsFrac) ->
+    VarcharSize = length(binary_to_list(SportEventUuid)),
+
+    LapsRand = random:uniform(1000),
+    LapsComp = LapsFrac * 1000,
+    Laps = 
+	case LapsRand =< LapsComp of
+	    true ->
+		10;
+	    false ->
+		-1
+	end,
+    [list_to_tuple([SportEventUuid, 
+		    Timestamp, 
+		    list_to_binary(get_random_string(VarcharSize)),
+		    list_to_binary(get_random_string(VarcharSize)),
+		    list_to_binary(get_random_string(VarcharSize)),
+		    list_to_binary(get_random_string(VarcharSize)),
+		    list_to_binary(get_random_string(VarcharSize)),
+		    list_to_binary(get_random_string(VarcharSize)),
+		    list_to_binary(get_random_string(VarcharSize)),
+		    false,
+		    
+		    float(random:uniform(100)),
+		    random:uniform(100),
+		    
+		    float(random:uniform(100)),
+		    random:uniform(100),
+		    
+		    float(random:uniform(100)),
+		    float(random:uniform(100)),
+		    float(random:uniform(100)),
+		    float(random:uniform(100)),
+		    float(random:uniform(100)),
+		    
+		    random:uniform(100),
+		    float(random:uniform(100)),
+		    
+		    %% This next is laps
+
+		    Laps,
+		    random:uniform(100),
+		    random:uniform(100),
+		    
+		    float(random:uniform(100)),
+		    float(random:uniform(100)),
+		    float(random:uniform(100)),
+		    
+		    list_to_binary(get_random_string(VarcharSize))])].
+
 %%----------------------------------------------------------------------- 
 %% KV PUT/GET Latency tests
 %%----------------------------------------------------------------------- 
@@ -450,9 +551,35 @@ receive_keys(Keys) ->
 	    io:format(user, "Ret = ~p~n", [Ret])
     end.
 
-testQuery(Range) ->
+geoQuery(Range) ->
     C = getClient(),
-    riakc_ts:query(C, "select * from GeoCheckin where myfamily='family1' and myseries='seriesX' and time > 0 and time < " ++ integer_to_list(Range)).
+    profiler:profile({start, test}),
+    riakc_ts:query(C, "select * from GeoCheckin where myfamily='family1' and myseries='seriesX' and time > 0 and time < " ++ integer_to_list(Range)),
+    profiler:profile({stop, test}),
+    profiler:profile({debug}).
+
+query(Q, Atom) ->
+	C = getClient(),
+	profiler:profile({start, Atom}),
+	{ok, {_Cols, Rows}} = riakc_ts:query(C, Q),
+        profiler:profile({stop, Atom}),
+	profiler:profile({debug}),
+        io:format("Query returned ~p rows~n", [length(Rows)]),
+        Rows.
+
+iq(all, Atom) ->
+    Q = "select * from TIM_motorsport_formula_e_2015 where sport_event_uuid = '596044d8-86f5-462f-8d94-65b25e7d3fe9' and time >= 1467554400000 and time < 1467563400000",
+    query(Q, Atom);
+iq(part, Atom) ->
+    EndTime = 1467554400000 + round((1467563400000 - 1467554400000)/137),
+    Q = "select * from TIM_motorsport_formula_e_2015 where sport_event_uuid = '596044d8-86f5-462f-8d94-65b25e7d3fe9' and time >= 1467554400000 and time < " ++ integer_to_list(EndTime),
+    query(Q, Atom);
+iq(laps, Atom) ->
+    Q = "select * from TIM_motorsport_formula_e_2015 where sport_event_uuid = '596044d8-86f5-462f-8d94-65b25e7d3fe9' and time >= 1467554400000 and time < 1467563400000 and laps > 0",
+    query(Q, Atom);
+iq(full, Atom) ->
+    Q = "select max(laps), driver_number from TIM_motorsport_formula_e_2015 where sport_event_uuid = '596044d8-86f5-462f-8d94-65b25e7d3fe9' and time >= 1467554400000 and time < 1467563400000 and laps >= 0 group by driver_number",
+    query(Q, Atom).
 
 getDb(0) ->
     File="/Users/eml/rt/riak/current/dev/dev1/data/leveldb/0",

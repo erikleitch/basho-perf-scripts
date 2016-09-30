@@ -44,6 +44,9 @@ get_bucket(Ind) when is_integer(Ind) ->
 get_bucket(geo) ->
     "GeoCheckin";
 
+get_bucket(intellicore) ->
+    "TIM_motorsport_formula_e_2015";
+
 get_bucket(geoextra) ->
     "GeoCheckin";
 
@@ -110,6 +113,54 @@ get_ddl(geoextra) ->
 	"PRIMARY KEY ((myfamily, myseries, quantum(time, 15, 'm')), " ++
 	"myfamily, myseries, time, myint))".
 
+get_ddl(intellicore, Unit) ->
+    get_ddl(intellicore, 1, Unit);
+
+get_ddl(geo, Ms) ->
+    _SQL = "CREATE TABLE GeoCheckin (" ++
+	"myfamily    varchar     not null, " ++
+	"myseries    varchar     not null, " ++
+	"time        timestamp   not null, " ++
+	"myint       sint64      not null, " ++
+	"mybin       varchar     not null, " ++
+	"myfloat     double      not null, " ++
+	"mybool      boolean     not null, " ++
+	"PRIMARY KEY ((myfamily, myseries, quantum(time, " ++ integer_to_list(Ms) ++ " , 's')), " ++
+	"myfamily, myseries, time))".
+
+get_ddl(intellicore, Mult, Unit) ->
+    _SQL = "CREATE TABLE TIM_motorsport_formula_e_2015 (" ++
+	"sport_event_uuid varchar  not null, " ++
+	"time             timestamp not null, " ++
+	"club_uuid        varchar  not null, " ++
+	"person_uuid      varchar  not null, " ++
+	"sport_uuid       varchar  not null, " ++
+	"discipline_uuid  varchar  not null, " ++
+	"driver_number    varchar  not null, " ++
+	"person_full_name varchar  not null, " ++
+	"club_full_name   varchar  not null, " ++
+	"abandoned        boolean, " ++
+	"best_gap_in_time double, " ++
+	"best_gap_in_lap  sint64, " ++
+	"best_lap         double, " ++
+	"best_position    sint64, " ++
+	"best_sector_1    double, " ++
+	"best_sector_2    double, " ++
+	"best_sector_3    double, " ++
+	"best_speed       double, " ++
+	"gap_in_time      double, " ++
+	"gap_in_lap       sint64, " ++
+	"lap_time         double, " ++
+	"laps             sint64, " ++
+	"position         sint64, " ++
+	"qualification_position sint64, " ++
+	"sector_1         double, " ++
+	"sector_2         double, " ++
+	"sector_3         double, " ++
+	"info             varchar, " ++
+	"PRIMARY KEY ((sport_event_uuid, quantum(time, " ++ integer_to_list(Mult) ++ ", '" ++ Unit ++ "')), " ++
+	"sport_event_uuid, time, club_uuid, person_uuid))".
+
 %%=======================================================================
 %% Bucket creation
 %%=======================================================================
@@ -128,7 +179,6 @@ create_kv_bucket(Node, NVal, Bucket, WriteOnce) when is_boolean(WriteOnce) ->
 				  ", \\\"write_once\\\": true}}", [])
 	end,
     Args = ["bucket-type", "create", Bucket, lists:flatten(Props)],
-    io:format("Issuing rtadmin command: ~p~n", [Args]),
     rt:admin(Node, Args).
 
 create_ts_bucket(Node, NVal, Bucket, DDL) ->
@@ -171,7 +221,11 @@ build_cluster(multiple_bitcask) ->
 build_cluster(multiple_aae) ->
     build_cluster(3, [], eleveldb, on);
 build_cluster(large) ->
-    build_cluster(5).
+    build_cluster(5);
+build_cluster(intellicore) ->
+    build_cluster(1, [], eleveldb, off, 128);
+build_cluster(intellicore_multi) ->
+    build_cluster(3, [], eleveldb, off, 128).
 
 build_cluster(Size, Config) ->
     build_cluster(Size, Config, eleveldb).
@@ -187,11 +241,14 @@ build_cluster(Size, Config, Backend) ->
     build_cluster(Size, Config, Backend, off).
 
 build_cluster(Size, Config, Backend, Aae) ->
+    build_cluster(Size, Config, Backend, Aae, 8).
+
+build_cluster(Size, Config, Backend, Aae, Ringsize) ->
     rt:set_backend(Backend),
     set_aae_state(Aae),
     set_worker_pool_size(),
     set_max_object_size("50MB"),
-    set_ring_size(8),
+    set_ring_size(Ringsize),
     [_Node1|_] = Nodes = rt:deploy_nodes(Size, Config),
     rt:join_cluster(Nodes),
     Nodes.
@@ -259,6 +316,16 @@ set_expiry(State) ->
 setup_ts_cluster(ClusterType, Nval, Api) ->
     [Node | _] = build_cluster(ClusterType),
     {ok, _} = create_ts_bucket(Node, Nval, get_bucket(Api), get_ddl(Api)),
+    {ok, _} = activate_bucket(Node, get_bucket(Api)).
+
+setup_ts_cluster(ClusterType, Nval, Api, Ms) ->
+    [Node | _] = build_cluster(ClusterType),
+    {ok, _} = create_ts_bucket(Node, Nval, get_bucket(Api), get_ddl(Api, Ms)),
+    {ok, _} = activate_bucket(Node, get_bucket(Api)).
+
+setup_ts_cluster(ClusterType, Nval, Api, Mult, Unit) ->
+    [Node | _] = build_cluster(ClusterType),
+    {ok, _} = create_ts_bucket(Node, Nval, get_bucket(Api), get_ddl(Api, Mult, Unit)),
     {ok, _} = activate_bucket(Node, get_bucket(Api)).
 
 %%------------------------------------------------------------

@@ -499,7 +499,10 @@ def arrange(ntag):
         nx = ntag
     else:
         ny = ns
-        nx = int(np.ceil(float(ntag)/ns))
+        if ntag > 6:
+            nx = ns
+        else:
+            nx = int(np.ceil(float(ntag)/ns))
 
     return nx, ny
 

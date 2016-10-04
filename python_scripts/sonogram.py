@@ -275,10 +275,8 @@ class Cluster(object):
             self.drawRing(val, textStr, tagInd, tsStr, patchColor, ringColor)
 
         if val == 0:
-#            self.tsStr = plt.figtext(0.5, 0.14, tsStr, color=color, size=16, ha='center')
             self.elapsedStr = plt.figtext(0.5, 0.1, elapsedStr, color=patchColor, size=16, ha='center')
         else:
- #           self.tsStr.set_text(tsStr)
             self.elapsedStr.set_text(elapsedStr)
 
     #=======================================================================
@@ -503,7 +501,10 @@ def arrange(ntag):
         nx = ntag
     else:
         ny = ns
-        nx = int(np.ceil(float(ntag)/ns))
+        if ntag > 6:
+            nx = ns
+        else:
+            nx = int(np.ceil(float(ntag)/ns))
 
     return nx, ny
 

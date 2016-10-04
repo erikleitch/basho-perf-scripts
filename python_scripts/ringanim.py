@@ -104,6 +104,7 @@ class Cluster(object):
         self.floor     = floor
         self.firstFrame=True
         self.epoch = datetime(1970, 1, 1, tzinfo=pytz.UTC)
+        self.firstTimestamp = None
         
         for fileName in fileNames:
             if fileName != '':
@@ -221,38 +222,60 @@ class Cluster(object):
             for node in self.nodes:
                 node.getNextCounters()
 
-        date = self.epoch + timedelta(microseconds=self.nodes[0].ts)
-        fmtStr = '%0' + str(self.ndig) + 'd'
-        tsStr = date.strftime('UTC: %d %b %Y %H:%M:%S') + ' (' + (fmtStr % val) + ')'
+        if self.firstTimestamp == None:
+            self.firstTimestamp=self.nodes[0].ts
+
+        orange  = [255.0/255, 165.0/255,   0.0/255]
+        magenta = [255.0/255,   0.0/255, 255.0/255]
+        purple  = [0.5,0.3,1.0]
+
+        ccolor = magenta
+        
+        if val == self.nLine:
+            color = magenta
+            date0 = self.epoch + timedelta(microseconds=self.firstTimestamp)
+            date1 = self.epoch + timedelta(microseconds=self.nodes[0].ts)
+            fmtStr = '%0' + str(self.ndig) + 'd'
+            tsStr = date0.strftime('UTC: %d %b %Y %H:%M:%S') + ' - ' + date1.strftime('UTC: %d %b %Y %H:%M:%S')
+        else:
+            color = purple
+            date = self.epoch + timedelta(microseconds=self.nodes[0].ts)
+            fmtStr = '%0' + str(self.ndig) + 'd'
+            tsStr = date.strftime('UTC: %d %b %Y %H:%M:%S') + ' (' + (fmtStr % val) + ')'
 
         # And iterate over tags we are plotting
         
         for i in range(0, self.ntag):
-            self.drawRing(val, i, tsStr)
+            self.drawRing(val, i, tsStr, color, ccolor)
+
+        # Print the timestamp too
+
+        if val == 0:
+            self.timeStr = plt.figtext(0.5, 0.1, tsStr, color=color, size=16, ha='center')
+        else:
+            self.timeStr.set_text(tsStr)
+            self.timeStr.set_color(color)
 
     #=======================================================================
     # Cluster::drawRing calls down to Node::drawRing for all nodes
     #=======================================================================
     
-    def drawRing(self, val, tagInd, tsStr):
+    def drawRing(self, val, tagInd, tsStr, color, ccolor):
 
         tag = self.tags[tagInd]
 
         if tagInd == 0:
-            print 'Frame: ' + str(("%4d" % val)) + ' (' + ("%3d" % (100*float(val)/self.nLine)) + '%) ts = ' + str(self.nodes[0].ts)
-
-        if val == self.nLine:
-            color  = [0.3,0.5,0.8]
-            ccolor = [0.3,0.5,1.0]
-            text = tag + '\n(cumulative)'
-        else:
-            color = [0.5,0.3,1.0]
-            ccolor = [0.3,0.5,1.0]
-            text = tag
+            sys.stdout.write('Frame: ' + str(("%4d" % val)) + ' (' + ("%3d" % (100*float(val)/self.nLine)) + '%) ts = ' + str(self.nodes[0].ts) + ' (' + tsStr + ')' + '\r')
+            sys.stdout.flush()
 
         ax = axes[tagInd]
         ax.clear()
         ax.axis('off')
+
+        if val == self.nLine:
+            text  = tag + '\n(cumulative)'
+        else:
+            text  = tag
 
         #------------------------------------------------------------
         # Now iterate over nodes, drawing the instantaneous records
@@ -289,13 +312,6 @@ class Cluster(object):
 
         ax.text(0, 0, text, color=color, size=18, ha='center', va='center')
 
-        # Print the timestamp too
-        
-        if val > 0:
-            plt.figtext(0.5, 0.1, self.lastTsStr, color=color, size=16, ha='center', bbox=dict(facecolor='black'))
-
-        plt.figtext(0.5, 0.1, tsStr, color=color, size=16, ha='center')
-        self.lastTsStr = tsStr
         
 class Node(object):
 
@@ -547,5 +563,5 @@ if save:
     writer = Writer(fps=5, metadata=dict(artist='Me'), bitrate=1800)
     
     anim.save('im.mp4', writer=writer, savefig_kwargs={'facecolor':'black'})
-
-plt.show()
+else:
+    plt.show()

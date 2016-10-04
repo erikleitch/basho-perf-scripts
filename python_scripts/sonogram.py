@@ -271,10 +271,8 @@ class Cluster(object):
             self.drawRing(val, textStr, tagInd, tsStr, color)
 
         if val == 0:
-#            self.tsStr = plt.figtext(0.5, 0.14, tsStr, color=color, size=16, ha='center')
             self.elapsedStr = plt.figtext(0.5, 0.1, elapsedStr, color=color, size=16, ha='center')
         else:
- #           self.tsStr.set_text(tsStr)
             self.elapsedStr.set_text(elapsedStr)
 
     #=======================================================================

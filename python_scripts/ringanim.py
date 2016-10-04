@@ -563,5 +563,5 @@ if save:
     writer = Writer(fps=5, metadata=dict(artist='Me'), bitrate=1800)
     
     anim.save('im.mp4', writer=writer, savefig_kwargs={'facecolor':'black'})
-
-plt.show()
+else:
+    plt.show()

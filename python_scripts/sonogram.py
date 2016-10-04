@@ -92,7 +92,6 @@ class File(object):
         # And read the first line
 
         self.getNextLine()
-        print 'Read first line ' + str(self.currentLine)
 
     def getNextLine(self):
         
@@ -128,6 +127,8 @@ class ClusterGroup(object):
         if delta == 0:
             raise ValueError("Delta can't be zero for ClusterGroup")
 
+        print 'Labels = ' + str(labels) + ' size = ' + str(np.size(labels))
+        
         for iCluster in range(0, np.size(labels)):
             key = labels[iCluster]
             self.clusters.append(Cluster(axisDict[key], tags, fileDict[key], skipstart, nFrame, delta, floor))
@@ -205,7 +206,7 @@ class Cluster(object):
 
         self.firstTimestamp -= self.minDelta
 
-        print 'First = ' + str(self.firstTimestamp) + ' last = ' + str(self.lastTimestamp) + ' delta = ' + str(self.minDelta) + ' nframe = ' + str(self.nFrame)
+#        print 'First = ' + str(self.firstTimestamp) + ' last = ' + str(self.lastTimestamp) + ' delta = ' + str(self.minDelta) + ' nframe = ' + str(self.nFrame)
         
         #------------------------------------------------------------
         # Now append nodes
@@ -239,7 +240,7 @@ class Cluster(object):
         
     def updateCluster(self, val, textStr, nFrame):
 
-        sys.stdout.write('Frame = ' + str(val) + '/' + str(nFrame) + '\n')
+        sys.stdout.write('Frame = ' + str(val) + '/' + str(nFrame) + '\r')
         sys.stdout.flush()
         
         # For some reason, the animation is called twice for the first
@@ -262,17 +263,20 @@ class Cluster(object):
         
         # Iterate over tags we are plotting, but only if there were any updates
 
-        #        color = [0.5,0.3,1.0]
-        color = [142.0/255, 220.0/255, 143.0/255]
+        ringColor  = [142.0/255, 240.0/255, 240.0/255]
+        patchColor = [142.0/255, 240.0/255, 240.0/255]
+
+#        patchColor = [0.5,0.3,1.0]
+#        patchColor  = [255.0/255, 0.0/255, 255.0/255]
 
         for tagInd in range(0, self.ntag):
             if textStr == None:
                 textStr = self.tags[tagInd]
-            self.drawRing(val, textStr, tagInd, tsStr, color)
+            self.drawRing(val, textStr, tagInd, tsStr, patchColor, ringColor)
 
         if val == 0:
 #            self.tsStr = plt.figtext(0.5, 0.14, tsStr, color=color, size=16, ha='center')
-            self.elapsedStr = plt.figtext(0.5, 0.1, elapsedStr, color=color, size=16, ha='center')
+            self.elapsedStr = plt.figtext(0.5, 0.1, elapsedStr, color=patchColor, size=16, ha='center')
         else:
  #           self.tsStr.set_text(tsStr)
             self.elapsedStr.set_text(elapsedStr)
@@ -281,7 +285,7 @@ class Cluster(object):
     # Cluster::drawRing calls down to Node::drawRing for all nodes
     #=======================================================================
     
-    def drawRing(self, val, textStr, tagInd, tsStr, color):
+    def drawRing(self, val, textStr, tagInd, tsStr, patchColor, ringColor):
 
         tag = self.tags[tagInd]
         text = tag
@@ -290,14 +294,14 @@ class Cluster(object):
         ax.clear()
         ax.axis('off')
 
-        ax.text(0, 0, textStr, color=color, size=18, ha='center', va='center')
+        ax.text(0, 0, textStr, color=patchColor, size=18, ha='center', va='center')
 
         #------------------------------------------------------------
         # Now iterate over nodes, drawing the instantaneous records
         #------------------------------------------------------------
 
         for node in self.nodes:
-            node.drawRing(tagInd, tsStr, color)
+            node.drawRing(tagInd, tsStr, patchColor, ringColor)
         
 class Node(object):
 
@@ -370,8 +374,6 @@ class Node(object):
 
         # Read events from the file while timestamps lie within the current interval
 
-        print 'current = ' + str(self.f.currentTs) + ' tsLow = ' + str(tsLow) + ' tsHigh = ' + str(tsHigh)
-        
         nUpdated = 0
         #        while self.f.currentTs != None and self.f.currentTs > tsLow and self.f.currentTs <= tsHigh:
         while self.f.currentTs != None and self.f.currentTs <= tsHigh:
@@ -386,8 +388,6 @@ class Node(object):
         nameTag = self.f.splitLine[2]
         state   = int(self.f.splitLine[3])
 
-        print 'Inside updateTags with currentLine = ' + str(self.f.currentLine)
-        
         if "partition_" in nameTag:
 
             partIndUnordered = int(nameTag.split('_')[1])
@@ -400,7 +400,6 @@ class Node(object):
                 self.ringVals[seqTag][partInd] += 1
             else:
                 self.partSum -= partInd
-                print 'Decrementing partInd = ' + str(partInd) + ' sum = ' + str(self.partSum)
                 self.ringVals[seqTag][partInd] -= 1
 
         else:
@@ -414,7 +413,7 @@ class Node(object):
     # Node::drawRing
     #=======================================================================
     
-    def drawRing(self, tagInd, tsStr, rgb=[0.5,0.3,1.0]):
+    def drawRing(self, tagInd, tsStr, patchColor, ringColor):
 
         # If explicit input vals were passed, use those instead of reading from the file
 
@@ -438,7 +437,7 @@ class Node(object):
             # more as the number of partitions gets small, else the
             # 'ring' will look very angular
             
-            patch = self.getPatch(theta, dtheta, int(24 * (16.0/self.nPart)))
+            patch = self.getPatch(theta, dtheta, int(24 * (32.0/self.nPart)))
 
             # If a partition is highlighted, set its multiplier to 1.
             # If a specific partition is no highlighted, set its
@@ -447,11 +446,14 @@ class Node(object):
             
             if ringVals[i] > 0:
                 mult = 1.0
+                rgb  = patchColor
             else:
                 if floorVal > 0:
                     mult = 0.3
+                    rgb = ringColor
                 else:
                     mult = 0.0
+                    rgb = patchColor
 
             fc = np.asarray(rgb) * mult
             ec = np.asarray(rgb) * 0.7
@@ -543,12 +545,13 @@ def getAxisDict(labels, nTag, nPanel):
 
         iCluster = iRowMaj * nxPanel + iColMaj
 
-        if labels == None:
-            tag = 'Cluster' + str(iCluster)
-        else:
-            tag = labels[iCluster]
-
-        axisDict[tag].append(ax)
+        if iCluster < nPanel:
+            if labels == None:
+                tag = 'Cluster' + str(iCluster)
+            else:
+                tag = labels[iCluster]
+                
+            axisDict[tag].append(ax)
 
     return fig, axisDict
 

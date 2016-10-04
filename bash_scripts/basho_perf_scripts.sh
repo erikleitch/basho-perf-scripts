@@ -1734,6 +1734,25 @@ retrieveAnalyzerFiles()
     export analyzerFiles=$files
 }
 
+retrieveEventFiles()
+{
+    cluster=$1
+
+    hosts=$(systemhosts $cluster)
+
+    echo "Hosts are: $hosts"
+    
+    files=""
+    for host in $hosts
+    do
+	echoerr "Getting events for $host\n"
+	hscp $host:/tmp/riak_events.txt $host"_events.txt"
+	files+=$host"_events.txt "
+    done
+
+    export eventFiles=$files
+}
+
 animate()
 {
     # Animate 45 frames of the output files, skipping the first 175

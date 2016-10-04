@@ -16,7 +16,7 @@ getClient() ->
     getClient("127.0.0.1", 10017).
 
 getClient(sl) ->
-    getClient("120.0.0.1", 8087);
+    getClient("10.109.234.226", 8087);
 getClient(_) ->
     getClient("127.0.0.1", 10017).
 
@@ -568,11 +568,8 @@ geoQuery(Range) ->
     profiler:profile({debug}).
 
 query(Q, Atom) ->
-	C = getClient(),
-	profiler:profile({start, Atom}),
+	C = getClient(Atom),
 	{ok, {_Cols, Rows}} = riakc_ts:query(C, Q),
-        profiler:profile({stop, Atom}),
-	profiler:profile({debug}),
         io:format("Query returned ~p rows~n", [length(Rows)]),
         Rows.
 

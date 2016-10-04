@@ -23,23 +23,6 @@ export RIAK_TEST_BASE=$CWD
 export PYTHONPATH=${PYTHONPATH}:${RIAK_TEST_BASE}/python_scripts:/usr/local/lib/python2.7/site-packages
 
 #------------------------------------------------------------
-# Clone profiler, if it doesn't already exist
-#------------------------------------------------------------
-
-if [ ! -d $RIAK_TEST_BASE/erlang_scripts/profiler ]
-then
-    git clone "git@github.com:erikleitch/profiler.git" -b master $RIAK_TEST_BASE/erlang_scripts/profiler
-fi
-
-#------------------------------------------------------------
-# Now build any erlang modules we may need
-#------------------------------------------------------------
-
-pushd .
-cd $RIAK_TEST_BASE/erlang_scripts; make
-popd
-
-#------------------------------------------------------------
 # Finally, source bash scripts
 #------------------------------------------------------------
 

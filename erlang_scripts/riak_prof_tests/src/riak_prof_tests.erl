@@ -469,14 +469,14 @@ getIntellicoreData(SportEventUuid, Timestamp, LapsFrac) ->
 %%----------------------------------------------------------------------- 
 
 runKvLatencyTests() ->
-    Bytes = [{10000,       1}, 
-	     {10000,      10}, 
-	     {10000,     100}, 
-	     {10000,    1000}, 
-	     {10000,   10000}, 
-	     {1000,   100000}, 
-	     {1000,  1000000}, 
-	     {100,  10000000}],
+    Bytes = [{100,       1}, 
+	     {100,      10}, 
+	     {100,     100}, 
+	     {100,    1000}, 
+	     {100,   10000}, 
+	     {100,  100000}, 
+	     {100, 1000000}, 
+	     {10, 10000000}],
     [runKvLatencyTest(N, Nbyte) || {N, Nbyte} <- Bytes].
 
 runKvLatencyTest(N, Nbyte) ->
@@ -509,7 +509,8 @@ kvPutTest(_C,_Data,Name,_N,_N) ->
     profiler:profile({debug}),
     ok;
 kvPutTest(C,Data,Name, N,Acc) ->
-    Obj = riakc_obj:new({<<"TestBucketType">>, <<"GeoCheckin">>}, <<"key1">>, Data),
+    Key = list_to_binary("key" ++ integer_to_list(Acc)),
+    Obj = riakc_obj:new({<<"TestBucketType">>, <<"GeoCheckin">>}, Key, Data),
     riakc_pb_socket:put(C, Obj),
     kvPutTest(C,Data,Name,N,Acc+1).
 
@@ -525,7 +526,8 @@ kvGetTest(_C,Name,_N,_N) ->
     profiler:profile({debug}),
     ok;
 kvGetTest(C,Name,N,Acc) ->
-    riakc_pb_socket:get(C, {<<"TestBucketType">>, <<"GeoCheckin">>}, <<"key1">>),
+    Key = list_to_binary("key" ++ integer_to_list(Acc)),
+    riakc_pb_socket:get(C, {<<"TestBucketType">>, <<"GeoCheckin">>}, Key),
     kvGetTest(C,Name,N,Acc+1).
 
 kvDelTest(N,Nbyte) ->
@@ -540,7 +542,8 @@ kvDelTest(_C,Name,_N,_N) ->
     profiler:profile({debug}),
     ok;
 kvDelTest(C,Name,N,Acc) ->
-    riakc_pb_socket:delete(C, {<<"TestBucketType">>, <<"GeoCheckin">>}, <<"key1">>),
+    Key = list_to_binary("key" ++ integer_to_list(Acc)),
+    riakc_pb_socket:delete(C, {<<"TestBucketType">>, <<"GeoCheckin">>}, Key),
     kvDelTest(C,Name,N,Acc+1).
 
 keys(Bucket) ->
@@ -684,9 +687,8 @@ countKeys(File) ->
 	{ok, _Key, _Val} = eleveldb:iterator_move(Iter, first),
 	countKey(DbRef, Iter, 0)
     catch
-	Err:Msg ->
-	    io:format("Caught an error: ~p ~p~n", [Err, Msg]),
-	    ok
+	_:_ ->
+	    0
     after
 	eleveldb:iterator_close(Iter),
 	eleveldb:close(DbRef)

@@ -219,7 +219,8 @@ kvLatencyTestSequence()
     # Set up devrel for 3-node cluster, and run the riak_test script
     # to create the cluster
     #------------------------------------------------------------
-    
+
+    \rm /Users/eml/rt/riak/.git/index.lock
     rerun script=ts_setup_kv_nval3 args=--keep nodes=3
 
     iIter=$startIter
@@ -273,6 +274,20 @@ kvLatencyTestSequence()
     done
 
     #------------------------------------------------------------
+    # Create with nval3, bitcask NIF
+    #------------------------------------------------------------
+
+    riaktest ts_setup_kv_nval3_bitcask_nif --keep
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runKvLatencyTest disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_bitcask_nif_"$prefix"_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+    #------------------------------------------------------------
     # Create with AAE turned on
     #------------------------------------------------------------
 
@@ -280,6 +295,42 @@ kvLatencyTestSequence()
 
     iIter=$startIter
     while [ $iIter -lt $endIter ]
+    do
+	runKvLatencyTest disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_aae_active_"$prefix"_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+}
+
+shortNifTest()
+{
+    #------------------------------------------------------------
+    # Create with nval3, bitcask NIF
+    #------------------------------------------------------------
+
+    riaktest ts_setup_kv_nval3_bitcask_nif --keep
+    prefix='2.1.4'
+    
+    iIter=0
+    while [ $iIter -lt 5 ]
+    do
+	runKvLatencyTest disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_bitcask_nif_"$prefix"_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+}
+
+shortTest()
+{
+    #------------------------------------------------------------
+    # Create with AAE turned on
+    #------------------------------------------------------------
+
+    riaktest ts_setup_kv_nval3_aae --keep
+    prefix='2.1.4'
+    
+    iIter=0
+    while [ $iIter -lt 5 ]
     do
 	runKvLatencyTest disp=false
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_aae_active_"$prefix"_iter$iIter.txt
@@ -328,10 +379,10 @@ runTsInsertLatencyTest()
 
 runKvLatencyTestSequence()
 {
-    kvLatencyTestSequence iter=5 start=20 prefix="2.1.4"
-    kvLatencyTestSequence iter=5 start=25 prefix="2.1.4"
-    kvLatencyTestSequence iter=5 start=30 prefix="2.1.4"
-    kvLatencyTestSequence iter=5 start=35 prefix="2.1.4"
+#    kvLatencyTestSequence iter=5 start=0 prefix="2.1.4"
+    kvLatencyTestSequence iter=5 start=5 prefix="2.1.4"
+    kvLatencyTestSequence iter=5 start=10 prefix="2.1.4"
+    kvLatencyTestSequence iter=5 start=15 prefix="2.1.4"
 }
 
 tsInsertLatencyTestSequence()
@@ -1601,11 +1652,15 @@ getRingKeys()
 
     local erlstr=""
     first=true
+    sum=0
     for seg in $ring
     do
 	erlstr="$prefixdir/data/leveldb/$seg"
 	nkeys=`runerl mod=riak_prof_tests fn=countLeveldbKeys args="$erlstr" riak=$prefixdir`
+	sum=$[$sum+$nkeys]
+
 	echo "$erlstr nkeys = $nkeys"
     done
+    echo "Total = $sum"
 }
 

@@ -218,6 +218,9 @@ build_cluster(multiple) ->
     build_cluster(3);
 build_cluster(multiple_bitcask) ->
     build_cluster(3, [], bitcask);
+build_cluster(multiple_bitcask_nif) ->
+    set_riak_conf_option('bitcask.io_mode', nif),
+    build_cluster(3, [], bitcask_nif);
 build_cluster(multiple_aae) ->
     build_cluster(3, [], eleveldb, on);
 build_cluster(large) ->

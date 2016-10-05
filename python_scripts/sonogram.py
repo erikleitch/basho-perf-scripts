@@ -50,10 +50,8 @@ class File(object):
 
                 if state == 1:
                     self.partSum += 1
-#                    print 'Incremented ' + str(partIndUnordered) + ' sum = ' + str(self.partSum)
                 else:
                     self.partSum -= 1
-#                    print 'Decremented ' + str(partIndUnordered) + ' sum = ' + str(self.partSum)
 
             if first:
                 first = False;
@@ -127,8 +125,6 @@ class ClusterGroup(object):
         if delta == 0:
             raise ValueError("Delta can't be zero for ClusterGroup")
 
-        print 'Labels = ' + str(labels) + ' size = ' + str(np.size(labels))
-        
         for iCluster in range(0, np.size(labels)):
             key = labels[iCluster]
             self.clusters.append(Cluster(axisDict[key], tags, fileDict[key], skipstart, nFrame, delta, floor))
@@ -265,9 +261,6 @@ class Cluster(object):
 
         ringColor  = [142.0/255, 240.0/255, 240.0/255]
         patchColor = [142.0/255, 240.0/255, 240.0/255]
-
-#        patchColor = [0.5,0.3,1.0]
-#        patchColor  = [255.0/255, 0.0/255, 255.0/255]
 
         for tagInd in range(0, self.ntag):
             if textStr == None:
@@ -495,7 +488,7 @@ def getOptArgs(args, name, defval):
 
 def arrange(ntag):
 
-    ns = int(np.sqrt(float(ntag)))
+    ns = int(np.ceil(np.sqrt(float(ntag))))
     if ns == 1:
         ny = 1
         nx = ntag

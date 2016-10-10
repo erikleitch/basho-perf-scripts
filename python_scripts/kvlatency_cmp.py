@@ -143,6 +143,8 @@ def makePlot(ax, d, ls, xlabel=True, ylabel=True):
 def makeDiffPlot(ax, d1, d2, args, ls, xlabel=True, ylabel=True):
 
   bytes = d1['bytes']
+
+  print 'd1 = ' + str(d1['pv']) + ' d2 = ' + str(d2['pv'])
   
   puts = d2['pv'] / d1['pv']
   puts_std = pu.getRatioSigma(d1['pv'], d1['ps'], d2['pv'], d2['ps'])
@@ -188,7 +190,7 @@ def retick(ax, size):
 
 def makePanel(d1, d2, args, doX, doY):
 
-  ax = fig.add_subplot(2,2,args['pl'])
+  ax = fig.add_subplot(2,3,args['pl'])
   retick(ax, 14)
 
   makePlot(ax, d1,  '-', doX, doY)
@@ -239,10 +241,13 @@ dw1c = getProfilerOutput(filesw1c)
 filesbc = pu.getCmd('ls ' + dataDir + '/kvlatency_nval3_bitcask_' + suffix + 'iter*.txt').replace('\n', ' ')
 db3 = getProfilerOutput(filesbc)
 
+filesbcn = pu.getCmd('ls ' + dataDir + '/kvlatency_nval3_bitcask_nif_' + suffix + 'iter*.txt').replace('\n', ' ')
+dbn = getProfilerOutput(filesbcn)
+
 fileson  = pu.getCmd('ls ' + dataDir + '/kvlatency_nval3_aae_active_' + suffix + 'iter*.txt').replace('\n', ' ')
 daaeon = getProfilerOutput(fileson)
 
-fig = plt.figure(figsize=(16,16))
+fig = plt.figure(figsize=(10,10))
 fig.set_facecolor('white');
 
 print 'Here 0'
@@ -262,9 +267,10 @@ else:
 args['title'] = 'Riak KV' + suffixstr + 'Round-trip Latencies\nleveldb nval=3 vs. nval=1, erlang client'
 args['rat']   = 'nval=1/nval=3'
 args['pl']    = 1
+print 'Here 0'
 ax = makePanel(d3, d1, args, False, True)
 
-if d3['hasd']:
+if db3['hasd']:
   args['leg']   = ['leveldb GET', 'leveldb PUT', 'leveldb DEL', 'bitcask GET', 'bitcask PUT', 'bitcask DEL']
 else:
   args['leg']   = ['leveldb GET', 'leveldb PUT', 'bitcask GET', 'bitcask PUT']
@@ -272,26 +278,40 @@ else:
 args['title'] = 'Riak KV' + suffixstr + 'Round-trip Latencies\nleveldb vs. bitcask, nval=3, erlang client'
 args['rat']   = 'bitcask/leveldb'
 args['pl']    = 2
+print 'Here 1'
 ax = makePanel(d3, db3, args, False, False)
 
-if d3['hasd']:
+if dbn['hasd']:
+  args['leg']   = ['leveldb GET', 'leveldb PUT', 'leveldb DEL', 'bitcask GET (nif)', 'bitcask PUT (nif)', 'bitcask DEL (nif)']
+else:
+  args['leg']   = ['leveldb GET', 'leveldb PUT', 'bitcask GET', 'bitcask PUT']
+  
+args['title'] = 'Riak KV' + suffixstr + 'Round-trip Latencies\nleveldb vs. bitcask, nval=3, erlang client'
+args['rat']   = 'bitcask (nif)/leveldb'
+args['pl']    = 3
+print 'Here 1'
+ax = makePanel(d3, dbn, args, False, False)
+
+if dw1c['hasd']:
   args['leg']   = ['normal GET', 'normal PUT', 'normal DEL', 'w1c GET', 'w1c PUT', 'w1c DEL']
 else:
   args['leg']   = ['normal GET', 'normal PUT', 'w1c GET', 'w1c PUT']
   
 args['title'] = 'Riak KV' + suffixstr + 'Round-trip Latencies\nnormal vs. write-once, nval=3, erlang client'
 args['rat']   ='w1c/normal'
-args['pl']    = 3
+args['pl']    = 4
+print 'Here 2'
 ax = makePanel(d3, dw1c, args, True, True)
 
-if d3['hasd']:
+if daaeon['hasd']:
   args['leg']   = ['AAE off GET', 'AAE off PUT', 'AAE off DEL', 'AAE on GET', 'AAE on PUT', 'AAE on DEL']
 else:
   args['leg']   = ['AAE off GET', 'AAE off PUT', 'AAE on GET', 'AAE on PUT']
   
 args['title'] = 'Riak KV' + suffixstr + 'Round-trip Latencies\nAAE off vs. on, normal bucket, nval=3, erlang client'
 args['rat']   = 'AAE on/off'
-args['pl']    = 4
+args['pl']    = 5
+print 'Here 3'
 ax = makePanel(d3, daaeon, args, True, False)
   
 fig.savefig('kvlatency_cmp.png')

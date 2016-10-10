@@ -6,5 +6,6 @@
 
 confirm() ->
     profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    ts_test_utils:setup_kv_cluster(single_bitcask, 1, "TestBucketType", false),
+    ts_test_utils:setup_kv_cluster(single_bitcask_nif, 1, "TestBucketType", false),
+
     pass.

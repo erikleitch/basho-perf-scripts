@@ -76,8 +76,8 @@ get_ddl(Ind) when is_integer(Ind) ->
     _SQL = "CREATE TABLE Gen" ++ integer_to_list(Ind) ++ " (" ++
 	"myfamily    varchar   not null, " ++
 	"myseries    varchar   not null, " ++
-	"time        timestamp not null, " ++ 
-	"myint       sint64    not null, " ++ genFields(Ind) ++ 
+	"time        timestamp not null, " ++ genFields(Ind) ++ 
+	"myint       sint64    not null, " ++ 
 	"PRIMARY KEY ((myfamily, myseries, quantum(time, 15, 'm')), " ++
 	"myfamily, myseries, time))";
 

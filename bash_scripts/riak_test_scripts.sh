@@ -200,6 +200,50 @@ runKvLatencyTest()
 # prefix 'prefix'
 #-----------------------------------------------------------------------
 
+torbenTestSequence()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startIter=$(simpleValOrDef start '0' $@)
+    prefix=$(simpleValOrDef prefix 'kv' $@)
+    
+    endIter=$[$startIter + $nIter]
+
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+
+    #------------------------------------------------------------
+    # Set up devrel for 3-node cluster, and run the riak_test script
+    # to create the cluster
+    #------------------------------------------------------------
+
+    \rm riak_ee
+    ln -s branches/riak_ee_develop_2.2 riak_ee
+    \rm /Users/eml/rt/riak/.git/index.lock
+    rerun script=ts_setup_kv_nval3 args=--keep nodes=3
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runKvLatencyTest disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_w1c_normal_"$prefix"_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+    \rm riak_ee
+    ln -s branches/riak_ee_develop_2.2_mod riak_ee
+    \rm /Users/eml/rt/riak/.git/index.lock
+    rerun script=ts_setup_kv_nval3 args=--keep nodes=3
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runKvLatencyTest disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/kvlatency_nval3_w1c_thtest_"$prefix"_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+}
+
 kvLatencyTestSequence()
 {
     nIter=$(simpleValOrDef iter '1' $@)
@@ -1024,7 +1068,7 @@ tsQueryLatencyTestSequenceTs1.3VsTs1.4()
     iIter=$startIter
     while [ $iIter -lt $endIter ]
     do
-	runTsQueryLatencyTest disp=false args="1000 all none"
+	runTsQueryLatencyTest disp=false args="1000 all none none"
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_ts1.3_1000bytespercol_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
@@ -1042,7 +1086,7 @@ tsQueryLatencyTestSequenceTs1.3VsTs1.4()
     iIter=$startIter
     while [ $iIter -lt $endIter ]
     do
-	runTsQueryLatencyTest disp=false args="1000 all none"
+	runTsQueryLatencyTest disp=false args="1000 all none none"
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_1000bytespercol_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
@@ -1060,7 +1104,7 @@ tsQueryLatencyTestSequenceTs1.3VsTs1.4()
 #    nIter=$[2*$nIter]
 #    while [ $iIter -lt $nIter ]
 #    do
-#	runTsQueryLatencyTest disp=false args="1000 all none"
+#	runTsQueryLatencyTest disp=false args="1000 all none none"
 #	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_ts1.3_1000bytespercol_iter$iIter.txt
 #	iIter=$[$iIter+1]
  #   done
@@ -1075,7 +1119,6 @@ tsQueryLatencyTestSequenceTs1.3VsTs1.4()
 
     python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.3_1000bytespercol*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_1000bytespercol*.txt`" $'TS1.3 Query Latency\n(1000 bytes per column)' $'TS1.4 Query Latency\n(1000 bytes per column)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False
 }
-
 
 tsQueryLatencyTestSequenceGroupBy()
 {
@@ -1103,7 +1146,7 @@ tsQueryLatencyTestSequenceGroupBy()
     iIter="0"
     while [ $iIter -lt $nIter ]
     do
-	runTsQueryLatencyTest disp=false args="1 time none"
+	runTsQueryLatencyTest disp=false args="1 time none none"
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_nogroup_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
@@ -1111,7 +1154,7 @@ tsQueryLatencyTestSequenceGroupBy()
     iIter="0"
     while [ $iIter -lt $nIter ]
     do
-	runTsQueryLatencyTest disp=false args="1 time time"
+	runTsQueryLatencyTest disp=false args="1 time time none"
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_group_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
@@ -1121,6 +1164,114 @@ tsQueryLatencyTestSequenceGroupBy()
     #------------------------------------------------------------
     
     python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_nogroup*txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_group*.txt`" $'TS Query Latency\n(1 byte per column, no group by)' $'TS Query Latency\n(1 byte per column, group by)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False
+}
+
+tsQueryLatencyTestSequenceGrid()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    echo $nIter
+    
+    #------------------------------------------------------------
+    # Make the output directory if it doesn't already exist
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+    
+    #------------------------------------------------------------
+    # Set up TS1.4 devrel for 1-node cluster, and run the riak_test
+    # script to create the cluster
+    #------------------------------------------------------------
+
+    \rm riak_ee
+    ln -s branches/riak_ee_riak_ts_ee_1.4.0 riak_ee
+    
+    rerun target=locked-all script=ts_setup_gen args=--keep nodes=1
+
+    iIter="0"
+    while [ $iIter -lt $nIter ]
+    do
+	if [ $iIter -eq 0 ]
+	then
+	    runTsQueryFilterNoFilterSeq $iIter "ts1.4" true
+	else
+	    runTsQueryFilterNoFilterSeq $iIter "ts1.4" false
+	fi
+	
+	iIter=$[$iIter+1]
+    done
+
+    #------------------------------------------------------------
+    # Now set up test branch for 1-node cluster, and run the riak_test
+    # script to create the cluster
+    #------------------------------------------------------------
+
+    \rm riak_ee
+    ln -s branches/riak_ee_eml_replace_msgpack_encoding riak_ee
+    
+    rerun target=locked-all script=ts_setup_gen args=--keep nodes=1
+
+    iIter="0"
+    while [ $iIter -lt $nIter ]
+    do
+	if [ $iIter -eq 0 ]
+	then
+	    runTsQueryFilterNoFilterSeq $iIter "ttb" true
+	else
+	    runTsQueryFilterNoFilterSeq $iIter "ttb" false
+	fi
+	
+	iIter=$[$iIter+1]
+    done
+}
+
+makeGridPlot()
+{
+    prefix1=$(simpleValOrDef prefix1 'ts1.4' $@)
+    prefix2=$(simpleValOrDef prefix2 'ttb' $@)
+    byte=$(simpleValOrDef byte '10' $@)
+    suffix1=$(simpleValOrDef suffix1 'filter' $@)
+    suffix2=$(simpleValOrDef suffix2 'filter' $@)
+    overplot=$(simpleValOrDef overplot 'False' $@)
+    diffplot=$(simpleValOrDef diffplot 'True' $@)
+    figfile=$(simpleValOrDef figfile '' $@)
+
+    #------------------------------------------------------------
+    # Make some plots
+    #------------------------------------------------------------
+
+    if [ ! -z $figfile ]; then
+	python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix1"_"$byte"_"$suffix1"_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix2"_"$byte"_"$suffix2"_iter*.txt`" "$prefix1 Query Latency\n($byte bytes per column, $suffix1)" "$prefix2 Query Latency\n($byte bytes per column, $suffix2)" "$\Delta$ ($prefix2-$prefix1) Query Latency" "$\Delta$ Latency (ms)" overplot=$overplot diffplot=$diffplot figfile=$figfile
+    else
+	python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix1"_"$byte"_"$suffix1"_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix2"_"$byte"_"$suffix2"_iter*.txt`" "$prefix1 Query Latency\n($byte bytes per column, $suffix1)" "$prefix2 Query Latency\n($byte bytes per column, $suffix2)" "$\Delta$ ($prefix2-$prefix1) Query Latency" "$\Delta$ Latency (ms)" overplot=$overplot diffplot=$diffplot
+    fi
+}
+
+makeMsgTtbCmpPlots()
+{
+    makeGridPlot prefix1=ts1.4 prefix2=ttb suffix1=nofilter suffix2=nofilter overplot=False diffplot=True  figfile=msg_ttb_nofilter_cmp.png
+    makeGridPlot prefix1=ts1.4 prefix2=ttb suffix1=nofilter suffix2=nofilter overplot=False diffplot=False figfile=msg_ttb_nofilter_frac_cmp.png
+}
+
+runTsQueryFilterNoFilterSeq()
+{
+    iIter=$1
+    prefix=$2
+    putdata=$3
+
+    #    bytes=(1 10 100 1000)
+
+    bytes=(10)
+
+    for i in ${!bytes[@]}; do
+	nbyte=${bytes[i]}
+	runTsQueryLatencyTest disp=false args="$nbyte all none none $putdata"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_"$prefix"_"$nbyte"_nofilter_iter$iIter.txt
+
+	runTsQueryLatencyTest disp=false args="$nbyte all none filter false"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_"$prefix"_"$nbyte"_filter_iter$iIter.txt
+    done
 }
 
 makeGroupByCompPlot()
@@ -1164,7 +1315,7 @@ tsQueryLatencyTestSequenceExpiryOnVsOff()
     iIter=$startIter
     while [ $iIter -lt $endIter ]
     do
-	runTsQueryLatencyTest disp=false args="1 time none"
+	runTsQueryLatencyTest disp=false args="1 time none none"
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_off_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
@@ -1174,7 +1325,7 @@ tsQueryLatencyTestSequenceExpiryOnVsOff()
     iIter=$startIter
     while [ $iIter -lt $endIter ]
     do
-	runTsQueryLatencyTest disp=false args="1 time none"
+	runTsQueryLatencyTest disp=false args="1 time none none"
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_expiry_on_iter$iIter.txt
 	iIter=$[$iIter+1]
     done
@@ -1662,5 +1813,36 @@ getRingKeys()
 	echo "$erlstr nkeys = $nkeys"
     done
     echo "Total = $sum"
+}
+
+
+buildPartitionFile()
+{
+    prefixdir=$1
+    outputfile=$2
+
+    #------------------------------------------------------------
+    # Get the list of hash partitions from disk
+    #------------------------------------------------------------
+
+    ring=("`ls $prefixdir/data/leveldb`")
+
+    #------------------------------------------------------------
+    # Now iterate over hash partitions for this node
+    #------------------------------------------------------------
+
+    local erlstr=""
+    first=true
+    sum=0
+    for seg in $ring
+    do
+	erlstr="$prefixdir/data/leveldb/$seg"
+	nkeys=`runerl mod=riak_prof_tests fn=countLeveldbKeys args="$erlstr" riak=$prefixdir`
+	sum=$[$sum+$nkeys]
+	echo "node $prefixdir partition $seg nkeys $nkeys"
+	echo "node $prefixdir partition $seg nkeys $nkeys" >> $outputfile
+    done
+    echo "node $prefixdir sum $sum"
+    echo "node $prefixdir sum $sum" >> $outputfile
 }
 

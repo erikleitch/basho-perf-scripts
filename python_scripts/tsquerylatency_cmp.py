@@ -73,6 +73,7 @@ def getRawDiffProfilerOutput(fileName1, fileName2):
   d2 = parseProfilerOutput(fileName2, {})
   cols  = []
   rows  = []
+  rs  = []
   us  = []
   for key in d1.keys():
     s = key.split('_')
@@ -80,9 +81,10 @@ def getRawDiffProfilerOutput(fileName1, fileName2):
       if key in d2.keys():
         cols.append(float(s[1]))
         rows.append(np.log10(float(s[3])))
-        us.append((d2[key]['usec'] - d1[key]['usec'])/d1[key]['usec'])
+        rs.append((d2[key]['usec'] - d1[key]['usec'])/d1[key]['usec'])
+        us.append(d2[key]['usec'] - d1[key]['usec'])
 
-  return cols, rows, us, d1, d2
+  return cols,rows,rs,us,d1,d2
 
 def getProfilerOutput(fileName):
   d = parseProfilerOutput(fileName, {})
@@ -103,7 +105,7 @@ def getProfilerOutput(fileName):
   return x,y,z,bytes
 
 def getDiffProfilerOutput(fileName1, fileName2):
-  c, r, diff, d1, d2 = getRawDiffProfilerOutput(fileName1, fileName2)
+  c, r, fracdiff, lindiff, d1, d2 = getRawDiffProfilerOutput(fileName1, fileName2)
 
   chi2 = 0.0
   ndof = 0
@@ -125,8 +127,10 @@ def getDiffProfilerOutput(fileName1, fileName2):
 
   statstr = '$\mu$ = ' + ("%.0f" % av) + '%, $\chi^2_{' + str(ndof) + '}$ = ' + ("%.2f" % chi2) + ' (PTE = ' + ("%.2g" % pte) + ')'
   
-  x,y,z = getGriddedData(c, r, diff)
-  return x,y,z,statstr
+  x,y,frac = getGriddedData(c, r, fracdiff)
+  x,y,diff = getGriddedData(c, r, lindiff)
+                  
+  return x,y,frac,diff,statstr
 
 def getGriddedData(x,y,d):
   npoints=np.size(x);
@@ -213,29 +217,34 @@ def getOptArgs(args, name, defval):
     else:
       return defval
 
+#-----------------------------------------------------------------------
+# Main script starts here
+#-----------------------------------------------------------------------
+
 print 'Args = ' + str(sys.argv)
 
 dataDir = str(os.environ['RIAK_TEST_BASE']) + '/data/'
 
 file1  = sys.argv[1]
 file2  = sys.argv[2]
-title1 = sys.argv[3]
-title2 = sys.argv[4]
-title3 = sys.argv[5]
+title1 = sys.argv[3].replace("\\n", "\n")
+title2 = sys.argv[4].replace("\\n", "\n")
+title3 = sys.argv[5].replace("\\n", "\n")
 
 if np.size(sys.argv) > 6:
-  zlabel3 = sys.argv[6]
+  zlabel3 = sys.argv[6].replace("\\n", "\n")
 else:
   zlabel=None
 
 overplot = str2bool(getOptArgs(sys.argv, 'overplot', True))
+diffplot = str2bool(getOptArgs(sys.argv, 'diffplot', False))
 figfile  = getOptArgs(sys.argv, 'figfile',  None)
   
 x1, y1, z1, bytes1 = getProfilerOutput(file1)
 x2, y2, z2, bytes2 = getProfilerOutput(file2)
 
 if not overplot:
-  xd, yd, diff, statstr = getDiffProfilerOutput(file1, file2)
+  xd, yd, frac, diff, statstr = getDiffProfilerOutput(file1, file2)
 
 fig = plt.figure(figsize=(25,8))
 fig.set_facecolor('white');
@@ -258,6 +267,8 @@ zrng = zmax - zmin
 zmin -= zrng * 0.1
 zmax += zrng * 0.1
 
+print 'zmin = ' + str(zmin) + ' zmax = ' + str(zmax)
+
 ax = fig.add_subplot(1,3,1, projection='3d')
 makePlot(ax, x1, y1, z1, zmin, zmax, 'c', title1)
 
@@ -271,11 +282,27 @@ if overplot:
   plt.hold(True)
   makePlot(ax, x2, y2, z2, zmin, zmax, 'm')
 else:
-  makePlot(ax, x1, y1, diff*100, -100, 100, 'y', title3 + '\n' + statstr, False, zlabel3)
+  if diffplot:
+    nx = np.shape(diff)[0]
+    ny = np.shape(diff)[1]
 
-plt.tight_layout(w_pad=2,pad=5)
+    for ix in range(0,nx):
+      for iy in range(0,ny):
+        diff[ix][iy] = np.power(10, z2[ix][iy]) - np.power(10,z1[ix][iy])
+
+    diff = diff / 1e3
+    zmin = np.min(diff)
+    zmax = np.max(diff)
+    zrng = zmax - zmin
+    zmin -= zrng * 0.1
+    zmax += zrng * 0.1
+    print 'z1 = ' + str(z1) + ' z2 = ' + str(z2) + ' Diff = ' + str(diff)
+    makePlot(ax, x1, y1, diff, zmin, zmax, 'y', title3 + '\n' + statstr, False, zlabel3)
+  else:
+    makePlot(ax, x1, y1, frac*100, -100, 100, 'y', title3 + '\n' + statstr, False, zlabel3)
 
 if figfile != None:
+  plt.tight_layout(w_pad=2,pad=5)
   fig.savefig(figfile);
   
 print 'Here'

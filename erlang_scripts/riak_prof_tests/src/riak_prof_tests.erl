@@ -107,7 +107,7 @@ tsLatencyPutTest(ArgTuple, Name, Nrow, Nrow, Niter, AccIter) ->
     tsLatencyPutTest(ArgTuple, Name, Nrow, 0, Niter, AccIter+1);
 tsLatencyPutTest(ArgTuple, Name, Nrow, AccRow, Niter, AccIter) ->
     {C, Bucket, FieldData} = ArgTuple,
-    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, AccRow+1, AccRow+1] ++ FieldData)],
+    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, AccRow+1] ++ FieldData ++ [AccRow+1])],
     riakc_ts:put(C, Bucket, Data),
     tsLatencyPutTest(ArgTuple, Name, Nrow, AccRow+1, Niter, AccIter).
 
@@ -224,44 +224,55 @@ get_random_string(Length) ->
 %% TS query latency tests
 %%========================================================================
 
-runTsQueryLatencyTests([Nbyte, Select, Group]) when is_list(Nbyte) ->
+runTsQueryLatencyTests([Nbyte, Select, Group, Filter, PutData]) when is_list(Nbyte) ->
     io:format("Nbyte = ~p Slect = ~p Group = ~p~n", [Nbyte, Select, Group]),
-    runTsQueryLatencyTests(list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group)).
+    runTsQueryLatencyTests(list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Filter), list_to_atom(PutData)).
 
-runTsQueryLatencyTests(Nbyte, Select, Group) ->
-    Ncols = [1, 5, 10, 20, 50],
+runTsQueryLatencyTests(Nbyte, Select, Group, Filter, PutData) ->
+%%    Ncols = [1, 5, 10, 20, 50],
+    Ncols = [1, 5, 10],
 
-    Rows = [{100,       1}, 
-	    {100,      10}, 
-	    {100,     100}, 
-	    {100,    1000}, 
-	    {10,    10000}], 
-
+    Rows = [{10,   100000, PutData}, 
+	    {10,    10000, false}, 
+	    {100,    1000, false}, 
+	    {100,     100, false}, 
+	    {100,      10, false}, 
+	    {100,       1, false}],
+    
     C = getClient(),
     profiler:profile({prefix, "/tmp/client_profiler_results"}),
     profiler:profile({noop, false}),
 
     ColRunFun = 
 	fun(Ncol) ->
-		[tsLatencyQueryTest({C, Select, Group}, Nrow, Ncol, Niter, Nbyte) || {Niter, Nrow} <- Rows]
+		[tsLatencyQueryTest({C, Select, Group, Filter, Put}, Nrow, Ncol, Niter, Nbyte) || {Niter, Nrow, Put} <- Rows]
 	end,
 
     [ColRunFun(Ncol) || Ncol <- Ncols].
 
-tsLatencyQueryTest({C, Select, Group}, Nrow, Ncol, Niter, Nbyte) ->
+tsLatencyQueryTest({C, Select, Group, Filter, PutData}, Nrow, Ncol, Niter, Nbyte) ->
 
     FieldData = tsLatencyTestData(Ncol, Nbyte),
     Bucket = "Gen" ++ integer_to_list(Ncol),
 
     %%------------------------------------------------------------
-    %% Put generated data
+    %% Put generated data, but only if requested (if we put data for
+    %% the largest nrow first, we don't need to subsequently)
     %%------------------------------------------------------------
 
-    io:format("Putting data for Ncol = ~p Nrow = ~p ~n", [Ncol, Nrow]),
-
-    putQueryTestData({C, Bucket, FieldData}, Nrow, 0),
+    case PutData of 
+	true ->
+	    io:format("Putting data for Ncol = ~p Nrow = ~p ~n", [Ncol, Nrow]),
+	    putQueryTestData({C, Bucket, FieldData}, Nrow, 0);
+	_ ->
+	    ok
+    end,
     
     Name  = list_to_atom("query_" ++ integer_to_list(Ncol) ++ "_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(Nrow) ++ "_" ++ integer_to_list(Niter)),
+
+    %%------------------------------------------------------------
+    %% select * if Select == all, or just what was specified
+    %%------------------------------------------------------------
 
     FieldCond = 
 	case Select of
@@ -271,6 +282,10 @@ tsLatencyQueryTest({C, Select, Group}, Nrow, Ncol, Niter, Nbyte) ->
 		atom_to_list(Select)
 	end,
 
+    %%------------------------------------------------------------
+    %% If Group is none, just range scan, else group the results
+    %%------------------------------------------------------------
+
     GroupCond = 
 	case Group of
 	    none ->
@@ -279,14 +294,29 @@ tsLatencyQueryTest({C, Select, Group}, Nrow, Ncol, Niter, Nbyte) ->
 		" group by " ++ atom_to_list(Group)
 	end,
 
-    Query = "select " ++ FieldCond ++ " from Gen" ++ integer_to_list(Ncol) ++ " where myfamily='family1' and myseries='seriesX' and time > 0 and time <= " ++ integer_to_list(Nrow) ++ GroupCond,
+    %%------------------------------------------------------------
+    %% If Filter is none, just range scan, else apply a secondary
+    %% filter that will match all keys we are iterating over
+    %%------------------------------------------------------------
+
+    FilterCond = 
+	case Filter of
+	    none ->
+		"";
+	    _ ->
+		" and myint <= " ++ integer_to_list(Nrow)
+	end,
+
+    Query = "select " ++ FieldCond ++ " from Gen" ++ integer_to_list(Ncol) ++ 
+	" where myfamily='family1' and myseries='seriesX' and time > 0 and time <= " ++ 
+	integer_to_list(Nrow) ++ FilterCond ++ GroupCond,
 
     %%------------------------------------------------------------
     %% Now start the profiler for Niter iterations of this combination
     %% rows, columns and bytes per column
     %%------------------------------------------------------------
 
-    io:format("Querying data for Ncol = ~p Nrow = ~p with Query = ~p~n", [Ncol, Nrow, Query]),
+    io:format("Querying data for Ncol = ~p Nbyte = ~p Nrow = ~p with Query = ~p~n", [Ncol, Nbyte, Nrow, Query]),
 
     profiler:profile({start, Name}),
     tsLatencyQueryTest({C, Query, Name}, Niter, 0).
@@ -305,7 +335,7 @@ putQueryTestData(Args, Nrow, AccRow) ->
 
 putQueryTestData(_Args, _Nrow, _Nrow, _Ind) ->
     ok;
-putQueryTestData(Args, Nrow, AccRow, GenInd) ->
+putQueryTestData(Args, Nrow, AccRow, _GenInd) ->
     {C, Bucket, FieldData} = Args,
 
     %%------------------------------------------------------------
@@ -313,23 +343,25 @@ putQueryTestData(Args, Nrow, AccRow, GenInd) ->
     %% the total data length
     %%------------------------------------------------------------
 
-    RowsPerInd = 
-	case Nrow > 10 of
-	    true ->
-		Nrow div 10;
-	    _ ->
-		1
-	end,
+%%    RowsPerInd = 
+%%	case Nrow > 10 of
+%%	    true ->
+%%		Nrow div 10;
+%%	    _ ->
+%%		1
+%%	end,
 
-    NewInd = 
-	case AccRow rem RowsPerInd of 
-	    0 ->
-		random:uniform(100);
-	    _ ->
-		GenInd
-	end,
+%%    NewInd = 
+%%	case AccRow rem RowsPerInd of 
+%%	    0 ->
+%%		random:uniform(100);
+%%	    _ ->
+%%		GenInd
+%%	end,
+    
+    NewInd = AccRow + 1,
+    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, AccRow+1] ++ FieldData ++ [NewInd])],
 
-    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, AccRow+1, NewInd] ++ FieldData)],
     riakc_ts:put(C, Bucket, Data),
     putQueryTestData(Args, Nrow, AccRow+1, NewInd).
 
@@ -412,7 +444,10 @@ intellicoreTest() ->
     putSequentialIntellicoreData(137000, {1467554400000, 1467563400000, 1404.0/137000}).
 
 intellicoreTest(sl) ->
-    putSequentialIntellicoreData(sl, 137000, {1467554400000, 1467563400000, 1404.0/137000}).
+    putSequentialIntellicoreData(sl, 137000, {1467554400000, 1467563400000, 1404.0/137000});
+
+intellicoreTest(N) ->
+    putSequentialIntellicoreData(N, {1467554400000, 1467563400000, 1404.0/137000}).
 
 getIntellicoreData(SportEventUuid, Timestamp, LapsFrac) ->
     VarcharSize = length(binary_to_list(SportEventUuid)),
@@ -575,6 +610,22 @@ query(Q, Atom) ->
 	{ok, {_Cols, Rows}} = riakc_ts:query(C, Q),
         io:format("Query returned ~p rows~n", [length(Rows)]),
         Rows.
+
+timedQuery(Q, Atom, ProfAtom) ->
+    C = getClient(Atom),
+    profiler:profile({start, ProfAtom}),
+    {ok, {_Cols, Rows}} = riakc_ts:query(C, Q),
+    profiler:profile({stop, ProfAtom}),
+    profiler:profile({debug}),
+    io:format("Query returned ~p rows~n", [length(Rows)]),
+    Rows.
+
+iq(all, Atom, ProfAtom) ->
+    Q = "select * from TIM_motorsport_formula_e_2015 where sport_event_uuid = '596044d8-86f5-462f-8d94-65b25e7d3fe9' and time >= 1467554400000 and time < 1467563400000",
+    timedQuery(Q, Atom, ProfAtom);
+iq(laps, Atom, ProfAtom) ->
+    Q = "select * from TIM_motorsport_formula_e_2015 where sport_event_uuid = '596044d8-86f5-462f-8d94-65b25e7d3fe9' and time >= 1467554400000 and time < 1467563400000 and laps > 0",
+    timedQuery(Q, Atom, ProfAtom).
 
 iq(all, Atom) ->
     Q = "select * from TIM_motorsport_formula_e_2015 where sport_event_uuid = '596044d8-86f5-462f-8d94-65b25e7d3fe9' and time >= 1467554400000 and time < 1467563400000",
@@ -740,3 +791,73 @@ countLeveldbKeys(List) ->
 
 testFn([File]) when is_list(File) ->
     io:format("~p~n", [File]).
+
+%%=======================================================================
+%% Functions for spawning threads
+%%=======================================================================
+
+%%------------------------------------------------------------
+%% Top-level spawn function
+%%------------------------------------------------------------
+
+spawnFn(Fn, Args, NThread, NOp, OpTag) ->
+    profiler:profile({prefix, "/tmp/client_profiler_results"}),
+    profiler:profile({noop, false}),
+    Tag = list_to_atom(OpTag ++ "_" ++ integer_to_list(NThread) ++ "_" ++ integer_to_list(NOp)),
+
+    profiler:profile({start, Tag}),
+
+    doSpawn(Fn, Args, NThread),
+    waitForResponses(NThread),
+
+    profiler:profile({stop, Tag}),
+    profiler:profile({debug}).
+
+%%------------------------------------------------------------
+%% Spawn NThread threads running Fn
+%%------------------------------------------------------------
+
+doSpawn(Fn, Args, NThread) ->
+    doSpawn(Fn, Args, NThread, 0).
+doSpawn(_Fn, _Args, _NThread, _NThread) ->
+    ok;
+doSpawn(Fn, Args, NThread, Acc) ->
+    spawn(riak_prof_tests, Fn, [Args, Acc, self()]),
+    doSpawn(Fn, Args, NThread, Acc+1).
+
+%%------------------------------------------------------------
+%% Wait for responses from N threads
+%%------------------------------------------------------------
+
+waitForResponses(N) ->
+    waitForResponse(N,0).
+waitForResponse(_N,_N) ->
+    ok;
+waitForResponse(N,Acc) ->
+    receive
+	{finished, _Pid} ->
+	    waitForResponse(N,Acc+1)
+    end.
+
+%%------------------------------------------------------------
+%% Put Niter keys of Nbyte-size data to the KV bucket
+%%------------------------------------------------------------
+
+kvPutThreadFn(Args, Acc, Pid) ->
+    C = getClient(),
+    {Niter, Nbyte} = Args,
+    Data = kvTestData(Nbyte),
+    kvPutThreadFn({C, Data, Acc}, Niter, 0, Pid).
+kvPutThreadFn(_Args, _Niter, _Niter, Pid) ->
+    Pid ! {finished, self()};
+kvPutThreadFn(Args, Niter, Acc, Pid) ->
+    {C, Data, ThreadId} = Args,
+    Key = list_to_binary("key" ++ integer_to_list(ThreadId) ++ "_" ++ integer_to_list(Acc)),
+    Obj = riakc_obj:new({<<"TestBucketType">>, <<"GeoCheckin">>}, Key, Data),
+    riakc_pb_socket:put(C, Obj),
+    kvPutThreadFn(Args, Niter, Acc+1, Pid).
+
+quickQueryTest() ->
+    C = getClient(),
+    tsLatencyQueryTest({C, all, none, none}, 100000, 10, 3, 10).
+

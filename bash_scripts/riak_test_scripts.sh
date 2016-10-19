@@ -1241,10 +1241,27 @@ makeGridPlot()
     # Make some plots
     #------------------------------------------------------------
 
-    if [ ! -z $figfile ]; then
-	python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix1"_"$byte"_"$suffix1"_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix2"_"$byte"_"$suffix2"_iter*.txt`" "$prefix1 Query Latency\n($byte bytes per column, $suffix1)" "$prefix2 Query Latency\n($byte bytes per column, $suffix2)" "$\Delta$ ($prefix2-$prefix1) Query Latency" "$\Delta$ Latency (ms)" overplot=$overplot diffplot=$diffplot figfile=$figfile
+    echo "overplot = '$overplot'"
+    echo "diffplot = '$diffplot'"
+
+    if [ "$overplot" == "True" ]; then
+	echo "overplot is True"
+	deltalabel="Latency ($\mu$ sec)"
     else
-	python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix1"_"$byte"_"$suffix1"_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix2"_"$byte"_"$suffix2"_iter*.txt`" "$prefix1 Query Latency\n($byte bytes per column, $suffix1)" "$prefix2 Query Latency\n($byte bytes per column, $suffix2)" "$\Delta$ ($prefix2-$prefix1) Query Latency" "$\Delta$ Latency (ms)" overplot=$overplot diffplot=$diffplot
+	echo "overplot is False"
+	if [ "$diffplot" == "True" ]; then
+	    echo "diffplot is True"
+	    deltalabel="$\Delta$ Latency (ms)"
+	else
+	    echo "diffplot is False"
+	    deltalabel="$\Delta$ Latency (%)"
+	fi
+    fi
+	
+    if [ ! -z $figfile ]; then
+	python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix1"_"$byte"_"$suffix1"_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix2"_"$byte"_"$suffix2"_iter*.txt`" "$prefix1 Query Latency\n($byte bytes per column, $suffix1)" "$prefix2 Query Latency\n($byte bytes per column, $suffix2)" "$\Delta$ ($prefix2-$prefix1) Query Latency" "$deltalabel" overplot=$overplot diffplot=$diffplot figfile=$figfile
+    else
+	python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix1"_"$byte"_"$suffix1"_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_"$prefix2"_"$byte"_"$suffix2"_iter*.txt`" "$prefix1 Query Latency\n($byte bytes per column, $suffix1)" "$prefix2 Query Latency\n($byte bytes per column, $suffix2)" "$\Delta$ ($prefix2-$prefix1) Query Latency" "$deltalabel" overplot=$overplot diffplot=$diffplot
     fi
 }
 

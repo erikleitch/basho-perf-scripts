@@ -79,6 +79,7 @@ def getRawDiffProfilerOutput(fileName1, fileName2):
     s = key.split('_')
     if s[0] == 'query':
       if key in d2.keys():
+        print 'Read cols = ' + str(s[1])
         cols.append(float(s[1]))
         rows.append(np.log10(float(s[3])))
         rs.append((d2[key]['usec'] - d1[key]['usec'])/d1[key]['usec'])
@@ -179,6 +180,8 @@ def retick(ax, axname):
   return
 
 def makePlot(ax, x, y, z, zmin, zmax, Color, Title=None, retickz=True, zlabel=None):
+
+  print 'Inside makePlot with x = ' + str(x)
   ax.plot_surface(x, y, z, color=Color);
 
   if Title != None:
@@ -237,9 +240,12 @@ else:
   zlabel=None
 
 overplot = str2bool(getOptArgs(sys.argv, 'overplot', True))
-diffplot = str2bool(getOptArgs(sys.argv, 'diffplot', False))
+cmpplot  = getOptArgs(sys.argv, 'cmpplot', 'frac')
 figfile  = getOptArgs(sys.argv, 'figfile',  None)
-  
+chis     = str2bool(getOptArgs(sys.argv, 'chis', True))
+
+print 'cmpplot = ' + str(cmpplot) + ' == ' + str(cmpplot == 'frac')
+
 x1, y1, z1, bytes1 = getProfilerOutput(file1)
 x2, y2, z2, bytes2 = getProfilerOutput(file2)
 
@@ -277,12 +283,15 @@ makePlot(ax, x2, y2, z2, zmin, zmax, 'm', title2)
 
 ax = fig.add_subplot(1,3,3, projection='3d')
 
+if not chis:
+  statstr = ' '
+  
 if overplot:
   makePlot(ax, x1, y1, z1, zmin, zmax, 'c', title3)
   plt.hold(True)
   makePlot(ax, x2, y2, z2, zmin, zmax, 'm')
 else:
-  if diffplot:
+  if cmpplot == 'diff':
     nx = np.shape(diff)[0]
     ny = np.shape(diff)[1]
 
@@ -298,7 +307,24 @@ else:
     zmax += zrng * 0.1
     print 'z1 = ' + str(z1) + ' z2 = ' + str(z2) + ' Diff = ' + str(diff)
     makePlot(ax, x1, y1, diff, zmin, zmax, 'y', title3 + '\n' + statstr, False, zlabel3)
-  else:
+  elif cmpplot == 'div':
+    nx = np.shape(diff)[0]
+    ny = np.shape(diff)[1]
+
+    for ix in range(0,nx):
+      for iy in range(0,ny):
+        diff[ix][iy] = np.power(10, z2[ix][iy]) / np.power(10,z1[ix][iy])
+
+    zmin = np.min(diff)
+    zmax = np.max(diff)
+    zrng = zmax - zmin
+    zmin -= zrng * 0.1
+    zmax += zrng * 0.1
+    zmin = 0.0
+    zmax = 4.0
+    print 'z1 = ' + str(z1) + ' z2 = ' + str(z2) + ' Diff = ' + str(diff)
+    makePlot(ax, x1, y1, diff, zmin, zmax, 'y', title3 + '\n' + statstr, False, zlabel3)
+  elif cmpplot == 'frac':
     makePlot(ax, x1, y1, frac*100, -100, 100, 'y', title3 + '\n' + statstr, False, zlabel3)
 
 if figfile != None:

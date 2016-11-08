@@ -1120,6 +1120,95 @@ tsQueryLatencyTestSequenceTs1.3VsTs1.4()
     python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.3_1000bytespercol*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_1000bytespercol*.txt`" $'TS1.3 Query Latency\n(1000 bytes per column)' $'TS1.4 Query Latency\n(1000 bytes per column)' $'$\Delta$ Query Latency' $'$\Delta$Latency (%)' False
 }
 
+tsQueryLatencyTestSequenceVnodeDecode()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startIter=$(simpleValOrDef start '0' $@)
+
+    endIter=$[$startIter + $nIter]
+
+    echo $startIter, $endIter, $nIter
+
+    #------------------------------------------------------------
+    # Make the output directory if it doesn't already exist
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+    
+    #------------------------------------------------------------
+    # Set up TS1.4 devrel for 3-node cluster, and run the riak_test
+    # script to create the cluster and Gen tables
+    #------------------------------------------------------------
+
+    \rm riak_ee
+    ln -s branches/riak_ee_riak_ts_ee_1.4.0 riak_ee
+    
+    rerun target=locked-all script=ts_setup_gen_single_quantum args=--keep nodes=3
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="10 all none none true 1000"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_single_serial_10bytespercol_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+    riaktest ts_setup_gen_multiple_quanta --keep
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="10 all none none true 1000"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_multiple_serial_10bytespercol_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+    #------------------------------------------------------------
+    # Set up Standard TS1.4 devrel for 3-node cluster, and run the riak_test
+    # script to create the cluster and Gen tables
+    #------------------------------------------------------------
+
+    \rm riak_ee
+    ln -s branches/riak_ee_riak_ts_ee_1.4.0_parallel riak_ee
+    
+    rerun target=locked-all script=ts_setup_gen_single_quantum args=--keep nodes=3
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="10 all none none true 1000"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_single_parallel_10bytespercol_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+    riaktest ts_setup_gen_multiple_quanta --keep
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="10 all none none true 1000"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_multiple_parallel_10bytespercol_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+}
+
+vnodeplots()
+{
+    #------------------------------------------------------------
+    # Make some plots
+    #------------------------------------------------------------
+    
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_single_parallel_10bytespercol*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_single_serial_10bytespercol*.txt`" $'Prototype Query Latency\n(single quantum)' $'TS1.4 Query Latency\n(single quantum)' $'Latency Ratio\n(TS1.4/Prototype)' $'Ratio' overplot=False cmpplot=div chis=False figfile="tsquerylatency_qcmp_single.png"
+
+#    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_multiple_parallel_10bytespercol*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_multiple_serial_10bytespercol*.txt`" $'Prototype Query Latency\n(multiple quanta)' $'TS1.4 Query Latency\n(multiple quanta)' $'TS Query Latency\n(Prototype vs TS1.4)' $'Ratio' overplot=False cmpplot=div
+
+#    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_multiple_serial_10bytespercol*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_single_serial_10bytespercol*.txt`" $'TS1.4 Query Latency\n(multiple quanta)' $'TS1.4 Query Latency\n(single quanta)' $'TS Query Latency\n(Prototype vs TS1.4)' $'Ratio' overplot=False cmpplot=div
+
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_multiple_parallel_10bytespercol*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_single_parallel_10bytespercol*.txt`" $'Prototype Query Latency\n(multiple quanta)' $'Prototype Query Latency\n(single quantum)' $'Latency Ratio\n(single/multiple)' $'Ratio' overplot=False cmpplot=div chis=False figfile="tsquerylatency_qcmp_prototype.png"
+}
+
 tsQueryLatencyTestSequenceGroupBy()
 {
     nIter=$(simpleValOrDef iter '1' $@)
@@ -1863,3 +1952,25 @@ buildPartitionFile()
     echo "node $prefixdir sum $sum" >> $outputfile
 }
 
+generateSeQueryMovie()
+{
+    mkdir output
+    
+    rm riak_ee
+    ln -s branches/riak_ee_perf_riak_ts_sonogram_parallel riak_ee
+
+    rerun script=ts_setup_sep_1d_mult nodes=3
+    for file in /tmp/dev*_events.txt;do mv $file output/`basename $file`"_1d_new"; done
+
+    riaktest ts_setup_sep_1h_mult
+    for file in /tmp/dev*_events.txt;do mv $file output/`basename $file`"_1h_new"; done
+
+    \rm riak_ee
+    ln -s branches/riak_ee_perf_riak_ts_sonogram riak_ee
+
+    rerun script=ts_setup_sep_1d_mult nodes=3
+    for file in /tmp/dev*_events.txt;do mv $file output/`basename $file`"_1d_old"; done
+	
+    riaktest ts_setup_sep_1h_mult
+    for file in /tmp/dev*_events.txt;do mv $file output/`basename $file`"_1h_old"; done
+}

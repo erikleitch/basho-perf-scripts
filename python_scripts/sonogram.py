@@ -175,6 +175,8 @@ class Cluster(object):
         firstLast  = True
         firstDelta = True
 
+        print 'Files = ' + str(files)
+        
         for file in self.files:
 
             if file.firstTimestamp != None:
@@ -492,6 +494,9 @@ def arrange(ntag):
     if ns == 1:
         ny = 1
         nx = ntag
+    elif ntag < 4:
+        nx = ntag
+        ny = 1
     else:
         ny = ns
         if ntag > 6:
@@ -637,7 +642,7 @@ anim = animation.FuncAnimation(fig, ring.update, ring.nFrame+2, interval=1,
 
 if save:
     Writer = animation.writers['ffmpeg']
-    writer = Writer(fps=10, metadata=dict(artist='Me'), bitrate=1800)
+    writer = Writer(fps=20, metadata=dict(artist='Me'), bitrate=1800)
     
     anim.save('im.mp4', writer=writer, savefig_kwargs={'facecolor':'black'})
 else:

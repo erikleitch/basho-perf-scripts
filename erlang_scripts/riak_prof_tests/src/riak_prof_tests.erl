@@ -224,33 +224,51 @@ get_random_string(Length) ->
 %% TS query latency tests
 %%========================================================================
 
-runTsQueryLatencyTests([Nbyte, Select, Group, Filter, PutData]) when is_list(Nbyte) ->
+%%------------------------------------------------------------
+%% runTsQueryLatencyTests([Nbyte, Select, Group, Filter, PutData, IntervalMs])
+%%
+%% Nbyte      -- number of bytes per column
+%% Select     -- 'all' to select *, otherwise literal condition
+%% Group      -- 'none' not to group, otherwise "group by " ++ atom_to_list(Group)
+%% Filter     -- 'none' to use no filter, otherwise includes filter on 'myint <= Nrow'
+%% PutData    -- true to put data on this iteration, false not to assumes data have aready been put)
+%% IntervalMs -- interval, in ms, between successive timestamps
+%%------------------------------------------------------------
+
+runTsQueryLatencyTests([Nbyte, Select, Group, Filter, PutData, IntervalMs]) when is_list(Nbyte) ->
     io:format("Nbyte = ~p Slect = ~p Group = ~p~n", [Nbyte, Select, Group]),
-    runTsQueryLatencyTests(list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Filter), list_to_atom(PutData)).
+    runTsQueryLatencyTests(list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Filter), list_to_atom(PutData), list_to_integer(IntervalMs)).
 
-runTsQueryLatencyTests(Nbyte, Select, Group, Filter, PutData) ->
+runTsQueryLatencyTests(Nbyte, Select, Group, Filter, PutData, IntervalMs) ->
 %%    Ncols = [1, 5, 10, 20, 50],
-    Ncols = [1, 5, 10],
+%%    Ncols = [1, 5, 10],
+%    Rows = [{1,    100000, PutData}, 
+%	    {10,    10000, false}, 
+%	    {100,    1000, false}, 
+%	    {100,     100, false}, 
+%	    {100,      10, false}, 
+%	    {100,       1, false}],
 
-    Rows = [{10,   100000, PutData}, 
-	    {10,    10000, false}, 
+    Ncols = [1, 10, 100, 200],
+
+    Rows = [{10,    10000, PutData}, 
 	    {100,    1000, false}, 
-	    {100,     100, false}, 
-	    {100,      10, false}, 
-	    {100,       1, false}],
-    
+	    {1000,    100, false}, 
+	    {1000,     10, false}, 
+	    {1000,      1, false}],
+        
     C = getClient(),
     profiler:profile({prefix, "/tmp/client_profiler_results"}),
     profiler:profile({noop, false}),
 
     ColRunFun = 
 	fun(Ncol) ->
-		[tsLatencyQueryTest({C, Select, Group, Filter, Put}, Nrow, Ncol, Niter, Nbyte) || {Niter, Nrow, Put} <- Rows]
+		[tsLatencyQueryTest({C, Select, Group, Filter, Put, IntervalMs}, Nrow, Ncol, Niter, Nbyte) || {Niter, Nrow, Put} <- Rows]
 	end,
 
     [ColRunFun(Ncol) || Ncol <- Ncols].
 
-tsLatencyQueryTest({C, Select, Group, Filter, PutData}, Nrow, Ncol, Niter, Nbyte) ->
+tsLatencyQueryTest({C, Select, Group, Filter, PutData, IntervalMs}, Nrow, Ncol, Niter, Nbyte) ->
 
     FieldData = tsLatencyTestData(Ncol, Nbyte),
     Bucket = "Gen" ++ integer_to_list(Ncol),
@@ -263,7 +281,7 @@ tsLatencyQueryTest({C, Select, Group, Filter, PutData}, Nrow, Ncol, Niter, Nbyte
     case PutData of 
 	true ->
 	    io:format("Putting data for Ncol = ~p Nrow = ~p ~n", [Ncol, Nrow]),
-	    putQueryTestData({C, Bucket, FieldData}, Nrow, 0);
+	    putQueryTestData({C, Bucket, FieldData, IntervalMs}, Nrow, 0);
 	_ ->
 	    ok
     end,
@@ -309,7 +327,7 @@ tsLatencyQueryTest({C, Select, Group, Filter, PutData}, Nrow, Ncol, Niter, Nbyte
 
     Query = "select " ++ FieldCond ++ " from Gen" ++ integer_to_list(Ncol) ++ 
 	" where myfamily='family1' and myseries='seriesX' and time > 0 and time <= " ++ 
-	integer_to_list(Nrow) ++ FilterCond ++ GroupCond,
+	integer_to_list(Nrow*IntervalMs) ++ FilterCond ++ GroupCond,
 
     %%------------------------------------------------------------
     %% Now start the profiler for Niter iterations of this combination
@@ -336,7 +354,7 @@ putQueryTestData(Args, Nrow, AccRow) ->
 putQueryTestData(_Args, _Nrow, _Nrow, _Ind) ->
     ok;
 putQueryTestData(Args, Nrow, AccRow, _GenInd) ->
-    {C, Bucket, FieldData} = Args,
+    {C, Bucket, FieldData, IntervalMs} = Args,
 
     %%------------------------------------------------------------
     %% We will generate data with the same integer index for 10% of
@@ -360,7 +378,10 @@ putQueryTestData(Args, Nrow, AccRow, _GenInd) ->
 %%	end,
     
     NewInd = AccRow + 1,
-    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, AccRow+1] ++ FieldData ++ [NewInd])],
+
+    %% Write data in intervals of IntervalMs
+
+    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, (AccRow+1)*IntervalMs] ++ FieldData ++ [NewInd])],
 
     riakc_ts:put(C, Bucket, Data),
     putQueryTestData(Args, Nrow, AccRow+1, NewInd).
@@ -409,6 +430,7 @@ putSequentialTsData(Args, Nrow, AccRow) ->
 %%-----------------------------------------------------------------------
 %% Populate
 %%-----------------------------------------------------------------------
+
 putSequentialIntellicoreData([Nrow, StartTime, StopTime]) when is_list(Nrow) ->
     putSequentialTsData(list_to_integer(Nrow), {StartTime, StopTime}).
 
@@ -499,6 +521,80 @@ getIntellicoreData(SportEventUuid, Timestamp, LapsFrac) ->
 		    
 		    list_to_binary(get_random_string(VarcharSize))])].
 
+%%=======================================================================
+%% SE testing
+%%=======================================================================
+
+seTest(Nsensor, Nsec, NthreadPerSensor) ->
+    seBucketTest(<<"sensor_values_by_outstation">>, Nsensor, Nsec, NthreadPerSensor).
+
+sepTest(Nsensor, Nsec, NthreadPerSensor) ->
+    seBucketTest(<<"sensor_values_by_outstation_p">>, Nsensor, Nsec, NthreadPerSensor).
+
+%% Fire off Nthread threads, writing sequential data for a single sensor
+
+seBucketTest(Bucket, Nsensor, Nsec, NthreadPerSensor) ->
+
+    %% Pick a start date
+
+    MsStart = 1467554400000,
+    MsEnd   = MsStart + Nsec*1000, %% Nsec worth of data
+    MsDelta = 1000, %% Quantized to 1-second
+
+    %% The total number of rows we will write
+
+    NrowTotal = round((MsEnd - MsStart) / MsDelta),
+
+    %% The number of rows each thread will write
+
+    NrowPerThread = NrowTotal div NthreadPerSensor,
+
+    %% For each sensor, we iterate over time indices
+
+    SensorFn = 
+	fun(SensorIndex) ->
+		[spawn(riak_prof_tests, sePutThreadFn, [{Bucket, MsStart, MsDelta, NrowPerThread}, SensorIndex, TimeIndex, self()]) || TimeIndex <- lists:seq(0, NthreadPerSensor-1)]
+	end,
+
+    %% Iterate over sensors
+
+    [SensorFn(SensorIndex) || SensorIndex <- lists:seq(1, Nsensor)],
+    
+    waitForResponses(Nsensor * NthreadPerSensor).
+
+sePutThreadFn(Args, SensorIndex, TimeIndex, Pid) ->
+    io:format("Sensor ~p Time ~p starting~n", [SensorIndex, TimeIndex]),
+    C = getClient(),
+    {Bucket, MsStart, MsDelta, Nrow} = Args,
+    sePutFn({C, Bucket, MsStart, MsDelta, SensorIndex, TimeIndex}, Nrow, 0, Pid).
+
+sePutFn(_Args, _Nrow, _Nrow, Pid) ->
+    Pid ! {finished, self()};
+sePutFn(Args, Nrow, Acc, Pid) ->
+    {C, Bucket, MsStart, MsDelta, SensorIndex, TimeIndex} = Args,
+    Time = MsStart + (TimeIndex*Nrow + Acc) * MsDelta,
+    Data = [list_to_tuple([<<"outstation">>, Time, list_to_binary("id"++integer_to_list(SensorIndex)), list_to_binary(get_random_string(10))])],
+    riakc_ts:put(C, Bucket, Data),
+    case Acc rem 1000 of 
+	0 ->
+	    io:format("Sensor ~p Rel time ~p row ~p Data = ~p~n", [SensorIndex, (TimeIndex*Nrow + Acc), Acc, Data]);
+	_ ->
+	    ok
+    end,
+    sePutFn(Args, Nrow, Acc+1, Pid).
+
+seQuery(Tag, Hours) ->
+    profiler:profile({start, Tag}),
+    query("select * from sensor_values_by_outstation where id='id1' and time >= 1467554400000 and time <= " ++ integer_to_list(1467554400000+Hours*3600*1000) ++ " and outstation='outstation'", local),
+    profiler:profile({stop, Tag}),
+    profiler:profile({debug}).
+
+sepQuery(Tag, Hours) ->
+    profiler:profile({start, Tag}),
+    query("select * from sensor_values_by_outstation_p where id='id1' and time >= 1467554400000 and time < " ++ integer_to_list(1467554400000+Hours*3600*1000) ++ " and outstation='outstation'", local),
+    profiler:profile({stop, Tag}),
+    profiler:profile({debug}).
+	 
 %%----------------------------------------------------------------------- 
 %% KV PUT/GET Latency tests
 %%----------------------------------------------------------------------- 
@@ -857,7 +953,88 @@ kvPutThreadFn(Args, Niter, Acc, Pid) ->
     riakc_pb_socket:put(C, Obj),
     kvPutThreadFn(Args, Niter, Acc+1, Pid).
 
+kv2iPutTest() ->
+    kv2iPutThreadFn({100, 10}, 0).
+
+kv2iPutThreadFn(Args, Acc) ->
+    kv2iPutThreadFn(Args, Acc, self()).
+
+kv2iPutThreadFn(Args, Acc, Pid) ->
+    C = getClient(),
+    {Niter, Nbyte} = Args,
+    Data = kvTestData(Nbyte),
+    kv2iPutThreadFn({C, Data, Acc}, Niter, 0, Pid).
+kv2iPutThreadFn(_Args, _Niter, _Niter, Pid) ->
+    Pid ! {finished, self()};
+kv2iPutThreadFn(Args, Niter, Acc, Pid) ->
+    {C, Data, ThreadId} = Args,
+    Key = list_to_binary("key" ++ integer_to_list(ThreadId) ++ "_" ++ integer_to_list(Acc)),
+    Obj = riakc_obj:new(<<"2ibucket">>, Key, Data),
+
+    MD1 = riakc_obj:get_update_metadata(Obj),
+    MD2 = riakc_obj:set_secondary_index(
+	    MD1,
+	    [{{integer_index, "myind"}, integer_to_list(Acc)}]),
+    Obj2 = riakc_obj:update_metadata(Obj, MD2),
+
+    io:format("Writing data to Key ~p with index ~p~n", [Key, Acc]),
+    riakc_pb_socket:put(C, Obj2),
+
+    kv2iPutThreadFn(Args, Niter, Acc+1, Pid).
+
+kv2iquery(Ind) ->
+    C = getClient(),
+    riakc_pb_socket:get_index(C, <<"2ibucket">>, {integer_index, "myind"}, Ind).
+
 quickQueryTest() ->
     C = getClient(),
     tsLatencyQueryTest({C, all, none, none}, 100000, 10, 3, 10).
+
+put2i(N) ->
+    C= getClient(),
+    put2i(C, N, 0).
+
+put2i(_C, _N, _N) ->
+    ok;
+put2i(C, N, Acc) ->
+    put2iKey(C, Acc),
+    put2i(C, N, Acc+1).
+
+put2iKey(C, Acc) ->
+    Obj = riakc_obj:new(<<"users">>,
+			list_to_binary("key" ++ integer_to_list(Acc)),
+			<<"...user data...">>,
+			<<"text/plain">>),
+    MD1 = riakc_obj:get_update_metadata(Obj),
+    MD2 = riakc_obj:set_secondary_index(
+	    MD1,
+	    [{{integer_index, "myind"}, [Acc]}]),
+    Obj2 = riakc_obj:update_metadata(Obj, MD2),
+    riakc_pb_socket:put(C, Obj2).
+
+get2i(Ind) ->
+    Pid = getClient(),
+    riakc_pb_socket:get_index(Pid,
+                              <<"users">>, %% bucket
+                              {integer_index, "myind"}, %% index name
+                              Ind).
+get2i(Ind1, Ind2) ->
+    Pid = getClient(),
+    riakc_pb_socket:get_index(Pid,
+                              <<"users">>, %% bucket
+                              {integer_index, "myind"}, %% index name
+                              Ind1, Ind2).
+
+putTestKey(Ind) ->
+    Pid = getClient(),
+    Obj = riakc_obj:new(<<"users">>,
+			<<"john_smith">>,
+			<<"...user data...">>,
+			<<"text/plain">>),
+    MD1 = riakc_obj:get_update_metadata(Obj),
+    MD2 = riakc_obj:set_secondary_index(
+	    MD1,
+	    [{{integer_index, "myind"}, [Ind]}]),
+    Obj2 = riakc_obj:update_metadata(Obj, MD2),
+    riakc_pb_socket:put(Pid, Obj2).
 

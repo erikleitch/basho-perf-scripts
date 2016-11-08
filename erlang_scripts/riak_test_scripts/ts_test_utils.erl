@@ -44,6 +44,12 @@ get_bucket(Ind) when is_integer(Ind) ->
 get_bucket(geo) ->
     "GeoCheckin";
 
+get_bucket(se) ->
+    "sensor_values_by_outstation";
+
+get_bucket(sep) ->
+    "sensor_values_by_outstation_p";
+
 get_bucket(intellicore) ->
     "TIM_motorsport_formula_e_2015";
 
@@ -111,10 +117,19 @@ get_ddl(geoextra) ->
 	"myfloat     double      not null, " ++
 	"mybool      boolean     not null, " ++
 	"PRIMARY KEY ((myfamily, myseries, quantum(time, 15, 'm')), " ++
-	"myfamily, myseries, time, myint))".
+	"myfamily, myseries, time, myint))";
+
+get_ddl(se) ->
+    get_ddl(se, 1, "d");
+get_ddl(sep) ->
+    get_ddl(sep, 1, "d").
 
 get_ddl(intellicore, Unit) ->
     get_ddl(intellicore, 1, Unit);
+get_ddl(se, Unit) ->
+    get_ddl(se, 1, Unit);
+get_ddl(sep, Unit) ->
+    get_ddl(sep, 1, Unit);
 
 get_ddl(geo, Ms) ->
     _SQL = "CREATE TABLE GeoCheckin (" ++
@@ -159,7 +174,31 @@ get_ddl(intellicore, Mult, Unit) ->
 	"sector_3         double, " ++
 	"info             varchar, " ++
 	"PRIMARY KEY ((sport_event_uuid, quantum(time, " ++ integer_to_list(Mult) ++ ", '" ++ Unit ++ "')), " ++
-	"sport_event_uuid, time, club_uuid, person_uuid))".
+	"sport_event_uuid, time, club_uuid, person_uuid))";
+
+get_ddl(se, Mult, Unit) ->
+    _SQL = "CREATE TABLE sensor_values_by_outstation (" ++
+	"outstation varchar not null, " ++
+	"time       timestamp not null, " ++
+	"id         varchar not null, " ++
+	"value      varchar, " ++
+	"PRIMARY KEY ((outstation, quantum(time, " ++ integer_to_list(Mult) ++ ",'" ++ Unit ++ "')), " ++ 
+	"outstation, time, id))";
+
+get_ddl(sep, Mult, Unit) ->
+    _SQL = "CREATE TABLE sensor_values_by_outstation_p (" ++
+	"outstation varchar not null, " ++
+	"time       timestamp not null, " ++
+	"id         varchar not null, " ++
+	"value      varchar, " ++
+	"PRIMARY KEY ((outstation, id, quantum(time, " ++ integer_to_list(Mult) ++ ",'" ++ Unit ++ "')), " ++ 
+	"outstation, id, time))".
+
+replace_quantum(DDL, QuantizedField, Value, Unit) ->
+    Pattern = "quantum\\(" ++ QuantizedField ++ ",(.+)\\)\\),",
+    Replacement = ["quantum(", QuantizedField, ", ", integer_to_list(Value), ", '", Unit, "')),"] ,
+    io:format("DDL = ~p~n Pattern= ~p~n Replacement = ~p~n", [DDL, Pattern, Replacement]),
+    re:replace(DDL, Pattern, Replacement, [{return,list}]).
 
 %%=======================================================================
 %% Bucket creation
@@ -198,6 +237,7 @@ create_ts_bucket(Node, NVal, W, Bucket, DDL) ->
     rt:admin(Node, Args).
 
 activate_bucket(Node, Bucket) ->
+    timer:sleep(1000),
     rt:admin(Node, ["bucket-type", "activate", Bucket]).
 
 %%=======================================================================
@@ -244,7 +284,7 @@ build_cluster(Size, Config, Backend) ->
     build_cluster(Size, Config, Backend, off).
 
 build_cluster(Size, Config, Backend, Aae) ->
-    build_cluster(Size, Config, Backend, Aae, 8).
+    build_cluster(Size, Config, Backend, Aae, 64).
 
 build_cluster(Size, Config, Backend, Aae, Ringsize) ->
     rt:set_backend(Backend),
@@ -316,6 +356,17 @@ set_expiry(State) ->
 %% Normal TS cluster setup
 %%------------------------------------------------------------
 
+setup_ts_cluster(ClusterType, Nval, Args) when is_list(Args) ->
+    [Node | _] = build_cluster(ClusterType),
+
+    BucketFn = 
+	fun(Api, Ms) ->
+		{ok, _} = create_ts_bucket(Node, Nval, get_bucket(Api), get_ddl(Api, Ms)),
+		{ok, _} = activate_bucket(Node, get_bucket(Api))
+	end,
+
+    [BucketFn(Api, Ms) || {Api, Ms} <- Args];
+
 setup_ts_cluster(ClusterType, Nval, Api) ->
     [Node | _] = build_cluster(ClusterType),
     {ok, _} = create_ts_bucket(Node, Nval, get_bucket(Api), get_ddl(Api)),
@@ -332,6 +383,24 @@ setup_ts_cluster(ClusterType, Nval, Api, Mult, Unit) ->
     {ok, _} = activate_bucket(Node, get_bucket(Api)).
 
 %%------------------------------------------------------------
+%% Setup cluster with arbitrary quantum.  
+%%
+%% For example, to set up se DDL with nval 1 and 10 minute-quantum,
+%% use:
+%%
+%%   setup_cluster_with_quantum(multiple, 1, se, 10, "m")
+%%
+%%------------------------------------------------------------
+
+setup_cluster_with_quantum(ClusterType, Nval, Api, QuantumValue, QuantumUnit) ->
+
+    [Node | _] = build_cluster(ClusterType),
+    DDLOrig = get_ddl(Api),
+    DDL = replace_quantum(DDLOrig, "time", QuantumValue, QuantumUnit),
+    {ok, _} = create_ts_bucket(Node, Nval, get_bucket(Api), DDL),
+    {ok, _} = activate_bucket(Node, get_bucket(Api)).
+
+%%------------------------------------------------------------
 %% Normal KV cluster setup
 %%------------------------------------------------------------
 
@@ -340,9 +409,13 @@ setup_kv_cluster(ClusterType, Nval, Api, WriteOnce) ->
     {ok, _} = create_kv_bucket(Node, Nval, get_bucket(Api), WriteOnce),
     {ok, _} = activate_bucket(Node, get_bucket(Api)).
 
+%%=======================================================================
+%% Generated table schema, with variable number of columns
+%%=======================================================================
+
 %%------------------------------------------------------------
-%% Setup a cluster with generated TS tables contining the numbers of
-%% columns in ColList
+%% Setup a cluster with generated TS tables containing the numbers of
+%% columns specified in ColList.
 %%------------------------------------------------------------
 
 setup_ts_gen_cluster(ClusterType, Nval, ColList) ->
@@ -355,6 +428,25 @@ setup_ts_gen_cluster(ClusterType, Nval, ColList) ->
 		{ok, _} = create_ts_bucket(Node, Nval, Bucket, DDL),
 		{ok, _} = activate_bucket(Node, Bucket)
 	end,
+    [Fun(Ncol) || Ncol <- ColList].
+
+%%------------------------------------------------------------
+%% Setup a cluster with generated TS tables containing the numbers of
+%% columns specified in ColList, replacing the default quantum.
+%%------------------------------------------------------------
+
+setup_ts_gen_cluster(ClusterType, Nval, ColList, QuantumValue, QuantumUnit) ->
+    [Node | _] = build_cluster(ClusterType),
+    Fun = 
+	fun(Ncol) ->
+		DDLOrig = get_ddl(Ncol),
+		DDL = replace_quantum(DDLOrig, "time", QuantumValue, QuantumUnit),
+		Bucket = "Gen" ++ integer_to_list(Ncol),
+		io:format("Creating bucket ~p with DDL = ~p~n", [Bucket, DDL]),
+		{ok, _} = create_ts_bucket(Node, Nval, Bucket, DDL),
+		{ok, _} = activate_bucket(Node, Bucket)
+	end,
+
     [Fun(Ncol) || Ncol <- ColList].
 
 setup_ts_gen_cluster(ClusterType, Nval, W, ColList) ->

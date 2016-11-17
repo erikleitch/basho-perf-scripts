@@ -252,6 +252,7 @@ runTsQueryLatencyTests(Nbyte, Select, Group, Filter, PutData, IntervalMs) ->
     Ncols = [1, 10, 100, 200],
 
     Rows = [{10,    10000, PutData}, 
+	    {10,     5000, false}, 
 	    {100,    1000, false}, 
 	    {1000,    100, false}, 
 	    {1000,     10, false}, 

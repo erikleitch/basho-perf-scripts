@@ -1194,6 +1194,176 @@ tsQueryLatencyTestSequenceVnodeDecode()
     done
 }
 
+quantaTestRun()
+{
+    tsQueryLatencyTestSequenceSM     iter=2 start=0 branch=riak_ee_eml_parallel_decode
+    tsQueryLatencyTestSequenceSM     iter=2 start=0 branch=riak_ee_riak_ts_ee_1.5.0alpha6
+    tsQueryLatencyTestSequenceSMNoMd iter=2 start=0 branch=riak_ee_riak_ts_ee_1.4.0
+
+    tsQueryLatencyTestSequenceSM     iter=2 start=2 branch=riak_ee_eml_parallel_decode
+    tsQueryLatencyTestSequenceSM     iter=2 start=2 branch=riak_ee_riak_ts_ee_1.5.0alpha6
+    tsQueryLatencyTestSequenceSMNoMd iter=2 start=2 branch=riak_ee_riak_ts_ee_1.4.0
+
+    tsQueryLatencyTestSequenceSM     iter=2 start=4 branch=riak_ee_eml_parallel_decode
+    tsQueryLatencyTestSequenceSM     iter=2 start=4 branch=riak_ee_riak_ts_ee_1.5.0alpha6
+    tsQueryLatencyTestSequenceSMNoMd iter=2 start=4 branch=riak_ee_riak_ts_ee_1.4.0
+}
+
+tsQueryLatencyTestSequenceSM()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startIter=$(simpleValOrDef start '0' $@)
+    branch=$(simpleValOrDef branch 'riak_ee_riak_ts_ee_1.4.0' $@)
+    
+    endIter=$[$startIter + $nIter]
+
+    echo $startIter, $endIter, $nIter
+
+    #------------------------------------------------------------
+    # Make the output directory if it doesn't already exist
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+    
+    #------------------------------------------------------------
+    # Set up TS1.4 devrel for 3-node cluster, and run the riak_test
+    # script to create the cluster and Gen tables
+    #------------------------------------------------------------
+
+    \rm riak_ee
+    ln -s branches/$branch riak_ee
+    
+    rerun target=locked-all script=ts_setup_gen_single_quantum args=--keep nodes=3
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="10 all none none true 1000"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_single_"$branch"_10bytespercol_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+    riaktest ts_setup_gen_multiple_quanta --keep
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="10 all none none true 1000"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_multiple_"$branch"_10bytespercol_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+}
+
+tsQueryLatencyTestSequenceSMNoMd()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startIter=$(simpleValOrDef start '0' $@)
+    branch=$(simpleValOrDef branch 'riak_ee_riak_ts_ee_1.4.0' $@)
+    
+    endIter=$[$startIter + $nIter]
+
+    echo $startIter, $endIter, $nIter
+
+    #------------------------------------------------------------
+    # Make the output directory if it doesn't already exist
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+    
+    #------------------------------------------------------------
+    # Set up TS1.4 devrel for 3-node cluster, and run the riak_test
+    # script to create the cluster and Gen tables
+    #------------------------------------------------------------
+
+    \rm riak_ee
+    ln -s branches/$branch riak_ee
+    
+    rerun target=locked-all script=ts_setup_gen_single_quantum_nomd args=--keep nodes=3
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="10 all none none true 1000"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_single_"$branch"_10bytespercol_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+    riaktest ts_setup_gen_multiple_quanta_nomd --keep
+
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsQueryLatencyTest disp=false args="10 all none none true 1000"
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsquerylatency_multiple_"$branch"_10bytespercol_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+}
+
+mkquantacmpplots()
+{
+    quantacmpplot 6 riak_ts_ee_1.4.0
+    quantacmpplot 6 riak_ts_ee_1.5.0alpha6
+    quantacmpplot 6 eml_parallel_decode
+}
+
+quantacmpplot()
+{
+    iter=$1
+    branch=$2
+    
+    #------------------------------------------------------------
+    # Make some plots
+    #------------------------------------------------------------
+
+    cmd1="echo $RIAK_TEST_BASE/data/tsquerylatency_multiple_riak_ee_"
+    cmd1+="$branch"
+    cmd1+="_10bytespercol_iter[$iter].txt"
+
+    cmd2="echo $RIAK_TEST_BASE/data/tsquerylatency_single_riak_ee_"
+    cmd2+="$branch"
+    cmd2+="_10bytespercol_iter[$iter].txt"
+
+
+    files1=`eval $cmd1`
+    files2=`eval $cmd2`
+
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "$files1" "$files2" "$branch\n(multiple quantum)" "$branch\n(single quantum)" "Latency Ratio\n(single/multiple)" "Ratio" overplot=False cmpplot=div chis=False
+}
+
+mkbranchcmpplots()
+{
+    branchcmpplot 0-6 eml_parallel_decode riak_ts_ee_1.5.0alpha6 single
+    branchcmpplot 0-6 eml_parallel_decode riak_ts_ee_1.5.0alpha6 multiple
+
+    branchcmpplot 0-6 riak_ts_ee_1.4.0 riak_ts_ee_1.5.0alpha6 single
+    branchcmpplot 0-6 riak_ts_ee_1.4.0 riak_ts_ee_1.5.0alpha6 multiple
+}
+
+branchcmpplot()
+{
+    iter=$1
+    branch1=$2
+    branch2=$3
+    type=$4
+    
+    #------------------------------------------------------------
+    # Make some plots
+    #------------------------------------------------------------
+
+    cmd1="echo $RIAK_TEST_BASE/data/tsquerylatency_"$type"_riak_ee_"$branch1"_10bytespercol_iter["$iter"].txt"
+    cmd2="echo $RIAK_TEST_BASE/data/tsquerylatency_"$type"_riak_ee_"$branch2"_10bytespercol_iter["$iter"].txt"
+
+
+    files1=`eval $cmd1`
+    files2=`eval $cmd2`
+
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "$files1" "$files2" "$branch1\n($type quantum)" "$branch2\n($type quantum)" "Latency Ratio\n($branch2/$branch1)" "Ratio" overplot=False cmpplot=div chis=False
+}
+
 vnodeplots()
 {
     #------------------------------------------------------------

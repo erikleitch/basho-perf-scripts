@@ -2,7 +2,7 @@
 
 -compile([export_all]).
 
--include_lib("$RIAK_TEST_BASE/erlang_scripts/profiler/include/profiler.hrl").
+%%-include_lib("$RIAK_TEST_BASE/erlang_scripts/profiler/include/profiler.hrl").
 
 %%=======================================================================
 %% Utilities
@@ -16,7 +16,11 @@ getClient() ->
     getClient("127.0.0.1", 10017).
 
 getClient(sl) ->
+    getClient(slb);
+getClient(sldeva) ->
     getClient("10.109.234.226", 8087);
+getClient(slb) ->
+    getClient("10.109.234.238", 8087);
 getClient(_) ->
     getClient("127.0.0.1", 10017).
 
@@ -235,6 +239,40 @@ get_random_string(Length) ->
 %% IntervalMs -- interval, in ms, between successive timestamps
 %%------------------------------------------------------------
 
+runTsQueryLatencyTestsSL([Nbyte, Select, Group, Filter, PutData, IntervalMs]) when is_list(Nbyte) ->
+    io:format("Nbyte = ~p Slect = ~p Group = ~p~n", [Nbyte, Select, Group]),
+    runTsQueryLatencyTestsSL(list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Filter), list_to_atom(PutData), list_to_integer(IntervalMs)).
+
+runTsQueryLatencyTestsSL(Nbyte, Select, Group, Filter, PutData, IntervalMs) ->
+%%    Ncols = [1, 5, 10, 20, 50],
+%%    Ncols = [1, 5, 10],
+%    Rows = [{1,    100000, PutData}, 
+%	    {10,    10000, false}, 
+%	    {100,    1000, false}, 
+%	    {100,     100, false}, 
+%	    {100,      10, false}, 
+%	    {100,       1, false}],
+
+    Ncols = [1, 10, 20, 50, 100, 150, 200],
+
+    Rows = [{10,    10000, PutData}, 
+	    {10,     5000, false}, 
+	    {100,    1000, false}, 
+	    {1000,    100, false}, 
+	    {1000,     10, false}, 
+	    {1000,      1, false}],
+        
+    C = getClient(sl),
+    profiler:profile({prefix, "/tmp/client_profiler_results"}),
+    profiler:profile({noop, false}),
+
+    ColRunFun = 
+	fun(Ncol) ->
+		[tsLatencyQueryTest({C, Select, Group, Filter, Put, IntervalMs}, Nrow, Ncol, Niter, Nbyte) || {Niter, Nrow, Put} <- Rows]
+	end,
+
+    [ColRunFun(Ncol) || Ncol <- Ncols].
+
 runTsQueryLatencyTests([Nbyte, Select, Group, Filter, PutData, IntervalMs]) when is_list(Nbyte) ->
     io:format("Nbyte = ~p Slect = ~p Group = ~p~n", [Nbyte, Select, Group]),
     runTsQueryLatencyTests(list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Filter), list_to_atom(PutData), list_to_integer(IntervalMs)).
@@ -384,7 +422,15 @@ putQueryTestData(Args, Nrow, AccRow, _GenInd) ->
 
     Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, (AccRow+1)*IntervalMs] ++ FieldData ++ [NewInd])],
 
-    riakc_ts:put(C, Bucket, Data),
+    Resp = riakc_ts:put(C, Bucket, Data),
+
+    case AccRow of
+	0 ->
+	    io:format("Put bucket = ~p ~n Data = ~p~n Resp = ~p~n", [Bucket, Data, Resp]);
+	_ ->
+	    ok
+    end,
+
     putQueryTestData(Args, Nrow, AccRow+1, NewInd).
 
 %%-----------------------------------------------------------------------

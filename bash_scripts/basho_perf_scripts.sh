@@ -411,6 +411,81 @@ ycsbtest()
     getTestDataSingleYcsb output.log threadcount fieldcount 1 0 "ops"
 }
 
+getTestDataSingleAnyYcsb()
+{
+    file=$1
+
+    printf "\rProcessing $file..."
+    
+    first="true"
+    haveEnd="false"
+
+    av="0"
+    while read p; do
+	case "$p" in
+
+	    #------------------------------------------------------------
+	    # If this is a config line, extract the parameter vals from it
+	    #------------------------------------------------------------
+	    
+	    *'event_type="start"'*)
+		echo "Found line: $p"
+		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
+		    sub=${BASH_REMATCH[1]}
+		    echo "Found sub: $sub"
+
+		    if [ $first == "true" ]; then
+			first="false"
+		#	rm "/tmp/dat"$iter".txt"
+		    else
+			echo "Calling writeVal with val1 = $val1 val2 = $val2"
+
+		    fi
+		    
+		    total=`echo $av | bc`
+		    echo "Total = $total"
+		    
+		    av="0"
+		fi
+		;;
+
+	    #------------------------------------------------------------
+	    # Else accumulate throughputs for this set of parameters
+	    # if this is a throughput report
+	    #------------------------------------------------------------
+	    
+	    *deploy_basho_perf*)
+		startdate=$(getDate "$p")
+		haveEnd="false"
+		;;
+
+	    #------------------------------------------------------------
+	    # Else accumulate throughputs for this set of parameters
+	    # if this is a throughput report
+	    #------------------------------------------------------------
+	    
+	    *\[OVERALL\],\ Throughput*)
+		echo "Found a throughput line: $p"
+		if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
+		    av+="+"${BASH_REMATCH[1]}
+		    echo "av = $av"
+		fi
+
+		if [ $haveEnd == "false" ]; then
+		    enddate=$(getDate "$p")
+		    haveEnd="true"
+		fi
+		;;
+	esac
+    done <$file
+
+    if [ $av != "0" ]; then
+	total=`echo $av | bc`
+	echo "Total = $total"
+    fi
+
+}
+
 getTestDataSingleYcsb()
 {
     file=$1
@@ -1764,4 +1839,43 @@ animate()
 
     echo "save = $save"
     python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="syncput query" skipstart=${skip//\"/} nframe=${nframe//\"/} save=${save//\"/}
+}
+
+getGenBucketJson()
+{
+    nCol=$1
+    quantum=$2
+    unit=$3
+    
+    tableName="Gen"$nCol
+    
+    JSON="{\"props\": {\"n_val\": 1, \"table_def\": \"CREATE TABLE $tableName (myfamily varchar not null, myseries varchar not null, time timestamp not null, "
+    
+    iCol=1
+    while [ $iCol -le $nCol ]
+    do
+	JSON+='myvar'$iCol' varchar not null, '
+	iCol=$[$iCol+1]
+    done
+
+    JSON+="myint sint64 not null, "
+    
+    JSON+="PRIMARY KEY ((myfamily, myseries, quantum(time, "$quantum", '"$unit"')), myfamily, myseries, time))\"}}"
+
+    echo $JSON
+}
+
+createGenBucket()
+{
+    nCol=$1
+    quantum=$2
+    unit=$3
+    
+    tableName="Gen"$nCol
+
+    JSON=$(getGenBucketJson $nCol $quantum $unit)
+    
+    riak-admin bucket-type create $tableName ${JSON}
+    sleep 3
+    riak-admin bucket-type activate $tableName
 }

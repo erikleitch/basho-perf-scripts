@@ -243,6 +243,17 @@ overplot = str2bool(getOptArgs(sys.argv, 'overplot', True))
 cmpplot  = getOptArgs(sys.argv, 'cmpplot', 'frac')
 figfile  = getOptArgs(sys.argv, 'figfile',  None)
 chis     = str2bool(getOptArgs(sys.argv, 'chis', True))
+azstr    = getOptArgs(sys.argv, 'az', '-45 -45 -45')
+elstr    = getOptArgs(sys.argv, 'el', '30 30 30')
+figsizestr = getOptArgs(sys.argv, 'figsize', '25,8')
+
+figsizearr=figsizestr.split(',')
+figsize=(np.int(figsizearr[0]), np.int(figsizearr[1]))
+
+print 'figsize = ' + str(figsize)
+
+azs = azstr.split(' ')
+els = elstr.split(' ')
 
 print 'cmpplot = ' + str(cmpplot) + ' == ' + str(cmpplot == 'frac')
 
@@ -252,7 +263,7 @@ x2, y2, z2, bytes2 = getProfilerOutput(file2)
 if not overplot:
   xd, yd, frac, diff, statstr = getDiffProfilerOutput(file1, file2)
 
-fig = plt.figure(figsize=(25,8))
+fig = plt.figure(figsize=figsize)
 fig.set_facecolor('white');
 
 zmin1 = np.min(z1)
@@ -276,12 +287,16 @@ zmax += zrng * 0.1
 print 'zmin = ' + str(zmin) + ' zmax = ' + str(zmax)
 
 ax = fig.add_subplot(1,3,1, projection='3d')
+print 'Calling view_init with azs = ' + str(azs) + ' els = ' + str(els)
+ax.view_init(elev=np.double(els[0]), azim=np.double(azs[0]))
 makePlot(ax, x1, y1, z1, zmin, zmax, 'c', title1)
 
 ax = fig.add_subplot(1,3,2, projection='3d')
+ax.view_init(elev=np.double(els[1]), azim=np.double(azs[1]))
 makePlot(ax, x2, y2, z2, zmin, zmax, 'm', title2)
 
 ax = fig.add_subplot(1,3,3, projection='3d')
+ax.view_init(elev=np.double(els[2]), azim=np.double(azs[2]))
 
 if not chis:
   statstr = ' '
@@ -321,7 +336,7 @@ else:
     zmin -= zrng * 0.1
     zmax += zrng * 0.1
     zmin = 0.0
-    zmax = 4.0
+    zmax = 6.0
     print 'z1 = ' + str(z1) + ' z2 = ' + str(z2) + ' Diff = ' + str(diff)
     makePlot(ax, x1, y1, diff, zmin, zmax, 'y', title3 + '\n' + statstr, False, zlabel3)
   elif cmpplot == 'frac':

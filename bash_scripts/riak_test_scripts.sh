@@ -575,6 +575,93 @@ tsPutLatencyTestSequenceTs1.3VsTs1.4()
     python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.3_1row*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_1row*.txt`" $'TS1.3 Put Latency' $'TS1.4 Put Latency' $'$\Delta$ Put Latency' $'$\Delta$Latency (%)' False
 }
 
+tsPutLatencyTestSequenceTs1.4VsTs1.5()
+{
+    nIter=$(simpleValOrDef iter '1' $@)
+    startIter=$(simpleValOrDef start '0' $@)
+
+    endIter=$[$startIter + $nIter]
+
+    echo $nIter, $startIter
+
+    #------------------------------------------------------------
+    # Make the output directory if it doesn't already exist
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+    
+    #------------------------------------------------------------
+    # Set up TS1.4 devrel for 1-node cluster, and run the riak_test
+    # script to create the cluster
+    #------------------------------------------------------------
+    
+    \rm riak_ee
+    ln -s branches/riak_ee_1.4.0 riak_ee
+    rerun target=locked-all script=ts_setup_gen args=--keep nodes=1
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsPutLatencyTest 1 disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsputlatency_ts1.4_1row_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+	
+    #------------------------------------------------------------
+    # Set up TS1.5 devrel for 1-node cluster, and run the riak_test
+    # script to create the cluster
+    #------------------------------------------------------------
+    
+    \rm riak_ee
+    ln -s branches/riak_ee_riak_ts_ee_1.5.0rc1 riak_ee
+    iIter=$[$iIter+1]
+    
+    rerun target=locked-all script=ts_setup_gen args=--keep nodes=1
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runTsPutLatencyTest 1 disp=false
+	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/tsputlatency_ts1.5_1row_iter$iIter.txt
+	iIter=$[$iIter+1]
+    done
+
+}
+
+plotTs1.4vTs1.5()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_1row*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_1row*.txt`" $'TS1.4 Put Latency' $'TS1.5 Put Latency' $'$\Delta$ Put Latency' $'$\Delta$Latency (%)' overplot=False
+}
+
+#=======================================================================
+# Baseline TS1.5 against TS1.4
+#=======================================================================
+
+runCompTs1.4Ts1.5Tests()
+{
+    #------------------------------------------------------------
+    # Put operations:
+    #------------------------------------------------------------
+
+    # Compare normal put operations between TS1.4 and TS1.5
+    
+    tsPutLatencyTestSequenceTs1.4VsTs1.5 iter=5 start=0
+
+    #------------------------------------------------------------
+    # Query operations:
+    #------------------------------------------------------------
+    
+    # Measure query operations (single and multiple-quanta) for TS1.4
+    
+    tsQueryLatencyTestSequenceSMPreTs1.5 iter=5 start=0 branch=riak_ee_1.4.0
+
+    # Measure query operations (single and multiple-quanta) for TS1.5
+    
+    tsQueryLatencyTestSequenceSMTs1.5 iter=5 start=0 branch=riak_ee_riak_ts_ee_1.5.0rc1
+}
+
 tsPutLatencyTestSequenceW()
 {
     nIter=$(simpleValOrDef iter '1' $@)
@@ -1194,22 +1281,26 @@ tsQueryLatencyTestSequenceVnodeDecode()
     done
 }
 
+#=======================================================================
+# Pre-rc1 tests to verify improvements to parallelizable queries
+#=======================================================================
+
 quantaTestRun()
 {
-    tsQueryLatencyTestSequenceSM     iter=2 start=0 branch=riak_ee_eml_parallel_decode
-    tsQueryLatencyTestSequenceSM     iter=2 start=0 branch=riak_ee_riak_ts_ee_1.5.0alpha6
-    tsQueryLatencyTestSequenceSMNoMd iter=2 start=0 branch=riak_ee_riak_ts_ee_1.4.0
+    tsQueryLatencyTestSequenceSMTs1.5    iter=2 start=0 branch=riak_ee_eml_parallel_decode
+    tsQueryLatencyTestSequenceSMTs1.5    iter=2 start=0 branch=riak_ee_riak_ts_ee_1.5.0alpha6
+    tsQueryLatencyTestSequenceSmPreTs1.5 iter=2 start=0 branch=riak_ee_riak_ts_ee_1.4.0
 
-    tsQueryLatencyTestSequenceSM     iter=2 start=2 branch=riak_ee_eml_parallel_decode
-    tsQueryLatencyTestSequenceSM     iter=2 start=2 branch=riak_ee_riak_ts_ee_1.5.0alpha6
-    tsQueryLatencyTestSequenceSMNoMd iter=2 start=2 branch=riak_ee_riak_ts_ee_1.4.0
+    tsQueryLatencyTestSequenceSMTs1.5    iter=2 start=2 branch=riak_ee_eml_parallel_decode
+    tsQueryLatencyTestSequenceSMTs1.5    iter=2 start=2 branch=riak_ee_riak_ts_ee_1.5.0alpha6
+    tsQueryLatencyTestSequenceSmPreTs1.5 iter=2 start=2 branch=riak_ee_riak_ts_ee_1.4.0
 
-    tsQueryLatencyTestSequenceSM     iter=2 start=4 branch=riak_ee_eml_parallel_decode
-    tsQueryLatencyTestSequenceSM     iter=2 start=4 branch=riak_ee_riak_ts_ee_1.5.0alpha6
-    tsQueryLatencyTestSequenceSMNoMd iter=2 start=4 branch=riak_ee_riak_ts_ee_1.4.0
+    tsQueryLatencyTestSequenceSMTs1.5    iter=2 start=4 branch=riak_ee_eml_parallel_decode
+    tsQueryLatencyTestSequenceSMTs1.5    iter=2 start=4 branch=riak_ee_riak_ts_ee_1.5.0alpha6
+    tsQueryLatencyTestSequenceSmPreTs1.5 iter=2 start=4 branch=riak_ee_riak_ts_ee_1.4.0
 }
 
-tsQueryLatencyTestSequenceSM()
+tsQueryLatencyTestSequenceSMTs1.5()
 {
     nIter=$(simpleValOrDef iter '1' $@)
     startIter=$(simpleValOrDef start '0' $@)
@@ -1256,7 +1347,7 @@ tsQueryLatencyTestSequenceSM()
     done
 }
 
-tsQueryLatencyTestSequenceSMNoMd()
+tsQueryLatencyTestSequenceSMPreTs1.5()
 {
     nIter=$(simpleValOrDef iter '1' $@)
     startIter=$(simpleValOrDef start '0' $@)

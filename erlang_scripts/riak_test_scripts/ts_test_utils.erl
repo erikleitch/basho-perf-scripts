@@ -248,6 +248,8 @@ build_cluster(Size) when is_integer(Size) ->
     build_cluster(Size, []);
 build_cluster(single) ->
     build_cluster(1);
+build_cluster(single8) ->
+    build_cluster(1, [], eleveldb, off, 8);
 build_cluster(single_bitcask) ->
     build_cluster(1, [], bitcask);
 build_cluster(single_expiryon) ->
@@ -342,8 +344,12 @@ set_max_query_size(Bytes) ->
 set_max_query_size() ->
     set_max_query_size(1000000000).
 
+set_max_running_fsms(N) ->
+    set_riak_kv_option(timeseries_query_max_running_fsms, N).
+
 set_max_object_size(Mb) ->
-    set_riak_kv_option(warn_object_size, Mb).
+    set_riak_kv_option(warn_object_size, Mb),
+    set_riak_kv_option(max_object_size, Mb).
 
 set_max_concurrent(N) ->
     Opts = [{timeseries_max_concurrent_queries, N}],

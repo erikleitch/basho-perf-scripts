@@ -108,7 +108,7 @@ tsLatencyPutTest(ArgTuple, Name, Nrow, Nrow, Niter, AccIter) ->
 tsLatencyPutTest(ArgTuple, Name, Nrow, AccRow, Niter, AccIter) ->
     {C, Bucket, FieldData} = ArgTuple,
     Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, AccRow+1] ++ FieldData ++ [AccRow+1])],
-    riakc_ts:put(C, Bucket, Data),
+    ok = riakc_ts:put(C, Bucket, Data),
     tsLatencyPutTest(ArgTuple, Name, Nrow, AccRow+1, Niter, AccIter).
 
 %%=======================================================================
@@ -802,25 +802,30 @@ iteratorTest(File) ->
     {ok, DbRef} = eleveldb:open(File, Opts),
     {ok, Iter} = eleveldb:iterator(DbRef, []),
 
-    try 
-	{ok, Key, Val} = eleveldb:iterator_move(Iter, first),
-	io:format("Key = ~p Val = ~p~n", [Key, Val]),
-	printNextKey(DbRef, Iter)
-    catch
-	Err:Msg ->
-	    io:format("Caught an error: ~p ~p~n", [Err, Msg]),
-	    ok
-    after
-	eleveldb:iterator_close(Iter),
-	eleveldb:close(DbRef)
-    end.
+    {ok, Key, _Val} = eleveldb:iterator_move(Iter, first),
+%%    io:format("Key = ~p Val = ~p~n", [Key, Val]),
+    printNextKey(DbRef, Iter, [Key]).
 
-printNextKey(DbRef, Iter) ->
-    {ok, Key, Val} = eleveldb:iterator_move(Iter, next),
-    DecodedKey = riak_kv_eleveldb_backend:orig_from_object_key(Key),
-    DecodedValue = riak_object:get_values(riak_object:from_binary(<<"GeoCheckin">>, Key, Val)),
-    io:format("Key = ~p Value = ~p~n", [DecodedKey, DecodedValue]),
-    printNextKey(DbRef, Iter).
+printNextKey(DbRef, Iter, Keys) ->
+    try
+	{ok, Key, Val} = eleveldb:iterator_move(Iter, next),
+	DecodedKey = riak_kv_eleveldb_backend:orig_from_object_key(Key),
+	Obj = riak_object:from_binary(<<"GeoCheckin">>, Key, Val),
+	DecodedValue = riak_object:get_values(Obj),
+	io:format("Raw Key = ~p ~n", [Key]),
+	io:format("Raw Val = ~p Obj = ~p~n", [Val, Obj]),
+	io:format("Key = ~p Value = ~p~n", [DecodedKey, DecodedValue]),
+%%	io:format("Eleveldb tests = ~p~n", [eleveldb:get(DbRef, <<16,0,0,0,3,12,183,128,8,18,161,0,8,18,165,128,8>>, [])]),
+	printNextKey(DbRef, Iter, [Keys, DecodedKey])
+    catch
+	error:{badmatch,{error,invalid_iterator}} ->
+	    eleveldb:iterator_close(Iter),
+	    eleveldb:close(DbRef),
+	    [Keys, done];
+	_ ->
+	    [Keys, error]
+    end.
+       
 
 countKeys(File) ->
     LockFile = File ++ "/LOCK",
@@ -881,6 +886,9 @@ printLeveldbKeys([File]) when is_list(File) ->
 printLeveldbKeys(List) ->
     [io:format("~p~n", [iteratorTest(File)]) || File <- List].
 
+printLeveldbKeys() ->
+    printLeveldbKeys(dbFiles()).
+
 countLeveldbKeys([File]) when is_list(File) ->
     io:format("~p~n", [countKeys(File)]);
 countLeveldbKeys(List) ->
@@ -893,9 +901,34 @@ testFn([File]) when is_list(File) ->
 %% Functions for spawning threads
 %%=======================================================================
 
+-record(generator_args, {
+	  fixedVals :: list(),
+	  startTime :: integer(),
+	  tsIncrement :: integer()
+	 }).
+
+-record(thread_content, {
+          connectionPool :: list(),
+	  nIter :: integer(),
+	  generatorFn :: fun(),
+	  generatorArgs :: #generator_args{}
+         }).
+
+-type thread_content() :: #thread_content{}.
+
 %%------------------------------------------------------------
-%% Top-level spawn function
+%% Top-level spawn function:
+%%
+%%    Fn      - is the function to spawn
+%%    Args    - args passed to each thread running Fn (in addition to Acc -- thread #)
+%%    NThread - number of threads to spawn
+%% 
+%%    NOp     - Used to construct a tag for profiling
+%%    OpTag   - Used to construct a tag for profiling
 %%------------------------------------------------------------
+
+spawnFn(Fn, Args=#thread_content{}, NThread, OpTag) ->
+    spawnFn(Fn, Args, NThread, getNiter(Args), OpTag).
 
 spawnFn(Fn, Args, NThread, NOp, OpTag) ->
     profiler:profile({prefix, "/tmp/client_profiler_results"}),
@@ -937,6 +970,92 @@ waitForResponse(N,Acc) ->
     end.
 
 %%------------------------------------------------------------
+%% Put Nkeys of data into bucket Bucket with GeneratorFn
+%%------------------------------------------------------------
+
+newGeneratorArgs(FixedVals, StartTime, TsIncrement) ->
+    #generator_args{fixedVals=FixedVals, startTime=StartTime, tsIncrement=TsIncrement}.
+
+newThreadContent(N, Niter, GeneratorFn, GeneratorArgs) when is_integer(N) ->
+    newThreadContent(connectionPool(N, 10017), Niter, GeneratorFn, GeneratorArgs);
+newThreadContent(ConnectionPool, Niter, GeneratorFn, GeneratorArgs) ->
+    #thread_content{connectionPool=ConnectionPool, nIter=Niter, generatorFn=GeneratorFn, generatorArgs=GeneratorArgs}.
+
+connectionPool(N, StartPort) when is_integer(N) ->
+    [{"127.0.0.1", StartPort+Ind*10} || Ind <- lists:seq(0,N-1)].
+
+getGeneratorArgs(Content) ->
+    Content#thread_content.generatorArgs.
+
+getConnectionPool(Content) ->
+    Content#thread_content.connectionPool.
+
+getGeneratorFn(Content) ->
+    Content#thread_content.generatorFn.
+
+getNiter(Content) ->
+    Content#thread_content.nIter.
+
+getUniformRandClient(Content, ThreadNo) ->
+    Pool = getConnectionPool(Content),
+    {Ip, Port} = lists:nth((ThreadNo rem length(Pool))+1, Pool),
+    io:format("Getting client connection on ~p ~p ~p ~p~n", [Ip, Port, Pool, random:uniform(1024)]),
+    getClient(Ip, Port).
+
+%%------------------------------------------------------------
+%% Generic function to get a client connection from the connection
+%% pool, and put Niter records of data via that client
+%%------------------------------------------------------------
+
+-spec tsPutThreadFn(Content::thread_content(), ThreadNo::integer(), Pid::pid()) -> atom().
+
+tsPutThreadFn(Content, ThreadNo, Pid) ->
+    C       = getUniformRandClient(Content, ThreadNo),
+    GenFn   = getGeneratorFn(Content),
+    GenArgs = getGeneratorArgs(Content),
+    Niter   = getNiter(Content),
+
+    io:format("Niter = ~p ~n", [Niter]),
+
+    tsPutThreadFn({C, GenFn, GenArgs, ThreadNo}, Niter, 0, Pid).
+tsPutThreadFn(_Args, _Niter, _Niter, Pid) ->
+    Pid ! {finished, self()};
+tsPutThreadFn(Args, Niter, Iter, Pid) ->
+    {C, GenFn, GenArgs, ThreadNo} = Args,
+    {Bucket, Data} = GenFn(GenArgs, ThreadNo, Niter, Iter),
+    riakc_ts:put(C, Bucket, Data),
+    tsPutThreadFn(Args, Niter, Iter+1, Pid).
+
+%% Sample GeoCheckin generator function
+
+geoContent(Ntotal, Nthread) ->
+    GenArgs = riak_prof_tests:newGeneratorArgs([<<"series1">>, <<"family1">>], 1, 100),
+    GenFn   = riak_prof_tests:generatorFn(geo),
+    Niter   = Ntotal div Nthread,
+    Tag     = integer_to_list(Niter) ++ "_" ++ integer_to_list(Nthread),
+    Content = riak_prof_tests:newThreadContent(3, Niter, GenFn, GenArgs),
+
+    spawnFn(tsPutThreadFn, Content, Nthread, Tag).
+
+generatorFn(geo) ->
+    fun(GenArgs, ThreadNo, Niter, Iter) ->    
+	    geoCheckinGeneratorFn(GenArgs, ThreadNo, Niter, Iter)
+    end.
+
+geoCheckinGeneratorFn(GenArgs, ThreadNo, _Niter, Iter) ->    
+%%    FixedVals=GenArgs#generator_args.fixedVals,
+    StartTime   = GenArgs#generator_args.startTime,
+    TsIncrement = GenArgs#generator_args.tsIncrement,
+    Data = [{list_to_binary("family" ++ integer_to_list(ThreadNo)), 
+	     list_to_binary("series" ++ integer_to_list(ThreadNo)), 
+	     StartTime + Iter * TsIncrement, 
+	     1024, 
+	     <<"bin">>, 
+	     1.024, 
+	     false}],
+    {<<"GeoCheckin">>, Data}.
+
+%%------------------------------------------------------------
 %% Put Niter keys of Nbyte-size data to the KV bucket
 %%------------------------------------------------------------
 
@@ -955,7 +1074,7 @@ kvPutThreadFn(Args, Niter, Acc, Pid) ->
     kvPutThreadFn(Args, Niter, Acc+1, Pid).
 
 kv2iPutTest() ->
-    kv2iPutThreadFn({100, 10}, 0).
+    kv2iPutThreadFn({10, 10}, 0).
 
 kv2iPutThreadFn(Args, Acc) ->
     kv2iPutThreadFn(Args, Acc, self()).
@@ -970,12 +1089,12 @@ kv2iPutThreadFn(_Args, _Niter, _Niter, Pid) ->
 kv2iPutThreadFn(Args, Niter, Acc, Pid) ->
     {C, Data, ThreadId} = Args,
     Key = list_to_binary("key" ++ integer_to_list(ThreadId) ++ "_" ++ integer_to_list(Acc)),
-    Obj = riakc_obj:new(<<"2ibucket">>, Key, Data),
+    Obj = riakc_obj:new({<<"TestBucketType">>, <<"2ibucket">>}, Key, Data),
 
     MD1 = riakc_obj:get_update_metadata(Obj),
     MD2 = riakc_obj:set_secondary_index(
 	    MD1,
-	    [{{integer_index, "myind"}, integer_to_list(Acc)}]),
+	    [{{integer_index, "myind"}, [Acc]}]),
     Obj2 = riakc_obj:update_metadata(Obj, MD2),
 
     io:format("Writing data to Key ~p with index ~p~n", [Key, Acc]),
@@ -985,7 +1104,11 @@ kv2iPutThreadFn(Args, Niter, Acc, Pid) ->
 
 kv2iquery(Ind) ->
     C = getClient(),
-    riakc_pb_socket:get_index(C, <<"2ibucket">>, {integer_index, "myind"}, Ind).
+    riakc_pb_socket:get_index(C, {<<"TestBucketType">>, <<"2ibucket">>}, {integer_index, "myind"}, Ind).
+
+kv2iquery(Ind1, Ind2) ->
+    C = getClient(),
+    riakc_pb_socket:get_index(C, {<<"TestBucketType">>, <<"2ibucket">>}, {integer_index, "myind"}, Ind1, Ind2).
 
 quickQueryTest() ->
     C = getClient(),
@@ -1038,4 +1161,9 @@ putTestKey(Ind) ->
 	    [{{integer_index, "myind"}, [Ind]}]),
     Obj2 = riakc_obj:update_metadata(Obj, MD2),
     riakc_pb_socket:put(Pid, Obj2).
+
+putKvKey(Bucket, Key, Val) ->
+    Pid = getClient(),
+    Obj = riakc_obj:new(Bucket, Key, Val),
+    riakc_pb_socket:put(Pid, Obj).
 

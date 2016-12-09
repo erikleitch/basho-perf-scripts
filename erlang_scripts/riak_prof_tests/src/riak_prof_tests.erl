@@ -229,85 +229,74 @@ get_random_string(Length) ->
 %%========================================================================
 
 %%------------------------------------------------------------
-%% runTsQueryLatencyTests([Nbyte, Select, Group, Filter, PutData, IntervalMs])
+%% runTsQueryLatencyTests([Nbyte, Select, Group, Limit, Filter, PutData, IntervalMs, Ncols])
 %%
 %% Nbyte      -- number of bytes per column
 %% Select     -- 'all' to select *, otherwise literal condition
 %% Group      -- 'none' not to group, otherwise "group by " ++ atom_to_list(Group)
+%% Limit      -- 'nolimit' to use no limit, 'limit' to limit on Group ('limits' to all Nrow results)
 %% Filter     -- 'none' to use no filter, otherwise includes filter on 'myint <= Nrow'
 %% PutData    -- true to put data on this iteration, false not to assumes data have aready been put)
 %% IntervalMs -- interval, in ms, between successive timestamps
+%% Ncols      -- string of the form 1+10+20+50 to execute over [1,10,20,50] columns
 %%------------------------------------------------------------
 
-runTsQueryLatencyTestsSL([Nbyte, Select, Group, Filter, PutData, IntervalMs]) when is_list(Nbyte) ->
-    io:format("Nbyte = ~p Slect = ~p Group = ~p~n", [Nbyte, Select, Group]),
-    runTsQueryLatencyTestsSL(list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Filter), list_to_atom(PutData), list_to_integer(IntervalMs)).
+runTsQueryLatencyTests([Nbyte, Select, Group, Limit, Filter, PutData, IntervalMs, StrNcols]) when is_list(Nbyte) ->
+    SNcolsList = string:tokens(StrNcols, "+"),
+    NcolsList = [list_to_integer(Item) || Item <- SNcolsList],
 
-runTsQueryLatencyTestsSL(Nbyte, Select, Group, Filter, PutData, IntervalMs) ->
-%%    Ncols = [1, 5, 10, 20, 50],
-%%    Ncols = [1, 5, 10],
-%    Rows = [{1,    100000, PutData}, 
-%	    {10,    10000, false}, 
-%	    {100,    1000, false}, 
-%	    {100,     100, false}, 
-%	    {100,      10, false}, 
-%	    {100,       1, false}],
-
-    Ncols = [1, 10, 20, 50, 100, 150, 200],
-
-    Rows = [{10,    10000, PutData}, 
+    Rows = [{10,    10000, list_to_atom(PutData)}, 
 	    {10,     5000, false}, 
 	    {100,    1000, false}, 
-	    {1000,    100, false}, 
-	    {1000,     10, false}, 
-	    {1000,      1, false}],
+	    {100,     100, false}, 
+	    {100,      10, false}, 
+	    {100,       1, false}],
+
+    runTsQueryLatencyTests(local, list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Limit), list_to_atom(Filter), list_to_integer(IntervalMs), NcolsList, Rows).
+
+runTsQueryLatencyTestsQuick([Nbyte, Select, Group, Limit, Filter, PutData, IntervalMs, StrNcols]) when is_list(Nbyte) ->
+    SNcolsList = string:tokens(StrNcols, "+"),
+    NcolsList = [list_to_integer(Item) || Item <- SNcolsList],
+
+    Rows = [{1,  10000, list_to_atom(PutData)}, 
+	    {1,   5000, false}, 
+	    {1,   1000, false}, 
+	    {1,    100, false}, 
+	    {1,     10, false}, 
+	    {1,      1, false}],
+
+    runTsQueryLatencyTests(local, list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Limit), list_to_atom(Filter), list_to_integer(IntervalMs), NcolsList, Rows).
+
+runTsQueryLatencyTestsSL([Nbyte, Select, Group, Limit, Filter, PutData, IntervalMs, StrNcols]) when is_list(Nbyte) ->
+    SNcolsList = string:tokens(StrNcols, "+"),
+    NcolsList = [list_to_integer(Item) || Item <- SNcolsList],
+
+    Rows = [{1,     10000, list_to_atom(PutData)}, 
+	    {10,     5000, false}, 
+	    {100,    1000, false}, 
+	    {100,     100, false}, 
+	    {100,      10, false}, 
+	    {100,       1, false}],
+
+    runTsQueryLatencyTests(sl, list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Limit), list_to_atom(Filter), list_to_integer(IntervalMs), NcolsList, Rows).
+
+runTsQueryLatencyTests(ClientAtom, Nbyte, Select, Group, Limit, Filter, IntervalMs, Ncols, Rows) ->
+
+    io:format("Received Ncols = ~p~n Rows = ~p~n", [Ncols, Rows]),
         
-    C = getClient(sl),
+    C = getClient(ClientAtom),
+
     profiler:profile({prefix, "/tmp/client_profiler_results"}),
     profiler:profile({noop, false}),
 
     ColRunFun = 
 	fun(Ncol) ->
-		[tsLatencyQueryTest({C, Select, Group, Filter, Put, IntervalMs}, Nrow, Ncol, Niter, Nbyte) || {Niter, Nrow, Put} <- Rows]
+		[tsLatencyQueryTest({C, Select, Group, Limit, Filter, Put, IntervalMs}, Nrow, Ncol, Niter, Nbyte) || {Niter, Nrow, Put} <- Rows]
 	end,
 
     [ColRunFun(Ncol) || Ncol <- Ncols].
 
-runTsQueryLatencyTests([Nbyte, Select, Group, Filter, PutData, IntervalMs]) when is_list(Nbyte) ->
-    io:format("Nbyte = ~p Slect = ~p Group = ~p~n", [Nbyte, Select, Group]),
-    runTsQueryLatencyTests(list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Filter), list_to_atom(PutData), list_to_integer(IntervalMs)).
-
-runTsQueryLatencyTests(Nbyte, Select, Group, Filter, PutData, IntervalMs) ->
-%%    Ncols = [1, 5, 10, 20, 50],
-%%    Ncols = [1, 5, 10],
-%    Rows = [{1,    100000, PutData}, 
-%	    {10,    10000, false}, 
-%	    {100,    1000, false}, 
-%	    {100,     100, false}, 
-%	    {100,      10, false}, 
-%	    {100,       1, false}],
-
-    Ncols = [1, 10, 100, 200],
-
-    Rows = [{10,    10000, PutData}, 
-	    {10,     5000, false}, 
-	    {100,    1000, false}, 
-	    {1000,    100, false}, 
-	    {1000,     10, false}, 
-	    {1000,      1, false}],
-        
-    C = getClient(),
-    profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    profiler:profile({noop, false}),
-
-    ColRunFun = 
-	fun(Ncol) ->
-		[tsLatencyQueryTest({C, Select, Group, Filter, Put, IntervalMs}, Nrow, Ncol, Niter, Nbyte) || {Niter, Nrow, Put} <- Rows]
-	end,
-
-    [ColRunFun(Ncol) || Ncol <- Ncols].
-
-tsLatencyQueryTest({C, Select, Group, Filter, PutData, IntervalMs}, Nrow, Ncol, Niter, Nbyte) ->
+tsLatencyQueryTest({C, Select, Group, Limit, Filter, PutData, IntervalMs}, Nrow, Ncol, Niter, Nbyte) ->
 
     FieldData = tsLatencyTestData(Ncol, Nbyte),
     Bucket = "Gen" ++ integer_to_list(Ncol),
@@ -352,6 +341,19 @@ tsLatencyQueryTest({C, Select, Group, Filter, PutData, IntervalMs}, Nrow, Ncol, 
 	end,
 
     %%------------------------------------------------------------
+    %% If Limit is none, just range scan, else apply a limit to
+    %% exercise query buffers
+    %%------------------------------------------------------------
+
+    LimitCond = 
+	case Limit of
+	    nolimit ->
+		"";
+	    _ ->
+		" limit " ++ integer_to_list(Nrow)
+	end,
+
+    %%------------------------------------------------------------
     %% If Filter is none, just range scan, else apply a secondary
     %% filter that will match all keys we are iterating over
     %%------------------------------------------------------------
@@ -366,7 +368,7 @@ tsLatencyQueryTest({C, Select, Group, Filter, PutData, IntervalMs}, Nrow, Ncol, 
 
     Query = "select " ++ FieldCond ++ " from Gen" ++ integer_to_list(Ncol) ++ 
 	" where myfamily='family1' and myseries='seriesX' and time > 0 and time <= " ++ 
-	integer_to_list(Nrow*IntervalMs) ++ FilterCond ++ GroupCond,
+	integer_to_list(Nrow*IntervalMs) ++ FilterCond ++ GroupCond ++ LimitCond,
 
     %%------------------------------------------------------------
     %% Now start the profiler for Niter iterations of this combination
@@ -374,13 +376,16 @@ tsLatencyQueryTest({C, Select, Group, Filter, PutData, IntervalMs}, Nrow, Ncol, 
     %%------------------------------------------------------------
 
     io:format("Querying data for Ncol = ~p Nbyte = ~p Nrow = ~p with Query = ~p~n", [Ncol, Nbyte, Nrow, Query]),
+    io:format("~p About to start profile for Name ~p~n", [self(), Name]),
 
     profiler:profile({start, Name}),
     tsLatencyQueryTest({C, Query, Name}, Niter, 0).
 
 tsLatencyQueryTest({_C, _Query, Name}, _Niter, _Niter) ->
     profiler:profile({stop, Name}),
-    profiler:profile({debug}),
+%%    io:format("~p Just stopped profile for Name ~p~n", [self(), Name]),
+%%    profiler:profile({debug}),
+%%    timer:sleep(1000),
     ok;
 tsLatencyQueryTest(Args, Niter, AccIter) ->
     {C, Query, _Name} = Args,
@@ -422,14 +427,16 @@ putQueryTestData(Args, Nrow, AccRow, _GenInd) ->
 
     Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, (AccRow+1)*IntervalMs] ++ FieldData ++ [NewInd])],
 
-    Resp = riakc_ts:put(C, Bucket, Data),
+    ok = riakc_ts:put(C, Bucket, Data),
 
-    case AccRow of
-	0 ->
-	    io:format("Put bucket = ~p ~n Data = ~p~n Resp = ~p~n", [Bucket, Data, Resp]);
-	_ ->
-	    ok
-    end,
+%    Resp = ok,
+
+%    case AccRow of
+%	0 ->
+%	    io:format("Put bucket = ~p ~n Data = ~p~n Resp = ~p~n", [Bucket, Data, Resp]);
+%	_ ->
+%	    ok
+%   end,
 
     putQueryTestData(Args, Nrow, AccRow+1, NewInd).
 
@@ -751,7 +758,7 @@ geoQuery(Range) ->
 query(Q, Atom) ->
 	C = getClient(Atom),
 	{ok, {_Cols, Rows}} = riakc_ts:query(C, Q),
-        io:format("Query returned ~p rows~n", [length(Rows)]),
+        io:format("Query returned ~p rows~n~p~n", [length(Rows), Rows]),
         Rows.
 
 timedQuery(Q, Atom, ProfAtom) ->

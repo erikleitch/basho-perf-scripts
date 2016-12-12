@@ -629,9 +629,19 @@ tsPutLatencyTestSequenceTs1.4VsTs1.5()
 
 }
 
-plotTs1.4vTs1.5()
+plotPutTs1.4vTs1.5()
 {
     python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.4_1row*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_1row*.txt`" $'TS1.4 Put Latency' $'TS1.5 Put Latency' $'$\Delta$ Put Latency' $'$\Delta$Latency (%)' overplot=False figfile=tsputcomp_ts1.4v1.5.png
+}
+
+tsPutLatencyTestSequenceBlobTs1.5()
+{
+    testCmpSequence start=0 iter=10 branch=riak_ee_riak_ts_ee_1.5.0rc5 erlfn=runTsPutLatencyTests nodes=1 \
+		    script1=ts_setup_gen \
+		    script2=ts_setup_gen_blob \
+		    args="1 1+5+10+20+50" \
+		    prefix1=tsputlatency_ts1.5_asc \
+		    prefix2=tsputlatency_ts1.5_desc
 }
 
 #=======================================================================
@@ -1519,7 +1529,10 @@ testCmpSequence()
     
     erlfn=$(simpleValOrDef erlfn '' $@)
     script=$(simpleValOrDef script '' $@)
-    args=$(simpleValOrDef args '' $@)
+
+    args=$(valOrDef args '' "$@")
+    args=${args//\"/}
+
     prefix=$(simpleValOrDef prefix '' $@)
 
     # Riak test script and args to pass to the first/second iteration?
@@ -1575,16 +1588,36 @@ testCmpSequence()
 
     if [ -z "$args1" ]; then
 	echo "Settingi args1 to $args1"
-	args1=$args
+	args1="$args"
     fi
 
     if [ -z "$args2" ]; then
 	echo "Settingi args2 to $args2"
-	args2=$args
+	args2="$args"
     fi
 
-    echo "branch = $branch, branch1 = $branch1 branch2 = $branch2"
+    #------------------------------------------------------------
+    # Print arguments for debugging
+    #------------------------------------------------------------
     
+    echo "branch    = $branch"
+    echo "branch1   = $branch1"
+    echo "branch2   = $branch2"
+    echo "nodes     = $nodes"
+    echo "nIter     = $nIter"
+    echo "startIter = $startIter"
+    
+    echo "erlfn     = $erlfn"
+    echo "erlfn1    = $erlfn1"
+    echo "erlfn2    = $erlfn2"
+
+    echo "args      = $args"
+    echo "args1     = $args1"
+    echo "args2     = $args2"
+
+    echo "prefix1   = $prefix1"
+    echo "prefix2   = $prefix2"
+
     #------------------------------------------------------------
     # Make the output directory if it doesn't already exist
     #------------------------------------------------------------
@@ -1601,6 +1634,7 @@ testCmpSequence()
     colorize "Installing branch '$branch1' with script $script1" "green"
     
     \rm riak_ee
+    \rm -rf /Users/eml/rt/riak/current/dev
     ln -s branches/$branch1 riak_ee
     rerun target=locked-all script=$script1 args=--keep nodes=$nodes
 
@@ -1622,6 +1656,7 @@ testCmpSequence()
 	colorize "Installing branch $branch2" "green"
 	
 	\rm riak_ee
+	\rm -rf /Users/eml/rt/riak/current/dev
 	ln -s branches/$branch2 riak_ee
 
 	# If a separate script was specified for the second tests,
@@ -1711,6 +1746,79 @@ groupByPlotTs1.4VsTs1.5()
     python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_group*txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_group*.txt`" $'TS1.4 Query Latency\n(1 byte per column, group by)' $'TS1.5 Query Latency\n(1 byte per column, group by)' $'$\Delta$ Query Latency (TS1.5 - TS1.4, group)' $'$\Delta$Latency (%)' overplot=False cmpplot=div chis=True
 }
 
+tsQueryLatencyTestSequenceTs1.4VsTs1.5()
+{
+    testCmpSequence start=0 iter=5 erlfn=runTsQueryLatencyTests \
+		    branch=riak_ee_1.4.0 \
+		    nodes=3 \
+		    args="10 all none nolimit none true 1000 1+10+50+100+200" \
+		    script1=ts_setup_gen_single_quantum_prets1_5 \
+		    script2=ts_setup_gen_multiple_quanta_prets1_5 \
+		    prefix1=tsquerylatency_ts1.4_10_single \
+		    prefix2=tsquerylatency_ts1.4_10_multi
+    
+    testCmpSequence start=0 iter=5 erlfn=runTsQueryLatencyTests \
+		    branch=riak_ee_riak_ts_ee_1.5.0rc5 \
+		    nodes=3 \
+		    args="10 all none nolimit none true 1000 1+10+50+100+200" \
+		    script1=ts_setup_gen_single_quantum \
+		    script2=ts_setup_gen_multiple_quanta \
+		    prefix1=tsquerylatency_ts1.5_10_single \
+		    prefix2=tsquerylatency_ts1.5_10_multi
+
+    testCmpSequence start=5 iter=5 erlfn=runTsQueryLatencyTests \
+		    branch=riak_ee_1.4.0 \
+		    nodes=3 \
+		    args="10 all none nolimit none true 1000 1+10+50+100+200" \
+		    script1=ts_setup_gen_single_quantum_prets1_5 \
+		    script2=ts_setup_gen_multiple_quanta_prets1_5 \
+		    prefix1=tsquerylatency_ts1.4_10_single \
+		    prefix2=tsquerylatency_ts1.4_10_multi
+    
+    testCmpSequence start=5 iter=5 erlfn=runTsQueryLatencyTests \
+		    branch=riak_ee_riak_ts_ee_1.5.0rc5 \
+		    nodes=3 \
+		    args="10 all none nolimit none true 1000 1+10+50+100+200" \
+		    script1=ts_setup_gen_single_quantum \
+		    script2=ts_setup_gen_multiple_quanta \
+		    prefix1=tsquerylatency_ts1.5_10_single \
+		    prefix2=tsquerylatency_ts1.5_10_multi
+}
+
+plotSMQueryTs1.4vTs1.5()
+{
+    iter1=$(simpleValOrDef iter1 '0-9' $@)
+    iter2=$(simpleValOrDef iter2 '0-9' $@)
+    op=$(simpleValOrDef op 'div' $@)
+    
+    annotate "TS1.4 SQ/SQ (sanity check)" "green"
+
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_10_single_iter[$iter1].txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_10_single_iter[$iter2].txt`" $'TS1.4 Query Latency\n(10 byte per column, MQ)' $'TS1.4 Query Latency\n(10 byte per column, SQ)' $'Ratio Query Latency (SQ/MQ)' $'Ratio' overplot=False cmpplot=$op chis=False
+
+    annotate "TS1.4 SQ/MQ" "green"
+
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_10_multi_iter[$iter1].txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_10_single_iter[$iter2].txt`" $'TS1.4 Query Latency\n(10 byte per column, MQ)' $'TS1.4 Query Latency\n(10 byte per column, SQ)' $'Ratio Query Latency (SQ/MQ)' $'Ratio' overplot=False cmpplot=$op chis=False
+
+    annotate "TS1.5 SQ/MQ" "green"
+
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_10_multi_iter[$iter1].txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_10_single_iter[$iter2].txt`" $'TS1.5 Query Latency\n(10 byte per column, MQ)' $'TS1.5 Query Latency\n(10 byte per column, SQ)' $'Ratio Query Latency (SQ/MQ)' $'Ratio' overplot=False cmpplot=$op chis=False
+
+    annotate "TS1.4 v TS1.5 SQ" "green"
+
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_10_single_iter[$iter1].txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_10_single_iter[$iter2].txt`" $'TS1.5 Query Latency\n(10 byte per column, SQ)' $'TS1.4 Query Latency\n(10 byte per column, SQ)' $'Ratio SQ Query Latency (TS1.4/TS1.5)' $'Ratio' overplot=False cmpplot=$op chis=False
+
+    annotate "TS1.4 v TS1.5 MQ" "green"
+
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_10_multi_iter[$iter1].txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_10_multi_iter[$iter2].txt`" $'TS1.5 Query Latency\n(10 byte per column, MQ)' $'TS1.4 Query Latency\n(10 byte per column, MQ)' $'Ratio MQ Query Latency (TS1.4/TS1.5)' $'Ratio' overplot=False cmpplot=$op chis=False
+}
+
+plotQueryTs1.4vTs1.5()
+{
+    annotate "TS1.5 Query" "green"
+
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.4_10_iter0.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_10_iter0.txt`" $'TS1.4 Query Latency\n(1 byte per column, group by)' $'TS1.5 Query Latency\n(1 byte per column, group by)' $'$\Delta$ Query Latency (TS1.5 - TS1.4, group)' $'$\Delta$Latency (%)' overplot=False cmpplot=div chis=True
+}
+
 #-----------------------------------------------------------------------
 # Run TS1.5 Limit tests:
 #
@@ -1752,6 +1860,27 @@ limitOrigPlotTs1.5()
 limitAmlPlotTs1.5()
 {
     python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_aml_nolimit*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_aml_limit*.txt`" $'TS1.5 Query Latency\n(10 bytes per column, no limit)' $'TS1.5 Query Latency\n(10 bytes per column, limit)' $'Latency Ratio\nLimit/No limit' $'Ratio' overplot=False cmpplot=div chis=True zmax=2
+}
+
+#-----------------------------------------------------------------------
+# Run TS1.5 DESC test
+#
+# Compares queries with ASCENDING (normal) and DESCENDING keys
+#-----------------------------------------------------------------------
+
+tsQueryLatencyTestSequenceDescTs1.5()
+{
+    testCmpSequence start=0 iter=10 branch=riak_ee_riak_ts_ee_1.5.0rc5 erlfn=runTsQueryLatencyTests nodes=3 \
+		    script1=ts_setup_gen_single_quantum \
+		    script2=ts_setup_gen_single_quantum_desc \
+		    args="10 time none nolimit none true 1000 1+10+50+100+200" \
+		    prefix1=tsquerylatency_ts1.5_asc \
+		    prefix2=tsquerylatency_ts1.5_desc
+}
+
+descPlotTs1.5()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_asc*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_desc*.txt`" $'TS1.5 Query Latency\n(10 bytes per column, ascending order)' $'TS1.5 Query Latency\n(10 bytes per column, descending order)' $'$\Delta$Latency \n(Desc - Asc)/Asc' $'$\Delta$Latency' overplot=False cmpplot=div chis=True zmax=2 figfile=tsquerylatency_ts1.5_desc.png
 }
 
 tsQueryLatencyTestSequenceGrid()

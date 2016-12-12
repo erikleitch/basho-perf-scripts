@@ -36,10 +36,13 @@ getClient(_) ->
 checkArgs(Args) ->
     io:format("Found Args = ~p~n", [Args]).
 
-runTsPutLatencyTests([Nrow]) when is_list(Nrow) ->
-    runTsPutLatencyTests(list_to_integer(Nrow));
-runTsPutLatencyTests(Nrow) ->
-    Ncols = [1, 5, 10, 20, 50],
+runTsPutLatencyTests([Nrow, StrNcols]) when is_list(Nrow) ->
+    SNcolsList = string:tokens(StrNcols, "+"),
+    NcolsList = [list_to_integer(Item) || Item <- SNcolsList],
+    runTsPutLatencyTests(list_to_integer(Nrow), NcolsList).
+
+runTsPutLatencyTests(Nrow, Ncols) ->
+%%    Ncols = [1, 5, 10, 20, 50],
 
     Bytes = [{1000,      1}, 
 	     {1000,     10}, 
@@ -236,7 +239,7 @@ get_random_string(Length) ->
 %% Group      -- 'none' not to group, otherwise "group by " ++ atom_to_list(Group)
 %% Limit      -- 'nolimit' to use no limit, 'limit' to limit on Group ('limits' to all Nrow results)
 %% Filter     -- 'none' to use no filter, otherwise includes filter on 'myint <= Nrow'
-%% PutData    -- true to put data on this iteration, false not to assumes data have aready been put)
+%% PutData    -- true to put data on this iteration, false not to assume data have aready been put)
 %% IntervalMs -- interval, in ms, between successive timestamps
 %% Ncols      -- string of the form 1+10+20+50 to execute over [1,10,20,50] columns
 %%------------------------------------------------------------
@@ -247,10 +250,10 @@ runTsQueryLatencyTests([Nbyte, Select, Group, Limit, Filter, PutData, IntervalMs
 
     Rows = [{10,    10000, list_to_atom(PutData)}, 
 	    {10,     5000, false}, 
-	    {100,    1000, false}, 
-	    {100,     100, false}, 
-	    {100,      10, false}, 
-	    {100,       1, false}],
+	    {10,     1000, false}, 
+	    {10,      100, false}, 
+	    {10,       10, false}, 
+	    {10,        1, false}],
 
     runTsQueryLatencyTests(local, list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Limit), list_to_atom(Filter), list_to_integer(IntervalMs), NcolsList, Rows).
 

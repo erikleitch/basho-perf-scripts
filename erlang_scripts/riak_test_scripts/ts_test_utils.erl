@@ -74,9 +74,34 @@ genFields(_Ind, _Ind, Acc) ->
 genFields(Ind, Counter, Acc) ->
     genFields(Ind, Counter+1, Acc ++ "myvar" ++ integer_to_list(Counter+1) ++ "  varchar  not null, ").
 
+genBlobFields(Ind) ->
+    genBlobFields(Ind, 0, []).
+genBlobFields(_Ind, _Ind, Acc) ->
+    Acc;
+genBlobFields(Ind, Counter, Acc) ->
+    genBlobFields(Ind, Counter+1, Acc ++ "myvar" ++ integer_to_list(Counter+1) ++ "  blob  not null, ").
+
 %%------------------------------------------------------------
 %% Create a generated DDL with variable number of fields
 %%------------------------------------------------------------
+
+get_desc_ddl(Ind) when is_integer(Ind) ->
+    _SQL = "CREATE TABLE Gen" ++ integer_to_list(Ind) ++ " (" ++
+	"myfamily    varchar   not null, " ++
+	"myseries    varchar   not null, " ++
+	"time        timestamp not null, " ++ genFields(Ind) ++ 
+	"myint       sint64    not null, " ++ 
+	"PRIMARY KEY ((myfamily, myseries, quantum(time, 15, 'm')), " ++
+	"myfamily, myseries, time DESC))".
+
+get_blob_ddl(Ind) when is_integer(Ind) ->
+    _SQL = "CREATE TABLE Gen" ++ integer_to_list(Ind) ++ " (" ++
+	"myfamily    varchar   not null, " ++
+	"myseries    varchar   not null, " ++
+	"time        timestamp not null, " ++ genBlobFields(Ind) ++ 
+	"myint       sint64    not null, " ++ 
+	"PRIMARY KEY ((myfamily, myseries, quantum(time, 15, 'm')), " ++
+	"myfamily, myseries, time))".
 
 get_ddl(Ind) when is_integer(Ind) ->
     _SQL = "CREATE TABLE Gen" ++ integer_to_list(Ind) ++ " (" ++
@@ -443,10 +468,36 @@ setup_ts_gen_cluster(ClusterType, Nval, ColList) ->
 	end,
     [Fun(Ncol) || Ncol <- ColList].
 
+setup_ts_gen_cluster_blob(ClusterType, Nval, ColList) ->
+    [Node | _] = build_cluster(ClusterType),
+    Fun = 
+	fun(Ncol) ->
+		DDL = get_blob_ddl(Ncol),
+		Bucket = "Gen" ++ integer_to_list(Ncol),
+		io:format("Creating bucket ~p with DDL = ~p~n", [Bucket, DDL]),
+		{ok, _} = create_ts_bucket(Node, Nval, Bucket, DDL),
+		{ok, _} = activate_bucket(Node, Bucket)
+	end,
+    [Fun(Ncol) || Ncol <- ColList].
+
 %%------------------------------------------------------------
 %% Setup a cluster with generated TS tables containing the numbers of
 %% columns specified in ColList, replacing the default quantum.
 %%------------------------------------------------------------
+
+setup_ts_gen_cluster_desc(ClusterType, Nval, ColList, QuantumValue, QuantumUnit) ->
+    [Node | _] = build_cluster(ClusterType),
+    Fun = 
+	fun(Ncol) ->
+		DDLOrig = get_desc_ddl(Ncol),
+		DDL = replace_quantum(DDLOrig, "time", QuantumValue, QuantumUnit),
+		Bucket = "Gen" ++ integer_to_list(Ncol),
+		io:format("Creating bucket ~p with DDL = ~p~n", [Bucket, DDL]),
+		{ok, _} = create_ts_bucket(Node, Nval, Bucket, DDL),
+		{ok, _} = activate_bucket(Node, Bucket)
+	end,
+
+    [Fun(Ncol) || Ncol <- ColList].
 
 setup_ts_gen_cluster(ClusterType, Nval, ColList, QuantumValue, QuantumUnit) ->
     [Node | _] = build_cluster(ClusterType),

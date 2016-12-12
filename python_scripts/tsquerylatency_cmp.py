@@ -254,7 +254,7 @@ print 'figsize = ' + str(figsize)
 azs = azstr.split(' ')
 els = elstr.split(' ')
 
-print 'cmpplot = ' + str(cmpplot) + ' == ' + str(cmpplot == 'frac')
+print 'cmpplot = ' + str(cmpplot) + ' == ' + 'frac? ' + str(cmpplot == 'frac')
 
 x1, y1, z1, bytes1 = getProfilerOutput(file1)
 x2, y2, z2, bytes2 = getProfilerOutput(file2)
@@ -341,7 +341,7 @@ else:
     makePlot(ax, x1, y1, frac*100, -100, 100, 'y', title3 + '\n' + statstr, False, zlabel3)
 
 if figfile != None:
-  plt.tight_layout(w_pad=2,pad=5)
+  plt.tight_layout(w_pad=4,pad=5)
   fig.savefig(figfile);
   
 print 'Here'

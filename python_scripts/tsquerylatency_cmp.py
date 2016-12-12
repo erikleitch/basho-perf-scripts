@@ -79,7 +79,6 @@ def getRawDiffProfilerOutput(fileName1, fileName2):
     s = key.split('_')
     if s[0] == 'query':
       if key in d2.keys():
-        print 'Read cols = ' + str(s[1])
         cols.append(float(s[1]))
         rows.append(np.log10(float(s[3])))
         rs.append((d2[key]['usec'] - d1[key]['usec'])/d1[key]['usec'])
@@ -181,7 +180,6 @@ def retick(ax, axname):
 
 def makePlot(ax, x, y, z, zmin, zmax, Color, Title=None, retickz=True, zlabel=None):
 
-  print 'Inside makePlot with x = ' + str(x)
   ax.plot_surface(x, y, z, color=Color);
 
   if Title != None:
@@ -246,6 +244,7 @@ chis     = str2bool(getOptArgs(sys.argv, 'chis', True))
 azstr    = getOptArgs(sys.argv, 'az', '-45 -45 -45')
 elstr    = getOptArgs(sys.argv, 'el', '30 30 30')
 figsizestr = getOptArgs(sys.argv, 'figsize', '25,8')
+zmaxstr  = getOptArgs(sys.argv, 'zmax', '6.0')
 
 figsizearr=figsizestr.split(',')
 figsize=(np.int(figsizearr[0]), np.int(figsizearr[1]))
@@ -287,7 +286,6 @@ zmax += zrng * 0.1
 print 'zmin = ' + str(zmin) + ' zmax = ' + str(zmax)
 
 ax = fig.add_subplot(1,3,1, projection='3d')
-print 'Calling view_init with azs = ' + str(azs) + ' els = ' + str(els)
 ax.view_init(elev=np.double(els[0]), azim=np.double(azs[0]))
 makePlot(ax, x1, y1, z1, zmin, zmax, 'c', title1)
 
@@ -320,7 +318,7 @@ else:
     zrng = zmax - zmin
     zmin -= zrng * 0.1
     zmax += zrng * 0.1
-    print 'z1 = ' + str(z1) + ' z2 = ' + str(z2) + ' Diff = ' + str(diff)
+
     makePlot(ax, x1, y1, diff, zmin, zmax, 'y', title3 + '\n' + statstr, False, zlabel3)
   elif cmpplot == 'div':
     nx = np.shape(diff)[0]
@@ -336,8 +334,8 @@ else:
     zmin -= zrng * 0.1
     zmax += zrng * 0.1
     zmin = 0.0
-    zmax = 6.0
-    print 'z1 = ' + str(z1) + ' z2 = ' + str(z2) + ' Diff = ' + str(diff)
+    zmax = np.float(zmaxstr)
+
     makePlot(ax, x1, y1, diff, zmin, zmax, 'y', title3 + '\n' + statstr, False, zlabel3)
   elif cmpplot == 'frac':
     makePlot(ax, x1, y1, frac*100, -100, 100, 'y', title3 + '\n' + statstr, False, zlabel3)

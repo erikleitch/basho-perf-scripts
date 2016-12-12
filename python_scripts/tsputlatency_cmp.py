@@ -80,15 +80,13 @@ def getRawDiffProfilerOutput(fileName1, fileName2, op):
   for key in d1.keys():
     s = key.split('_')
     if s[0] == 'put':
-      print 'Checking if key = ' + key + ' is in d2 '
+
       if key in d2.keys():
-        print 'key = ' + key + ' found'
         cols.append(float(s[1]))
         btes.append(np.log10(float(s[2])))
         if op == '-':
           us.append((d2[key]['usec'] - d1[key]['usec'])/d1[key]['usec'])
         elif op == '/':
-          print 'appending div d2 = ' + str(d2[key]['usec']) + ' d1 = ' + str(d1[key]['usec'])
           us.append(d2[key]['usec']/d1[key]['usec'])
 
   return cols, btes, us, d1, d2
@@ -111,7 +109,6 @@ def getProfilerOutput(fileName):
   return x,y,z
 
 def getDiffProfilerOutput(fileName1, fileName2, op):
-  print 'here gd 0'
   c, r, diff, d1, d2 = getRawDiffProfilerOutput(fileName1, fileName2, op)
 
   if op == '-':
@@ -129,8 +126,6 @@ def getDiffProfilerOutput(fileName1, fileName2, op):
         val = 100*(v2 - v1)/v1
         av += (val - av)/(ndof)
         
-        print 'av = ' + str(av)
-        
         pte = 1.0 - stats.chi2.cdf(chi2, ndof)
         
         if np.isnan(chi2):
@@ -138,7 +133,6 @@ def getDiffProfilerOutput(fileName1, fileName2, op):
         else:
           statstr = '$\mu$ = ' + ("%.0f" % av) + '%, $\chi^2_{' + str(ndof) + '}$ = ' + ("%.2f" % chi2) + ' (PTE = ' + ("%.2g" % pte) + ')'
 
-        print 'stattsr = ' + str(statstr)
   else:
     statstr = ''
     
@@ -239,7 +233,6 @@ title1 = sys.argv[3]
 title2 = sys.argv[4]
 title3 = sys.argv[5]
 
-print 'here 0'
 if np.size(sys.argv) > 6:
   zlabel3 = sys.argv[6]
 else:
@@ -252,7 +245,7 @@ x1, y1, z1 = getProfilerOutput(file1)
 x2, y2, z2 = getProfilerOutput(file2)
 
 op = getOptArgs(sys.argv, 'op', '-')
-  
+
 if not overplot:
   xd, yd, diff, statstr = getDiffProfilerOutput(file1, file2, op)
 
@@ -286,23 +279,17 @@ makePlot(ax, x2, y2, z2, zmin, zmax, 'm', title2)
 ax = fig.add_subplot(1,3,3, projection='3d')
 
 if overplot:
-  print 'Here overplotting overplot = ' + str(overplot)
   makePlot(ax, x1, y1, z1, zmin, zmax, 'c', title3)
   plt.hold(True)
   makePlot(ax, x2, y2, z2, zmin, zmax, 'm')
 else:
   if op == '-':
-    print 'Here - not overplotting'
     makePlot(ax, x2, y2, diff*100, -100, 100, 'y', title3 + '\n' + statstr, False, zlabel3)
   else:
-    print 'Here / not overplotting'
     makePlot(ax, x2, y2, diff, np.min(diff), np.max(diff), 'y', title3 + '\n' + statstr, False, zlabel3)
-    
-plt.tight_layout(w_pad=2,pad=5)
 
 if figfile != None:
+  plt.tight_layout(w_pad=2,pad=5)
   fig.savefig(figfile)
   
-print 'Here'
-
 plt.show()

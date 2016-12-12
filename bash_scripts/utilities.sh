@@ -189,3 +189,13 @@ colorize()
     echo -e $(getColorizedString "$inStr" "$color")
 }
 
+annotate ()
+{
+    line=$1;
+    color=$2;
+    colorize "============================================================" $color;
+    colorize "$line" $color;
+    colorize "============================================================" $color
+}
+
+

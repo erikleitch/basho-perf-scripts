@@ -1870,7 +1870,7 @@ tsPutLatencyTestSequenceDescTs1.5()
 
 descPutPlotTs1.5()
 {
-    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_asc*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_desc*.txt`" $'TS1.5 Put Latency\n(10 bytes per column, ascending order)' $'TS1.5 Put Latency\n(10 bytes per column, descending order)' $'$\Delta$Latency \n(Desc - Asc)/Asc' $'$\Delta$Latency' overplot=False cmpplot=diff chis=True figfile=tsputlatency_ts1.5_desc.png
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_asc*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_desc*.txt`" $'TS1.5 Put Latency\n(10 bytes per column, ascending order)' $'TS1.5 Put Latency\n(10 bytes per column, descending order)' $'$\Delta$Latency \n(Desc - Asc)/Asc\n' $'$\Delta$Latency (%)' overplot=False cmpplot=diff chis=True figfile=tsputlatency_ts1.5_desc.png
 }
 
 tsQueryLatencyTestSequenceDescTs1.5()
@@ -1885,7 +1885,7 @@ tsQueryLatencyTestSequenceDescTs1.5()
 
 descQueryPlotTs1.5()
 {
-    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_asc*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_desc*.txt`" $'TS1.5 Query Latency\n(10 bytes per column, ascending order)' $'TS1.5 Query Latency\n(10 bytes per column, descending order)' $'$\Delta$Latency \n(Desc - Asc)/Asc' $'$\Delta$Latency' overplot=False cmpplot=frac chis=True zmax=2 figfile=tsquerylatency_ts1.5_desc.png
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_asc*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_desc*.txt`" $'TS1.5 Query Latency\n(10 bytes per column, ascending order)' $'TS1.5 Query Latency\n(10 bytes per column, descending order)' $'$\Delta$Latency \n(Desc - Asc)/Asc\n' $'$\Delta$Latency (%)' overplot=False cmpplot=frac chis=True zmax=2 figfile=tsquerylatency_ts1.5_desc.png
 }
 
 tsPutLatencyTestSequenceBlobTs1.5()
@@ -1900,7 +1900,7 @@ tsPutLatencyTestSequenceBlobTs1.5()
 
 blobPutPlotTs1.5()
 {
-    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_varchar*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_blob*.txt`" $'TS1.5 Put Latency\n(10 bytes per column, ascending order)' $'TS1.5 Put Latency\n(10 bytes per column, blobending order)' $'$\Delta$Latency \n(Blob - Asc)/Asc' $'$\Delta$Latency' overplot=False cmpplot=diff chis=True figfile=tsputlatency_ts1.5_blob.png
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_varchar*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_blob*.txt`" $'TS1.5 Put Latency\n(10 bytes per column, varchar)' $'TS1.5 Put Latency\n(10 bytes per column, blob)' $'$\Delta$Latency \n(Blob - Varchar)/Varchar\n' $'$\Delta$Latency (%)' overplot=False cmpplot=diff chis=True figfile=tsputlatency_ts1.5_blob.png
 }
 
 tsQueryLatencyTestSequenceBLobTs1.5()
@@ -1915,7 +1915,7 @@ tsQueryLatencyTestSequenceBLobTs1.5()
 
 blobQueryPlotTs1.5()
 {
-    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_varchar*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_blob*.txt`" $'TS1.5 Query Latency\n(10 bytes per column, varcharending order)' $'TS1.5 Query Latency\n(10 bytes per column, blobending order)' $'$\Delta$Latency \n(Blob - Varchar)/Varchar' $'$\Delta$Latency' overplot=False cmpplot=frac chis=True zmax=2 figfile=tsquerylatency_ts1.5_blob.png
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_varchar*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_blob*.txt`" $'TS1.5 Query Latency\n(10 bytes per column, varchar)' $'TS1.5 Query Latency\n(10 bytes per column, blob)' $'$\Delta$Latency \n(Blob - Varchar)/Varchar\n' $'$\Delta$Latency (%)' overplot=False cmpplot=frac chis=True zmax=2 figfile=tsquerylatency_ts1.5_blob.png
 }
 
 tsQueryLatencyTestSequenceGrid()

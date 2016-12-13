@@ -319,6 +319,7 @@ else:
     zmin -= zrng * 0.1
     zmax += zrng * 0.1
 
+
     makePlot(ax, x1, y1, diff, zmin, zmax, 'y', title3 + '\n' + statstr, False, zlabel3)
   elif cmpplot == 'div':
     nx = np.shape(diff)[0]

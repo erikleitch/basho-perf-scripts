@@ -480,10 +480,36 @@ setup_ts_gen_cluster_blob(ClusterType, Nval, ColList) ->
 	end,
     [Fun(Ncol) || Ncol <- ColList].
 
+setup_ts_gen_cluster_desc(ClusterType, Nval, ColList) ->
+    [Node | _] = build_cluster(ClusterType),
+    Fun = 
+	fun(Ncol) ->
+		DDL = get_desc_ddl(Ncol),
+		Bucket = "Gen" ++ integer_to_list(Ncol),
+		io:format("Creating bucket ~p with DDL = ~p~n", [Bucket, DDL]),
+		{ok, _} = create_ts_bucket(Node, Nval, Bucket, DDL),
+		{ok, _} = activate_bucket(Node, Bucket)
+	end,
+    [Fun(Ncol) || Ncol <- ColList].
+
 %%------------------------------------------------------------
 %% Setup a cluster with generated TS tables containing the numbers of
 %% columns specified in ColList, replacing the default quantum.
 %%------------------------------------------------------------
+
+setup_ts_gen_cluster_blob(ClusterType, Nval, ColList, QuantumValue, QuantumUnit) ->
+    [Node | _] = build_cluster(ClusterType),
+    Fun = 
+	fun(Ncol) ->
+		DDLOrig = get_blob_ddl(Ncol),
+		DDL = replace_quantum(DDLOrig, "time", QuantumValue, QuantumUnit),
+		Bucket = "Gen" ++ integer_to_list(Ncol),
+		io:format("Creating bucket ~p with DDL = ~p~n", [Bucket, DDL]),
+		{ok, _} = create_ts_bucket(Node, Nval, Bucket, DDL),
+		{ok, _} = activate_bucket(Node, Bucket)
+	end,
+
+    [Fun(Ncol) || Ncol <- ColList].
 
 setup_ts_gen_cluster_desc(ClusterType, Nval, ColList, QuantumValue, QuantumUnit) ->
     [Node | _] = build_cluster(ClusterType),

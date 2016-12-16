@@ -106,6 +106,41 @@ getlast()
     done
 }
 
+getlastSL()
+{
+    dir=$1
+
+    unset files
+    unset times
+    
+    iFile=0
+    for file in $dir/*.txt
+    do 
+	times[iFile]=`stat -c %Y $file`
+	files[iFile]=$file
+	iFile=$[$iFile+1]
+    done
+
+    arr2=( $(
+	    for el in "${times[@]}"
+	    do
+		echo "$el"
+	    done | sort -r) )
+
+    latest=${arr2[0]}
+
+    iFile=0
+    for el in "${files[@]}"
+    do
+	if [ ${times[iFile]} = $latest ] 
+	then
+	    file=${files[iFile]}
+	    echo $file
+	fi
+	iFile=$[$iFile+1]
+    done
+}
+
 #=======================================================================
 # Functions for running erlang 
 #=======================================================================
@@ -136,12 +171,13 @@ erlt_fn() {
 
 runerl()
 {
-    mod=$(valOrDef mod '' "$@")
-    fn=$(valOrDef fn '' "$@")
-    args=$(valOrDef args '' "$@")
-    riak=$(valOrDef riak '' "$@")
+    local mod=$(valOrDef mod '' "$@")
+    local fn=$(valOrDef fn '' "$@")
+    local args=$(valOrDef args '' "$@")
+    local riak=$(valOrDef riak '' "$@")
     
-    flags=$(erlt_flags riak=$riak)
+    local flags=$(erlt_flags riak=$riak)
+    
     erl $flags -noshell -run ${mod//\"/} ${fn//\"/} ${args//\"/} -run init stop
 }
 

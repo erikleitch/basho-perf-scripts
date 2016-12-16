@@ -37,9 +37,112 @@ getClient(_) ->
 %% combination
 %%------------------------------------------------------------
 
-checkArgs(Args) ->
-    io:format("Found Args = ~p~n", [Args]).
+checkArgs([ArgStr]) ->
+    ArgDict = getArgDict(ArgStr),
+    io:format("Found dictionary = ~p~n", [ArgDict]),
+    io:format("Found key arg1 = ~p~n", [getArgKey(ArgDict, "arg1", [1,10,20])]).
 
+%%------------------------------------------------------------
+%% Convert a continuous string of the form "key1=val1,key2=val2" to a
+%% dictionary of key,val pairs
+%%------------------------------------------------------------
+
+getArgDict(ArgStr) ->
+    ArgList = string:tokens(ArgStr, ","),
+    KeyValParser = 
+	fun(Arg) ->
+		[Key, Val] = string:tokens(Arg, "="),
+
+		io:format("Processing Arg = ~p Key = ~p Val = ~p~n", [Arg, Key, Val]),
+
+		{KeyName, KeyType} = parseKey(Key),
+
+		io:format("Processing Keyname = ~p Type = ~p~n", [KeyName, KeyType]),
+
+		ConvVal = parseVal(Val, KeyType),
+
+		io:format("Processing ConvVal = ~p ~n", [ConvVal]),
+
+		{KeyName, ConvVal}
+	end,
+	    
+    KeyValList = [KeyValParser(Arg) || Arg <- ArgList],
+    dict:from_list(KeyValList).
+
+%%------------------------------------------------------------
+%% Convert a value potentially of the form val1+val2+val3 into a list
+%% of vals, or a single val
+%%------------------------------------------------------------
+
+parseVal(Val, Type) ->
+    ValToks = string:tokens(Val, "+"),
+    ValContents = 
+	case ValToks of
+	    [Val] ->
+		Val;
+	    _ ->
+		io:format("Returning ValToks = ~p~n", [ValToks]),
+		ValToks
+	end,
+    convertVal(ValContents, Type).
+
+%%------------------------------------------------------------
+%% Convert a value potentially consisting of a list, to the indicated
+%% type
+%%------------------------------------------------------------
+
+convertVal(Val, Type) ->
+    io:format("Inside convertVal with Val = ~p Type = ~p~n", [Val, Type]),
+    case io_lib:printable_list(Val) of
+	true ->
+	    convertSingleVal(Val, Type);
+	_ ->
+	    convertListVal(Val, Type)
+    end.
+
+convertSingleVal(Val, Type) ->
+    io:format("Inside CV2 with Val = ~p~n", [Val]),
+    case Type of
+	none ->
+	    Val;
+	atom ->
+	    list_to_atom(Val);
+	int  ->
+	    io:format("Calling ltoi on Val = ~p~n", [Val]),
+	    list_to_integer(Val)
+    end.
+
+convertListVal(ValList, Type) ->
+    io:format("Inside CV1 with ValList = ~p~n", [ValList]),
+    [convertSingleVal(Val, Type) || Val <- ValList].
+
+%%------------------------------------------------------------
+%% Parse a key, potentially of the form "key_type" into a {Key, Type}
+%% tuple
+%%------------------------------------------------------------
+
+parseKey(Key) ->
+    KeyToks = string:tokens(Key, "_"),
+    case KeyToks of 
+	[Key] ->
+	    {Key, none};
+	[Name, Type] ->
+	    {Name, list_to_atom(Type)}
+	end.
+
+%%------------------------------------------------------------
+%% Given a dictionary, return the key value, or the default value if
+%% key doesn't exist
+%%------------------------------------------------------------
+
+getArgKey(Dict, Key, DefVal) ->
+    case dict:is_key(Key, Dict) of
+	true ->
+	    dict:fetch(Key, Dict);
+	_ ->
+	    DefVal
+    end.
+	    
 runTsPutLatencyTests([Nrow, StrNcols]) when is_list(Nrow) ->
     SNcolsList = string:tokens(StrNcols, "+"),
     NcolsList = [list_to_integer(Item) || Item <- SNcolsList],
@@ -912,6 +1015,39 @@ countKey(DbRef, Iter, Acc) ->
     case eleveldb:iterator_move(Iter, next) of
 	{ok, _Key, _Val} ->
 	    countKey(DbRef, Iter, Acc+1);
+	{error, invalid_iterator} ->
+	    Acc
+    end.
+
+countKeysSF(File) ->
+    LockFile = File ++ "/LOCK",
+    os:cmd("rm " ++ LockFile),
+    Opts = [{total_memory, 14307360768}, {block_cache_threshold, 33554432}, {block_restart_interval, 16}, {block_size_steps, 16}, {cache_object_warming, true}, {compression, lz4}, {create_if_missing, true}, {delete_threshold, 1000}, {eleveldb_threads, 71}, {expiry_enabled, false}, {expiry_minutes, 0}, {fadvise_willneed, false}, {limited_developer_mem, true}, {sst_block_size, 4096}, {tiered_slow_level, 0}, {total_leveldb_mem_percent, 70}, {use_bloomfilter, true}, {whole_file_expiry, true}, {write_buffer_size, 39817495}],
+
+    {ok, DbRef} = eleveldb:open(File, Opts),
+
+    FoldOpts=[{fold_method, streaming},
+	      {encoding, msgpack}],
+
+    FF = fun({K,V}, Acc) -> 
+		 [K | Acc]
+	 end,
+
+    try 
+	Acc = eleveldb:fold(DbRef, FF, [], FoldOpts),
+	ok = eleveldb:close(DbRef),
+	length(Acc)
+    catch
+	error:_Error ->
+	    io:format(user, "Caught an error: closing db~n", []),
+	    ok = eleveldb:close(DbRef),
+	    0
+    end.
+
+countKeySF(DbRef, Iter, Acc) ->
+    case eleveldb:iterator_move(Iter, next) of
+	{ok, _Key, _Val} ->
+	    countKeySF(DbRef, Iter, Acc+1);
 	{error, invalid_iterator} ->
 	    Acc
     end.

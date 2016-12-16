@@ -2588,7 +2588,8 @@ getRingKeys()
 buildPartitionFile()
 {
     prefixdir=$1
-    outputfile=$2
+    nodename=$2
+    outputfile=$3
 
     #------------------------------------------------------------
     # Get the list of hash partitions from disk
@@ -2608,11 +2609,11 @@ buildPartitionFile()
 	erlstr="$prefixdir/data/leveldb/$seg"
 	nkeys=`runerl mod=riak_prof_tests fn=countLeveldbKeys args="$erlstr" riak=$prefixdir`
 	sum=$[$sum+$nkeys]
-	echo "node $prefixdir partition $seg nkeys $nkeys"
-	echo "node $prefixdir partition $seg nkeys $nkeys" >> $outputfile
+	echo "node $nodename partition $seg nkeys $nkeys"
+	echo "node $nodename partition $seg nkeys $nkeys" >> $outputfile
     done
-    echo "node $prefixdir sum $sum"
-    echo "node $prefixdir sum $sum" >> $outputfile
+    echo "node $nodename sum $sum"
+    echo "node $nodename sum $sum" >> $outputfile
 }
 
 generateSeQueryMovie()

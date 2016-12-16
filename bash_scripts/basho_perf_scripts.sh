@@ -89,11 +89,17 @@ getCellsize()
     cellsize=$5
     iter=$6
 
-    if [ $param1 == 'cell_size' ]; then
+    if [   $param1 == 'cell_size' ]; then
 	echo $val1
     elif [ $param2 == 'cell_size' ]; then
 	echo $val2
+    elif [ $param1 == 'fieldsize' ]; then
+	echo $val1
     elif [ $param2 == 'fieldsize' ]; then
+	echo $val2
+    elif [ $param1 == 'fieldlength' ]; then
+	echo $val1
+    elif [ $param2 == 'fieldlength' ]; then
 	echo $val2
     elif [ ! -z "$cellsize" ]; then
 	cellarr=(`echo $cellsize`)
@@ -124,12 +130,12 @@ getBytes()
 
     cellsize=$(getCellsize $param1 $val1 $param2 $val2 "$6" $7)
     
-    if [ $param1 == 'columns' ] && [ ! -z "$cellsize" ]; then
-	echo $av"*"$val1"*"$cellsize | bc
-    elif [ $param2 == 'columns' ] && [ ! -z "$cellsize" ]; then
+    if [   $param1 == 'columns' ]    && [ ! -z "$cellsize" ]; then
+	echo $av"*"$cellsize"*"$val1 | bc
+    elif [ $param2 == 'columns' ]    && [ ! -z "$cellsize" ]; then
 	echo $av"*"$cellsize"*"$val2 | bc
     elif [ $param1 == 'fieldcount' ] && [ ! -z "$cellsize" ]; then
-	echo $av"*"$cellsize"*"$val2 | bc
+	echo $av"*"$cellsize"*"$val1 | bc
     elif [ $param2 == 'fieldcount' ] && [ ! -z "$cellsize" ]; then
 	echo $av"*"$cellsize"*"$val2 | bc
     else
@@ -155,13 +161,14 @@ writeVal()
     enddate="$9"
     stat=${10}
 
-    echo "Inside writeVal with stat=$stat"
+    echo "Inside writeVal with stat='$stat'"
+    
     total=0.0
-    if [ $stat == \"ops\" ]; then
+    if [ $stat == "ops" ]; then
 	av+=")"
 	total=`echo $av | bc`
 
-
+	echo "About to getWrites"
 	writes=$(getWrites "$av" $param1 $val1 $param2 $val2)
 	bytes=$(getBytes "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter)
 
@@ -590,10 +597,13 @@ generatePythonPlots()
     output=${10}
     figview=${11}
     plotwithaction=${12}
+    cellsizes=${13}
 
     echo "figsize = $figsize"
     echo "figview = $figview"
     echo "labels = $labels"
+    echo "param1 = $param1"
+    echo "param2 = $param2"
     
     pycomm="import scipy.interpolate as int;\n"
     pycomm+="import numpy as np;\n"
@@ -698,7 +708,10 @@ generatePythonPlots()
     pycomm+="  dat = np.loadtxt(fileName);\n"
     pycomm+="  nline = np.shape(dat)[0];\n"
     pycomm+="  x = dat[0:nline,0];\n"
-    pycomm+="  y = np.log10(dat[0:nline,1]);\n"
+    pycomm+="  nx = np.size(np.unique(x));\n"
+    #    pycomm+="  y = np.log10(dat[0:nline,1]);\n"
+    pycomm+="  y = dat[0:nline,1];\n"
+    pycomm+="  ny = np.size(np.unique(y));\n"
     pycomm+="  [d, unit] = getDataAndUnits(dat, nline, index);\n"
     pycomm+="  npoints=np.size(x);\n"
     pycomm+="  points = np.ndarray((npoints, 2), np.double);\n"
@@ -713,7 +726,10 @@ generatePythonPlots()
     pycomm+="  x1=np.linspace(np.min(ux), np.max(ux), 200);\n"
     pycomm+="  y1=np.linspace(np.min(uy), np.max(uy), 200);\n"
     pycomm+="  x2,y2 = np.meshgrid(x1, y1);\n"
-    pycomm+="  z2=int.griddata(points, d, (x2, y2), method='cubic');\n"
+    pycomm+="  if nx > 3 and ny > 3:\n"
+    pycomm+="    z2=int.griddata(points, d, (x2, y2), method='cubic')\n"
+    pycomm+="  else:\n"
+    pycomm+="    z2=int.griddata(points, d, (x2, y2), method='linear')\n"
     pycomm+="  return x2, y2, z2, unit\n"
     pycomm+="\n"
     pycomm+="def retick(ax, axname):\n"
@@ -754,7 +770,7 @@ generatePythonPlots()
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel, fontsize=defaultFontsize);\n"
     pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
     pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
-    pycomm+="  retick(ax, 'y')\n"
+    #    pycomm+="  retick(ax, 'y')\n"
     pycomm+="  ax.tick_params(labelsize=defaultFontsize)\n"
     pycomm+="\n"
     pycomm+="def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal):\n"
@@ -814,25 +830,25 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  naxes=np.shape(axes)[0]\n"
     pycomm+="\n"
-    pycomm+="  makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, 'threads', 'columns', 'Ops/sec', scales[0], units[0], maxs[0]);\n"
+    pycomm+="  makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, '$param1', '$param2', 'Ops/sec', scales[0], units[0], maxs[0]);\n"
     pycomm+="\n"
     pycomm+="  if naxes > 1 and axes[1] != None:\n"
-    pycomm+="    makeSubPlot(fileNames[iFile], 3, axes[1][iFile], doHold, Color, 'threads', 'columns', 'Writes/sec', scales[1], units[1], maxs[1]);\n"
+    pycomm+="    makeSubPlot(fileNames[iFile], 3, axes[1][iFile], doHold, Color, '$param1', '$param2', 'Writes/sec', scales[1], units[1], maxs[1]);\n"
     pycomm+="\n"
     pycomm+="  if naxes > 2 and axes[2] != None:\n"
-    pycomm+="    makeSubPlot(fileNames[iFile], 4, axes[2][iFile], doHold, Color, 'threads', 'columns', 'Bytes/sec', scales[2], units[2], maxs[2]);\n"
+    pycomm+="    makeSubPlot(fileNames[iFile], 4, axes[2][iFile], doHold, Color, '$param1', '$param2', 'Bytes/sec', scales[2], units[2], maxs[2]);\n"
     pycomm+="\n"
     pycomm+="def plotDataTwo(fileNames, fileNames2, action, iFile, doHold, axes, Color, scales, units, maxs):\n"
     pycomm+="\n"
     pycomm+="  naxes=np.shape(axes)[0]\n"
     pycomm+="\n"
-    pycomm+="  makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 2, action, axes[0][iFile], doHold, Color, 'threads', 'columns', 'Ops/sec', scales[0], units[0], maxs[0]);\n"
+    pycomm+="  makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 2, action, axes[0][iFile], doHold, Color, '$param1', '$param2', 'Ops/sec', scales[0], units[0], maxs[0]);\n"
     pycomm+="\n"
     pycomm+="  if naxes > 1 and axes[1] != None:\n"
-    pycomm+="    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 3, action, axes[1][iFile], doHold, Color, 'threads', 'columns', 'Writes/sec', scales[1], units[1], maxs[1]);\n"
+    pycomm+="    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 3, action, axes[1][iFile], doHold, Color, '$param1', '$param2', 'Writes/sec', scales[1], units[1], maxs[1]);\n"
     pycomm+="\n"
     pycomm+="  if naxes > 2 and axes[2] != None:\n"
-    pycomm+="    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 4, action, axes[2][iFile], doHold, Color, 'threads', 'columns', 'Bytes/sec', scales[2], units[2], maxs[2]);\n"
+    pycomm+="    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 4, action, axes[2][iFile], doHold, Color, '$param1', '$param2', 'Bytes/sec', scales[2], units[2], maxs[2]);\n"
     pycomm+="\n"
 
     pycomm+="def getDataAndUnits(dat, nline, index):\n"
@@ -927,6 +943,7 @@ generatePythonPlots()
     iIter="0"
     cells=""
     first=true
+    echo "Cellsizes = $cellsizes"
     for i in $cellsizes; do
 	if [ $first == "true" ]; then
 	    cells+="[$i"
@@ -988,7 +1005,7 @@ generatePythonPlots()
 	pycomm+="plotFiles(files, None, None, axes, colors, scales, units, maxs)\n"
     fi
 
-    pycomm+="plt.tight_layout(w_pad=2,pad=5)\n"
+#    pycomm+="plt.tight_layout(w_pad=2,pad=5)\n"
     pycomm+="print str(plt.rcParams)\n"
 	
     if [ "$labels" != \"\" ]; then
@@ -999,7 +1016,10 @@ generatePythonPlots()
 	pycomm+="hspace=plt.rcParams['figure.subplot.hspace']\n"
 	pycomm+="yrange=top-bottom\n"
 	pycomm+="yint = (yrange - hspace) / nFile\n"
-	pycomm+="sint = hspace / (nFile-1)\n"
+	pycomm+="if nFile > 1:"
+	pycomm+="  sint = hspace / (nFile-1)\n"
+	pycomm+="else:"
+	pycomm+="  sint = hspace / (nFile)\n"
 	pycomm+="\n"
 
 	labarr=(`echo $labels`)
@@ -1118,7 +1138,9 @@ plotlogfileycsb()
 
     echo "figsize = $figsize"
     files="$1"
-
+    local param1=$2
+    local param2=$3
+    
     allfiles=$files
     allcellsize=$cellsize
     scale=false
@@ -1148,7 +1170,7 @@ plotlogfileycsb()
 	allcellsize=$allcellsize" "$cellsize
     fi
 
-    getTestDataYcsb "$allfiles" $2 $3 "$allcellsize" $stat
+    getTestDataYcsb "$allfiles" $param1 $param2 "$allcellsize" $stat
     echo "output(1) = $output"
     if [ $output == \"\" ]; then
 	echo "output is null"
@@ -1736,12 +1758,68 @@ getSLRingBytes()
     do
 	echoerr "Getting ring size for $host\n"
 	
-	resp=`env_ssh $host "source $bpdir/basho-perf-scripts_master/prof_source > /dev/null;getRingBytes $host $rdir"`
+	resp=`env_ssh $host "source $bpdir/basho-perf-scripts/prof_source > /dev/null;getRingBytes $host $rdir"`
 	ret+=$(stripSLResp "$resp")
 	ret+="\n"
     done
     
     printf "$ret"
+}
+
+buildSLPartitionFiles()
+{
+    cluster=$1
+
+    echoerr "Querying Riak dir on $cluster:\n"
+    rdir=$(getSLRiakDir $cluster)
+    echoerr "$(colorize $rdir "green")\n"
+
+    echoerr "Querying basho-perf dir on $cluster:\n"
+    bpdir=$(getSLBashoPerfDir $cluster)
+    echoerr "$(colorize $bpdir "green")\n"
+
+
+    echoerr "Getting system hosts for $cluster:"
+    hosts=$(systemhosts $cluster)
+    echoerr "$(colorize "$hosts" "green")\n"
+    
+    #------------------------------------------------------------
+    # Now iterate over all system hosts, querying for actual ring sizes
+    #------------------------------------------------------------
+
+    \rm ring.txt
+    
+    for host in $hosts
+    do
+	echoerr "Building partition file for $host\n"
+	
+	env_ssh $host "source $bpdir/basho-perf-scripts/prof_source > /dev/null;buildPartitionFile $rdir $host '/tmp/'$host'_ring.txt'"
+	hscp $host:'/tmp/'$host'_ring.txt' .
+	cat $host'_ring.txt' >> ring.txt
+    done
+}
+
+getPartitionFiles()
+{
+    cluster=$1
+
+    echoerr "Getting system hosts for $cluster:"
+    hosts=$(systemhosts $cluster)
+    echoerr "$(colorize "$hosts" "green")\n"
+    
+    #------------------------------------------------------------
+    # Now iterate over all system hosts, querying for actual ring sizes
+    #------------------------------------------------------------
+
+    \rm ring.txt
+    
+    for host in $hosts
+    do
+	echoerr "Retrieving partition file for $host\n"
+	
+	hscp $host:'/tmp/'$host'_ring.txt' .
+	cat $host'_ring.txt' >> ring.txt
+    done
 }
 
 stripSLResp()
@@ -1888,28 +1966,28 @@ testSequenceSL()
     
     # How many iterations?
     
-    nIter=$(valOrDef iter '1' $@)
+    local nIter=$(valOrDef iter '1' $@)
     nIter=${nIter//\"/}
     
     # Start iteration # ?
     
-    startIter=$(valOrDef start '0' $@)
+    local startIter=$(valOrDef start '0' $@)
     startIter=${startIter//\"/}
 
     # Location of riak?
     
-    riak=$(valOrDef riak '' "$@")
+    local riak=$(valOrDef riak '' "$@")
     riak=${riak//\"/}
 
     # Which erlang fn to run?
     
-    erlfn=$(valOrDef erlfn '' $@)
+    local erlfn=$(valOrDef erlfn '' $@)
     erlfn=${erlfn//\"/}
 
-    args=$(valOrDef args '' "$@")
+    local args=$(valOrDef args '' "$@")
     args=${args//\"/}
 
-    prefix=$(valOrDef prefix '' $@)
+    local prefix=$(valOrDef prefix '' $@)
     prefix=${prefix//\"/}
     
     endIter=$[$startIter + $nIter]
@@ -1946,8 +2024,10 @@ testSequenceSL()
     iIter=$startIter
     while [ $iIter -lt $endIter ]
     do
+	echo "Running $erlfn with args='$args'"
 	runerl riak=$riak mod=riak_prof_tests fn=$erlfn args="$args"
-	cp `getlast /tmp/client_profiler_results` /tmp/riak_test_data/$prefix"_iter"$iIter.txt
+	echo "Copying last file to " "/tmp/riak_test_data/"$prefix"_iter"$iIter".txt"
+	cp `getlastSL /tmp/client_profiler_results` "/tmp/riak_test_data/"$prefix"_iter"$iIter".txt"
 	iIter=$[$iIter+1]
     done
 }

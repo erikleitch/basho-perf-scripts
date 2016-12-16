@@ -2607,7 +2607,7 @@ buildPartitionFile()
     for seg in $ring
     do
 	erlstr="$prefixdir/data/leveldb/$seg"
-	nkeys=`runerl mod=riak_prof_tests fn=countLeveldbKeys args="$erlstr" riak=$prefixdir`
+	nkeys=`runerl mod=riak_prof_tests fn=countLeveldbKeysSF args="$erlstr" riak=$prefixdir`
 	sum=$[$sum+$nkeys]
 	echo "node $nodename partition $seg nkeys $nkeys"
 	echo "node $nodename partition $seg nkeys $nkeys" >> $outputfile

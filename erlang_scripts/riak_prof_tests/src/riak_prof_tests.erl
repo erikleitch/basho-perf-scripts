@@ -1088,6 +1088,11 @@ printLeveldbKeys(List) ->
 printLeveldbKeys() ->
     printLeveldbKeys(dbFiles()).
 
+countLeveldbKeysSF([File]) when is_list(File) ->
+    io:format("~p~n", [countKeysSF(File)]);
+countLeveldbKeysSF(List) ->
+    [io:format("~p~n", [countKeysSF(File)]) || File <- List].
+
 countLeveldbKeys([File]) when is_list(File) ->
     io:format("~p~n", [countKeys(File)]);
 countLeveldbKeys(List) ->

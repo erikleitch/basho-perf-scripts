@@ -1879,3 +1879,76 @@ createGenBucket()
     sleep 3
     riak-admin bucket-type activate $tableName
 }
+
+testSequenceSL()
+{
+    #------------------------------------------------------------
+    # Argument parsing
+    #------------------------------------------------------------
+    
+    # How many iterations?
+    
+    nIter=$(valOrDef iter '1' $@)
+    nIter=${nIter//\"/}
+    
+    # Start iteration # ?
+    
+    startIter=$(valOrDef start '0' $@)
+    startIter=${startIter//\"/}
+
+    # Location of riak?
+    
+    riak=$(valOrDef riak '' "$@")
+    riak=${riak//\"/}
+
+    # Which erlang fn to run?
+    
+    erlfn=$(valOrDef erlfn '' $@)
+    erlfn=${erlfn//\"/}
+
+    args=$(valOrDef args '' "$@")
+    args=${args//\"/}
+
+    prefix=$(valOrDef prefix '' $@)
+    prefix=${prefix//\"/}
+    
+    endIter=$[$startIter + $nIter]
+
+    echo $nIter
+
+    #------------------------------------------------------------
+    # Print arguments for debugging
+    #------------------------------------------------------------
+    
+    echo "nIter     = $nIter"
+    echo "startIter = $startIter"
+    echo "riak      = $riak"
+    echo "erlfn     = $erlfn"
+    echo "args      = $args"
+    echo "prefix    = $prefix"
+
+    #------------------------------------------------------------
+    # Make the output directories if they don't exist already
+    #------------------------------------------------------------
+    
+    if [ ! -d /tmp/client_profiler_results ]; then
+	mkdir /tmp/client_profiler_results
+    fi
+
+    if [ ! -d /tmp/riak_test_data ]; then
+	mkdir /tmp/riak_test_data
+    fi
+
+    #------------------------------------------------------------
+    # Run the script
+    #------------------------------------------------------------
+    
+    iIter=$startIter
+    while [ $iIter -lt $endIter ]
+    do
+	runerl riak=$riak mod=riak_prof_tests fn=$erlfn args="$args"
+	cp `getlast /tmp/client_profiler_results` /tmp/riak_test_data/$prefix"_iter"$iIter.txt
+	iIter=$[$iIter+1]
+    done
+}
+

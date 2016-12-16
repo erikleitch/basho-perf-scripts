@@ -17,6 +17,10 @@ getClient() ->
 
 getClient(sl) ->
     getClient(slb);
+getClient('softlayer-b') ->
+    getClient(slb);
+getClient('softlayer-dev-a') ->
+    getClient(sldeva);
 getClient(sldeva) ->
     getClient("10.109.234.226", 8087);
 getClient(slb) ->
@@ -270,7 +274,7 @@ runTsQueryLatencyTestsQuick([Nbyte, Select, Group, Limit, Filter, PutData, Inter
 
     runTsQueryLatencyTests(local, list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Limit), list_to_atom(Filter), list_to_integer(IntervalMs), NcolsList, Rows).
 
-runTsQueryLatencyTestsSL([Nbyte, Select, Group, Limit, Filter, PutData, IntervalMs, StrNcols]) when is_list(Nbyte) ->
+runTsQueryLatencyTestsSL([Nbyte, Select, Group, Limit, Filter, PutData, IntervalMs, StrNcols, Host]) when is_list(Nbyte) ->
     SNcolsList = string:tokens(StrNcols, "+"),
     NcolsList = [list_to_integer(Item) || Item <- SNcolsList],
 
@@ -281,7 +285,7 @@ runTsQueryLatencyTestsSL([Nbyte, Select, Group, Limit, Filter, PutData, Interval
 	    {100,      10, false}, 
 	    {100,       1, false}],
 
-    runTsQueryLatencyTests(sl, list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Limit), list_to_atom(Filter), list_to_integer(IntervalMs), NcolsList, Rows).
+    runTsQueryLatencyTests(list_to_atom(Host), list_to_integer(Nbyte), list_to_atom(Select), list_to_atom(Group), list_to_atom(Limit), list_to_atom(Filter), list_to_integer(IntervalMs), NcolsList, Rows).
 
 runTsQueryLatencyTests(ClientAtom, Nbyte, Select, Group, Limit, Filter, IntervalMs, Ncols, Rows) ->
 

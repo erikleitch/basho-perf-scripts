@@ -1027,16 +1027,19 @@ countKeysSF(File) ->
     {ok, DbRef} = eleveldb:open(File, Opts),
 
     FoldOpts=[{fold_method, streaming},
-	      {encoding, msgpack}],
+	      {encoding, msgpack},
+	      {start_inclusive, false},
+	      {end_inclusive, false}],
 
-    FF = fun({K,V}, Acc) -> 
+    FF = fun({K,_V}, Acc) -> 
+%%		 io:format("Found Key ~p~n Decoded = ~p~n", [K, riak_kv_eleveldb_backend:orig_from_object_key(K)]),
 		 [K | Acc]
 	 end,
 
     try 
 	Acc = eleveldb:fold(DbRef, FF, [], FoldOpts),
 	ok = eleveldb:close(DbRef),
-	length(Acc)
+	length(Acc)-1
     catch
 	error:_Error ->
 	    io:format(user, "Caught an error: closing db~n", []),

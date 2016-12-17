@@ -1039,7 +1039,13 @@ countKeysSF(File) ->
     try 
 	Acc = eleveldb:fold(DbRef, FF, [], FoldOpts),
 	ok = eleveldb:close(DbRef),
-	length(Acc)-1
+	N = length(Acc),
+	case N > 0 of
+	    true ->
+		N-1;
+	    _ ->
+		0
+	end
     catch
 	error:_Error ->
 	    io:format(user, "Caught an error: closing db~n", []),

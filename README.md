@@ -1,4 +1,4 @@
-# Synopsis
+'41;326;0c# Synopsis
 
 basho-perf-scripts is a collection of bash, erlang and python scripts for use with
 basho-perf and riak_test.
@@ -171,3 +171,8 @@ with brightness proportional to the number of keys in those partitions
 (relative to the total number of keys).  The outermost ring shows the
 cumulative content (number of keys) in every partition in the ring,
 summed over all nodes.
+
+The plots also summarize the total number of keys written to the ring,
+the number of partitions that are populated, and presents a quick
+measure of the smoothness of the data distribution (rms over all
+partitions).

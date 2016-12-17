@@ -2608,8 +2608,10 @@ buildPartitionFileSF()
 	erlstr+="$prefixdir/data/leveldb/$seg "
     done
 
+    echo "erlstr = $erlstr"
     nkeys=(`runerl mod=riak_prof_tests fn=countLeveldbKeysSF args="$erlstr" riak=$prefixdir`)
-
+    echo "nkeys = $nkeys"
+    
     ringsize=${#nkeys[@]}
     iSeg=0
     for seg in $ring

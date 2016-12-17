@@ -2607,11 +2607,52 @@ buildPartitionFile()
     for seg in $ring
     do
 	erlstr="$prefixdir/data/leveldb/$seg"
-	nkeys=`runerl mod=riak_prof_tests fn=countLeveldbKeysSF args="$erlstr" riak=$prefixdir`
+	nkeys=`runerl mod=riak_prof_tests fn=countLeveldbKeys args="$erlstr" riak=$prefixdir`
 	sum=$[$sum+$nkeys]
 	echo "node $nodename partition $seg nkeys $nkeys"
 	echo "node $nodename partition $seg nkeys $nkeys" >> $outputfile
     done
+    echo "node $nodename sum $sum"
+    echo "node $nodename sum $sum" >> $outputfile
+}
+
+buildPartitionFileSF()
+{
+    prefixdir=$1
+    nodename=$2
+    outputfile=$3
+
+    #------------------------------------------------------------
+    # Get the list of hash partitions from disk
+    #------------------------------------------------------------
+
+    ring=(`ls $prefixdir/data/leveldb`)
+
+    #------------------------------------------------------------
+    # Now iterate over hash partitions for this node
+    #------------------------------------------------------------
+
+    local erlstr=""
+    first=true
+    sum=0
+    for seg in $ring
+    do
+	erlstr+="$prefixdir/data/leveldb/$seg"
+    done
+    
+    nkeys=(`runerl mod=riak_prof_tests fn=countLeveldbKeysSF args="$erlstr" riak=$prefixdir`)
+
+    ringsize=${$ring[@]}
+    iSeg=0
+    for seg in $ring
+    do
+	nkey=${nkeys[$iSeg]}
+	sum=$[$sum+$nkey]
+	echo "node $nodename partition $seg nkeys $nkey"
+	echo "node $nodename partition $seg nkeys $nkey" >> $outputfile
+	iSeg=$[$iSeg+1]
+    done
+    
     echo "node $nodename sum $sum"
     echo "node $nodename sum $sum" >> $outputfile
 }

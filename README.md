@@ -146,7 +146,7 @@ all nodes.
 <hr>
 <a name="static_ring_analyzer">**Static Ring Analysis**</a>
 
-The `basho-perf-script` repo also contains functions for visualizing
+The `basho-perf-scripts` repo also contains functions for visualizing
 the static data distribution of a riak cluster.
 
 Suppose you have just run a test on `softlayer-dev-a`.  To visualize the data distribution, you can run the commands:

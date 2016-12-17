@@ -1799,6 +1799,39 @@ buildSLPartitionFiles()
     done
 }
 
+buildSLPartitionFilesSF()
+{
+    cluster=$1
+
+    echoerr "Querying Riak dir on $cluster:\n"
+    rdir=$(getSLRiakDir $cluster)
+    echoerr "$(colorize $rdir "green")\n"
+
+    echoerr "Querying basho-perf dir on $cluster:\n"
+    bpdir=$(getSLBashoPerfDir $cluster)
+    echoerr "$(colorize $bpdir "green")\n"
+
+
+    echoerr "Getting system hosts for $cluster:"
+    hosts=$(systemhosts $cluster)
+    echoerr "$(colorize "$hosts" "green")\n"
+    
+    #------------------------------------------------------------
+    # Now iterate over all system hosts, querying for actual ring sizes
+    #------------------------------------------------------------
+
+    \rm ring.txt
+    
+    for host in $hosts
+    do
+	echoerr "Building partition file for $host\n"
+	
+	env_ssh $host "source $bpdir/basho-perf-scripts/prof_source > /dev/null;buildPartitionFileSF $rdir $host '/tmp/'$host'_ring.txt'"
+	hscp $host:'/tmp/'$host'_ring.txt' .
+	cat $host'_ring.txt' >> ring.txt
+    done
+}
+
 getPartitionFiles()
 {
     cluster=$1

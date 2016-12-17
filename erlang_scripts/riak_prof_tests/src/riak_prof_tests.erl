@@ -1039,6 +1039,7 @@ countKeysSF(File) ->
     try 
 	Acc = eleveldb:fold(DbRef, FF, [], FoldOpts),
 	ok = eleveldb:close(DbRef),
+
 	N = length(Acc),
 	case N > 0 of
 	    true ->
@@ -1093,6 +1094,11 @@ printLeveldbKeys(List) ->
 
 printLeveldbKeys() ->
     printLeveldbKeys(dbFiles()).
+
+countLeveldbKeysSF([File]) when is_list(File) ->
+    io:format("~p~n", [countKeysSF(File)]);
+countLeveldbKeysSF(List) ->
+    [io:format("~p~n", [countKeysSF(File)]) || File <- List].
 
 countLeveldbKeys([File]) when is_list(File) ->
     io:format("~p~n", [countKeys(File)]);

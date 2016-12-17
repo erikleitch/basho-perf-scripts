@@ -1028,8 +1028,8 @@ countKeysSF(File) ->
 
     FoldOpts=[{fold_method, streaming},
 	      {encoding, msgpack},
-	      {start_inclusive, false},
-	      {end_inclusive, false}],
+	      {start_key, undefined},
+	      {start_inclusive, false}],
 
     FF = fun({K,_V}, Acc) -> 
 %%		 io:format("Found Key ~p~n Decoded = ~p~n", [K, riak_kv_eleveldb_backend:orig_from_object_key(K)]),

@@ -2626,8 +2626,11 @@ buildPartitionFileSF()
     # Get the list of hash partitions from disk
     #------------------------------------------------------------
 
-    ring=(`ls $prefixdir/data/leveldb`)
+    echo "prefixdir = $prefixdir"
+    ring=("`ls $prefixdir/data/leveldb`")
 
+    echo "Ring = $ring"
+    
     #------------------------------------------------------------
     # Now iterate over hash partitions for this node
     #------------------------------------------------------------
@@ -2637,12 +2640,66 @@ buildPartitionFileSF()
     sum=0
     for seg in $ring
     do
-	erlstr+="$prefixdir/data/leveldb/$seg"
+	echo "seg = $seg"
+	erlstr+="$prefixdir/data/leveldb/$seg "
     done
+
+    echo "erltstr = $erlstr"
     
     nkeys=(`runerl mod=riak_prof_tests fn=countLeveldbKeysSF args="$erlstr" riak=$prefixdir`)
 
-    ringsize=${$ring[@]}
+    echo "nkeys = $nkeys"
+    
+    ringsize=${#nkeys[@]}
+    iSeg=0
+    for seg in $ring
+    do
+	nkey=${nkeys[$iSeg]}
+	sum=$[$sum+$nkey]
+	echo "node $nodename partition $seg nkeys $nkey"
+	echo "node $nodename partition $seg nkeys $nkey" >> $outputfile
+	iSeg=$[$iSeg+1]
+    done
+    
+    echo "node $nodename sum $sum"
+    echo "node $nodename sum $sum" >> $outputfile
+}
+
+buildPartitionFile()
+{
+    prefixdir=$1
+    nodename=$2
+    outputfile=$3
+
+    #------------------------------------------------------------
+    # Get the list of hash partitions from disk
+    #------------------------------------------------------------
+
+    echo "prefixdir = $prefixdir"
+    ring=("`ls $prefixdir/data/leveldb`")
+
+    echo "Ring = $ring"
+    
+    #------------------------------------------------------------
+    # Now iterate over hash partitions for this node
+    #------------------------------------------------------------
+
+    local erlstr=""
+    first=true
+    sum=0
+    for seg in $ring
+    do
+	echo "seg = $seg"
+	erlstr+="$prefixdir/data/leveldb/$seg "
+    done
+
+    echo "erltstr = $erlstr"
+    
+    nkeys=(`runerl mod=riak_prof_tests fn=countLeveldbKeys args="$erlstr" riak=$prefixdir`)
+
+    echo "nkeys = $nkeys"
+    
+    ringsize=${#nkeys[@]}
     iSeg=0
     for seg in $ring
     do

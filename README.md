@@ -156,7 +156,10 @@ buildPartitionFiles softlayer-dev-a
 python basho-perf-scripts/python_scripts/makeringplot.py file=ring.txt
 ```
 
-which will produce an image like:
+The first iterates over all leveldb instances on each riak node,
+building a file that represents the data distribution for that node,
+then concatenates the results to a single file (ring.txt), which is
+then displayed by the python script, producing an image like:
 
 <center>
 ![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/static_ring.png)

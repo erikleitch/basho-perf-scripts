@@ -7,6 +7,10 @@ import sys
 import pytz
 from datetime import datetime, timedelta
 
+import warnings
+
+warnings.simplefilter(action = "ignore", category = FutureWarning)
+
 #=======================================================================
 # A file object
 #=======================================================================
@@ -282,6 +286,7 @@ class Cluster(object):
         #------------------------------------------------------------
 
         self.nonzero = 0
+        self.nops = 0
         for node in self.nodes:
 
             # If this is the last frame, display cumulative totals for all nodes
@@ -300,6 +305,7 @@ class Cluster(object):
                 else:
                     self.totals[tag] += node.vals[tag]
                     self.nonzero += np.count_nonzero(node.vals[tag])
+                    self.nops    += np.sum(node.vals[tag])
 
         #------------------------------------------------------------
         # Finally, draw the outermost ring with the cumulative totals
@@ -309,6 +315,7 @@ class Cluster(object):
 
         if val != self.nLine:
             text += '\n' + 'n_active = ' + str(self.nonzero)
+            text += '\n' + 'n_ops    = ' + str(self.nops)
 
         ax.text(0, 0, text, color=color, size=18, ha='center', va='center')
 
@@ -541,6 +548,8 @@ nframe    = int(getOptArgs(sys.argv,   'nframe',    0))
 save      = getOptArgs(sys.argv,  'save',      False) == "True"
 floor     = float(getOptArgs(sys.argv, 'floor',     0.0))
 
+print 'Tags = ' + str(tags.split(' '))
+
 fig, axes = getAxes(tags.split(' '))
 
 ring = Cluster(axes, tags.split(' '), files.split(' '), skipstart, nframe, floor)
@@ -550,6 +559,10 @@ ring = Cluster(axes, tags.split(' '), files.split(' '), skipstart, nframe, floor
 #------------------------------------------------------------
 
 print 'Save = ' + str(save) + ' Running with ring.nLine = ' + str(ring.nLine)
+print 'Tags = ' + str(tags)
+
+
+
 
 anim = animation.FuncAnimation(fig, ring.update, ring.nLine+1, interval=1,
                                blit=False, repeat=False)

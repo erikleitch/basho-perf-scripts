@@ -1699,10 +1699,13 @@ systemhosts()
     slhosts=`hosts $cluster 2>&1`
     if [[ "$slhosts" =~ [[:print:]]*"system_hosts:"([[:print:]]*) ]]
     then
+	savestr=${BASH_REMATCH[1]}
 	subs=${BASH_REMATCH[1]}
 	if [[ "$subs" =~ [[:print:]]*"):"([[:print:]]*) ]]
 	then
 	    echo ${BASH_REMATCH[1]}
+	else
+	    echo $savestr
 	fi
 	
     fi
@@ -1947,9 +1950,9 @@ animate()
     skip=$(valOrDef skip '175' "$@")
     save=$(valOrDef save 'False' "$@")
     nframe=$(valOrDef nframe '45' "$@")
+    tags=$(valOrDef tags 'syncput query' "$@")
 
-    echo "save = $save"
-    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="syncput query" skipstart=${skip//\"/} nframe=${nframe//\"/} save=${save//\"/}
+    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="${tags//\"/}" skipstart=${skip//\"/} nframe=${nframe//\"/} save=${save//\"/}
 }
 
 getGenBucketJson()

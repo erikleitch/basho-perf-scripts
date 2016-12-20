@@ -1,4 +1,4 @@
-# Synopsis
+'41;326;0c# Synopsis
 
 basho-perf-scripts is a collection of bash, erlang and python scripts for use with
 basho-perf and riak_test.
@@ -12,15 +12,16 @@ plots, via calls to the python matplotlib library.
 * <a href=#general>General</a>
 * <a href=#surface_plots>Surface Plots</a>
 * <a href=#dynamic_ring_analyzer>Dynamic Ring Analysis</a>
+* <a href=#static_ring_analyzer>Static Ring Analysis</a>
 
 <hr>
 <a name="general">**General**</a>
 
-In general, `basho-perf-script` is meant to be used from your
+In general, `basho-perf-scripts` is meant to be used from your
 basho-perf (or riak_test) directory, so best to check it out and run
 it from there.
 
-To make all commands in `basho-perf-script` available in bash, do:
+To make all commands in `basho-perf-scripts` available in bash, do:
 
 ```
 source basho-perf-scripts/prof_source
@@ -141,3 +142,37 @@ of operations against those partitions (relative to the maximum
 instantaneous rate of any partition).  The outermost ring shows the
 cumulative operations against every partition in the ring, summed over
 all nodes.
+
+<hr>
+<a name="static_ring_analyzer">**Static Ring Analysis**</a>
+
+The `basho-perf-scripts` repo also contains functions for visualizing
+the static data distribution of a riak cluster.
+
+Suppose you have just run a test on `softlayer-dev-a`.  To visualize the data distribution, you can run the commands:
+
+```
+buildPartitionFiles softlayer-dev-a
+python basho-perf-scripts/python_scripts/makeringplot.py file=ring.txt
+```
+
+The first iterates over all leveldb instances on each riak node,
+building a file that represents the data distribution for that node,
+then concatenates the results to a single file (ring.txt), which is
+then displayed by the python script, producing an image like:
+
+<center>
+![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/static_ring.png)
+</center>
+
+Similar to the dynamic ring plots, each inner ring represents a
+separate physical node, and partitions containing data are highlighted
+with brightness proportional to the number of keys in those partitions
+(relative to the total number of keys).  The outermost ring shows the
+cumulative content (number of keys) in every partition in the ring,
+summed over all nodes.
+
+The plots also summarize the total number of keys written to the ring,
+the number of partitions that are populated, and presents a quick
+measure of the smoothness of the data distribution (rms over all
+partitions).

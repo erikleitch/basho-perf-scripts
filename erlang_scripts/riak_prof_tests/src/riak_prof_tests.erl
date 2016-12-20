@@ -493,9 +493,6 @@ tsLatencyQueryTest({C, Select, Group, Limit, Filter, PutData, IntervalMs}, Nrow,
 
 tsLatencyQueryTest({_C, _Query, Name}, _Niter, _Niter) ->
     profiler:profile({stop, Name}),
-%%    io:format("~p Just stopped profile for Name ~p~n", [self(), Name]),
-%%    profiler:profile({debug}),
-%%    timer:sleep(1000),
     ok;
 tsLatencyQueryTest(Args, Niter, AccIter) ->
     {C, Query, _Name} = Args,
@@ -549,6 +546,96 @@ putQueryTestData(Args, Nrow, AccRow, _GenInd) ->
 %   end,
 
     putQueryTestData(Args, Nrow, AccRow+1, NewInd).
+
+%%=======================================================================
+%% KV 2i Query Latency Tests
+%%=======================================================================
+
+runKv2iQueryLatencyTests([ArgStr]) ->
+    ArgDict = getArgDict(ArgStr),
+
+    Client = getArgKey(ArgDict, client, local),
+    Nbyte  = getArgKey(ArgDict, nbyte,  100),
+    Nkeys  = getArgKey(ArgDict, nkeys,  [30000, 40000, 50000, 60000]),
+
+    Rows   = [{10,     30000, true}, 
+	      {10,     10000, false}, 
+	      {10,      5000, false}, 
+	      {10,      1000, false}, 
+	      {10,       100, false}, 
+	      {10,        10, false}],
+    
+    C = getClient(Client),
+    profiler:profile({prefix, "/tmp/client_profiler_results"}),
+    profiler:profile({noop, false}),
+
+    KeyRunFn = 
+	fun(Nkey) ->
+		[kv2iQueryLatencyTest({C, Nbyte, Nrow, Put, Nkey}, Niter) || {Niter, Nrow, Put} <- Rows]
+	end,
+
+    [KeyRunFn(Nkey) || Nkey <- Nkeys].
+
+%%------------------------------------------------------------
+%% Optionally put data, then run queries
+%%------------------------------------------------------------
+
+kv2iLatencyTestData(Nbyte) ->
+    [crypto:rand_bytes(Nbyte)].
+
+kv2iQueryLatencyTest({C, Nbyte, Nrow, PutData, Nkey}, Niter) ->
+
+    %%------------------------------------------------------------
+    %% Put generated data, but only if requested (if we put data for
+    %% the largest nrow first, we don't need to subsequently)
+    %%------------------------------------------------------------
+
+    case PutData of 
+	true ->
+	    io:format("Putting Nkeys = ~p of data for Nbyte = ~p ~n", [Nkey, Nbyte]),
+	    FieldData = kv2iLatencyTestData(Nbyte),
+	    put2iQueryTestData({C, FieldData}, Nkey, 0);
+	_ ->
+	    ok
+    end,
+
+    Name  = list_to_atom("query_" ++ integer_to_list(Nkey) ++ "_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(Nrow) ++ "_" ++ integer_to_list(Niter)),
+
+    profiler:profile({start, Name}),
+    kv2iQueryLatencyTest({C, Nrow, Name}, Niter, 0).
+
+kv2iQueryLatencyTest({_C, _Nrow, Name}, _Niter, _Niter) ->
+    profiler:profile({stop, Name}),
+    ok;
+kv2iQueryLatencyTest(Args, Niter, AccIter) ->
+    {C, Nrow, _Name} = Args,
+    {ok, {index_results_v1, _ResList, undefined, undefined}} = 
+	riakc_pb_socket:get_index(C, {<<"TestBucketType">>, <<"2ibucket">>}, {integer_index, "myind"}, 1, Nrow),
+    kv2iQueryLatencyTest(Args, Niter, AccIter+1).
+
+%%------------------------------------------------------------
+%% Write 2i query test data
+%%------------------------------------------------------------
+
+put2iQueryTestData(_Args, _Nrow, _Nrow) ->
+    ok;
+put2iQueryTestData(Args, Nrow, AccRow) ->
+
+    {C, FieldData} = Args,
+
+    %% Write data in intervals of IntervalMs
+
+    Key = list_to_binary("key" ++ integer_to_list(AccRow)),
+    Obj = riakc_obj:new({<<"TestBucketType">>, <<"2ibucket">>}, Key, FieldData),
+    MD1 = riakc_obj:get_update_metadata(Obj),
+    MD2 = riakc_obj:set_secondary_index(
+	    MD1,
+	    [{{integer_index, "myind"}, [AccRow+1]}]),
+    Obj2 = riakc_obj:update_metadata(Obj, MD2),
+
+    riakc_pb_socket:put(C, Obj2),
+
+    put2iQueryTestData(Args, Nrow, AccRow+1).
 
 %%-----------------------------------------------------------------------
 %% TS cluster population tests

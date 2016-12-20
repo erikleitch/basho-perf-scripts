@@ -1918,6 +1918,37 @@ blobQueryPlotTs1.5()
     python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_varchar*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_blob*.txt`" $'TS1.5 Query Latency\n(10 bytes per column, varchar)' $'TS1.5 Query Latency\n(10 bytes per column, blob)' $'$\Delta$Latency \n(Blob - Varchar)/Varchar\n' $'$\Delta$Latency (%)' overplot=False cmpplot=frac chis=True zmax=2 figfile=tsquerylatency_ts1.5_blob.png
 }
 
+#-----------------------------------------------------------------------
+# Run 2i query tests
+#
+# Compares queries with prototype streaming folds branch to normal folds
+#-----------------------------------------------------------------------
+
+kv2iQueryLatencyTestSequence()
+{
+    testCmpSequence start=0 iter=10 erlfn=runKv2iQueryLatencyTests nodes=1 args="nbyte=100" \
+		    script=ts_setup_kv_nval1 \
+		    branch1=riak_ee_perf_2i_streaming_folds \
+    		    branch2=riak_ee_1.4.0 \
+		    prefix1=kv2iquerylatency_proto \
+		    prefix2=kv2iquerylatency_normal
+}
+
+kv2iQueryLatencyTestSequenceNval3()
+{
+    testCmpSequence start=0 iter=10 erlfn=runKv2iQueryLatencyTests nodes=3 args="nbyte=100" \
+		    script=ts_setup_kv_nval3 \
+		    branch1=riak_ee_perf_2i_streaming_folds \
+    		    branch2=riak_ee_1.4.0 \
+		    prefix1=kv2iquerylatency_nval3_proto \
+		    prefix2=kv2iquerylatency_nval3_normal
+}
+
+kv2iQueryPlot()
+{
+    python $RIAK_TEST_BASE/python_scripts/kv2iquerylatency.py "`echo $RIAK_TEST_BASE/data/kv2iquerylatency_proto*.txt`" "`echo $RIAK_TEST_BASE/data/kv2iquerylatency_normal*.txt`" $'KV 2i Query Latency\n(streaming folds prototype)' $'KV 2i Query Latency\n(normal iteration)' $'Ratio\n(Normal / Prototype)' $'Latency Ratio' overplot=False cmpplot=div chis=False zmax=3 figfile=kv2iquery_prototype.png
+}
+
 tsQueryLatencyTestSequenceGrid()
 {
     nIter=$(simpleValOrDef iter '1' $@)

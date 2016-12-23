@@ -208,10 +208,11 @@ writeValNew()
 	av+=")"
 	total=`echo $av | bc`
 
-	echo "Inside writeVal with stat=$stat total=$total"
 	writes=$(getWrites "$av" $param1 $val1 $param2 $val2)
 	bytes=$(getBytes "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter)
 
+	echo "Inside writeVal with stat=$stat total=$total writes=$writes bytes=$bytes"
+	
 	if [ $total != "0" ]; then
 	    if [ ! -z "$bytes" ]; then
 		echo $val1 " " $val2 " " $total " " $writes " " $bytes >> "/tmp/dat"$iter".txt"
@@ -502,7 +503,7 @@ getTestDataSingleYcsb()
     iter=$5
     stat=$6
 
-    echo "Inside YCSB with file=$file param1=$param1 param2=$param2 cellsize=$cellsize $iter=$iter stat=$stat"
+    echo "Inside YCSB with file=$file param1=$param1 param2=$param2 cellsize=$cellsize iter=$iter stat=$stat"
     printf "\rProcessing $file..."
     
     first="true"
@@ -604,6 +605,7 @@ generatePythonPlots()
     echo "labels = $labels"
     echo "param1 = $param1"
     echo "param2 = $param2"
+    echo "overplot = $overplot"
     
     pycomm="import scipy.interpolate as int;\n"
     pycomm+="import numpy as np;\n"
@@ -1186,12 +1188,14 @@ makeycsbplot()
     output=$(valOrDef output '' "$@")
     output=${output//\"/}
 
-    figsize=$(valOrDef figsize '(15,18)' "$@")
+    figsize=$(valOrDef figsize '(15,6)' "$@")
     figsize=${figsize//\"/}
 
 #    plotlogfileycsb "output.log output.log" threadcount fieldcount cellsize="1 1" figsize="$figsize" labels="Cellsize=1 Cellsize=1" title="Riak PUT (YCSB)"
 
-    plotlogfileycsb "ycsb2.log ycsb2.log" threadcount fieldcount cellsize="1 1" figsize="$figsize" labels="Cellsize=1 Cellsize=1" title="Riak PUT (YCSB)"
+    #    plotlogfileycsb "ycsb2.log ycsb2.log" threadcount fieldcount cellsize="1 1" figsize="$figsize" labels="Cellsize=1 Cellsize=1" title="Riak PUT (YCSB)"
+
+    plotlogfileycsb $output threadcount fieldcount cellsize="10" figsize="$figsize" labels="Cellsize=10" title="Riak PUT (YCSB)"
 }
 
 makeplot()

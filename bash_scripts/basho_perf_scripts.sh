@@ -1279,7 +1279,7 @@ plotlogfileycsb()
 
     contour=$(valOrDef contour '' "$@")
     contour=${contour//\"/}
-    
+
     echo "figsize = $figsize"
     echo "labels  = '$labels'"
     
@@ -1352,7 +1352,7 @@ make5by5plots()
 
 make10byteplots()
 {
-    plotlogfileycsb files="ycsb_5by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5+5 Cluster\n10 Bytes per column;10+10 Cluster\n10 Bytes per column;15+15 Cluster\n10 Bytes per column" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5 + 5 Cluster\n10-byte cols;10 + 10 Cluster\n10-byte cols;15 + 15 Cluster\n10-byte cols" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none output=$RIAK_TEST_BASE/images/nodeComp10Byte
 }
 
 make10colbatchplots()
@@ -1362,12 +1362,12 @@ make10colbatchplots()
 
 make100colbatchplots()
 {
-    plotlogfileycsb files="ycsb_5by5_100byte_100col_batch.out ycsb_10by10_100byte_100col_batch.out ycsb_15by15_100byte_100col_batch.out " param1=threadcount param2=batchsize figsize="(18,18)" labels="5+5 Cluster\n100 Bytes per column\n100 Cols per row\nBatched;10+10 Cluster\n100 Bytes per column\n100 Cols per row\nBatched;15+15 Cluster\n100 Bytes per column\n100 Cols per row\nBatched" title="RiakTS PUT Throughput (YCSB)" contour=none
+    plotlogfileycsb files="ycsb_5by5_100byte_100col_batch.out ycsb_10by10_100byte_100col_batch.out ycsb_15by15_100byte_100col_batch.out " param1=threadcount param2=batchsize figsize="(18,18)" labels="5 + 5 Cluster\n100-byte cols\n100-col rows\nBatched;10 + 10 Cluster\n100-byte cols\n100-col rows\nBatched;15 + 15 Cluster\n100-byte cols\n100-col rows\nBatched" title="RiakTS PUT Throughput (YCSB)" contour=none output=$RIAK_TEST_BASE/images/nodeComp100Byte100ColBatch
 }
 
 make100byteplots()
 {
-    plotlogfileycsb files="ycsb_5by5_100.out ycsb_10by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5+5 Cluster\n100 Bytes per column;10+10 Cluster\n100 Bytes per column;15+15 Cluster\n100 Bytes per column" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none
+    plotlogfileycsb files="ycsb_5by5_100.out ycsb_10by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5 + 5 Cluster\n100-byte cols;10 + 10 Cluster\n100-byte cols;15 + 15 Cluster\n100-byte cols" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none output=$RIAK_TEST_BASE/images/nodeComp100Byte
 }
 
 get10bytedata()

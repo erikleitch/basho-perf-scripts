@@ -54,54 +54,12 @@ parseparamnew()
     done
 }
 
-#-----------------------------------------------------------------------
-# Given a throughput sum, and a set of parameters, return writes/sec, or
-# empty string if none is available
-#-----------------------------------------------------------------------
-
-getWrites()
+getElement()
 {
-    local av=$1
-    param1=$2
-    val1=$3
-    param2=$4
-    val2=$5
+    cellsize=$1
+    iter=$2
 
-    if [[ $param1 == 'columns' ]]; then
-	echo $av"*"$val1 | bc
-    elif [[ $param2 == 'columns' ]]; then
-	echo $av"*"$val2 | bc
-    elif [[ $param1 == 'fieldcount' ]]; then
-	echo $av"*"$val1 | bc
-    elif [[ $param2 == 'fieldcount' ]]; then
-	echo $av"*"$val2 | bc
-    else
-	echo ""
-    fi
-}
-
-getCellsize()
-{
-    param1=$1
-    val1=$2
-    param2=$3
-    val2=$4
-    cellsize=$5
-    iter=$6
-
-    if [   $param1 == 'cell_size' ]; then
-	echo $val1
-    elif [ $param2 == 'cell_size' ]; then
-	echo $val2
-    elif [ $param1 == 'fieldsize' ]; then
-	echo $val1
-    elif [ $param2 == 'fieldsize' ]; then
-	echo $val2
-    elif [ $param1 == 'fieldlength' ]; then
-	echo $val1
-    elif [ $param2 == 'fieldlength' ]; then
-	echo $val2
-    elif [ ! -z "$cellsize" ]; then
+    if [ ! -z "$cellsize" ]; then
 	cellarr=(`echo $cellsize`)
 	cellarrsize=${#cellarr[@]}
 	if [ $cellarrsize -gt 1 ]; then
@@ -115,6 +73,28 @@ getCellsize()
 }
 
 #-----------------------------------------------------------------------
+# Given a throughput sum, and a set of parameters, return writes/sec, or
+# empty string if none is available
+#-----------------------------------------------------------------------
+
+getWrites()
+{
+    local av=$1
+    local fieldcount=$2
+    local batchsize=$3
+    local iter=$4
+
+    fieldcount=$(getElement "$fieldcount" $iter)
+    batchsize=$(getElement "$batchsize" $iter)
+
+    if [ ! -z "$fieldcount" ] && [ ! -z "$batchsize" ]; then
+	echo $av"*"$fieldcount"*"$batchsize | bc
+    else
+	echo ""
+    fi
+}
+
+#-----------------------------------------------------------------------
 # Given a throughput sum, and a set of parameters, return bytes/sec, or
 # empty string if none is available
 #-----------------------------------------------------------------------
@@ -122,22 +102,17 @@ getCellsize()
 getBytes()
 {
     local av=$1
-    param1=$2
-    val1=$3
-    param2=$4
-    val2=$5
-    iter=$7
+    local cellsize=$2
+    local fieldcount=$3
+    local batchsize=$4
+    local iter=$5
 
-    cellsize=$(getCellsize $param1 $val1 $param2 $val2 "$6" $7)
+    cellsize=$(getElement "$cellsize" $iter)
+    fieldcount=$(getElement "$fieldcount" $iter)
+    batchsize=$(getElement "$batchsize" $iter)
     
-    if [   $param1 == 'columns' ]    && [ ! -z "$cellsize" ]; then
-	echo $av"*"$cellsize"*"$val1 | bc
-    elif [ $param2 == 'columns' ]    && [ ! -z "$cellsize" ]; then
-	echo $av"*"$cellsize"*"$val2 | bc
-    elif [ $param1 == 'fieldcount' ] && [ ! -z "$cellsize" ]; then
-	echo $av"*"$cellsize"*"$val1 | bc
-    elif [ $param2 == 'fieldcount' ] && [ ! -z "$cellsize" ]; then
-	echo $av"*"$cellsize"*"$val2 | bc
+    if [ ! -z "$fieldcount" ] && [ ! -z "$cellsize" ] && [ ! -z "$batchsize" ]; then
+	echo $av"*"$cellsize"*"$fieldcount"*"$batchsize | bc
     else
 	echo ""
     fi
@@ -197,21 +172,34 @@ writeValNew()
     param2=$4
     val2=$5
     cellsize=$6
-    iter=$7
-    startdate="$8"
-    enddate="$9"
-    stat=${10}
+    fieldcount=$7
+    batchsize=$8
+    iter=$9
+    startdate="${10}"
+    enddate="${11}"
+    stat=${12}
 
-    echo "Inside writeVal with stat=$stat"
+    echo "Inside writeValNew with stat='$stat' batchsize='$batchsize'"
+    
     total=0.0
-    if [ $stat == \"ops\" ]; then
+    if [ $stat == ops ]; then
 	av+=")"
 	total=`echo $av | bc`
 
-	writes=$(getWrites "$av" $param1 $val1 $param2 $val2)
-	bytes=$(getBytes "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter)
+#	echo "About to call getWrites getBytes"
+	
+	writes=$(getWrites "$av" "$fieldcount" "$batchsize" $iter)
+	bytes=$(getBytes "$av" "$cellsize"  "$fieldcount" "$batchsize" $iter)
 
-	echo "Inside writeVal with stat=$stat total=$total writes=$writes bytes=$bytes"
+#	echo "Inside writeValNew with stat=$stat total=$total writes=$writes bytes=$bytes"
+
+#	if [ $total != "0" ]; then
+#	    echo "total is not zero"
+#	fi
+#	
+#	if [ ! -z "$bytes" ]; then
+#	    echo "Bytes is not empty"
+#	fi
 	
 	if [ $total != "0" ]; then
 	    if [ ! -z "$bytes" ]; then
@@ -248,11 +236,30 @@ getTestData()
 
 getTestDataYcsb()
 {
-    local files="$1"
+    local files=$(valOrDef files '' "$@")
+    files=${files//\"/}
+    
+    local param1=$(valOrDef param1 '' "$@")
+    param1=${param1//\"/}
+    
+    local param2=$(valOrDef param2 '' "$@")
+    param2=${param2//\"/}
+    
+    local cellsize=$(valOrDef cellsize '' "$@")
+    
+    local stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
 
-    iIter="0"                                                                      
+    local fieldcount=$(valOrDef fieldcount '' "$@")
+
+    local batchsize=$(valOrDef batchsize '' "$@")
+    batchsize=${batchsize//\"/}
+    
+    echo "Inside getTestDataYcsb with files='$files'"
+    
+    local iIter="0"                                                                      
     for i in $files; do
-	getTestDataSingleYcsb $i $2 $3 "$4" $iIter $5
+	getTestDataSingleYcsb file=$i param1=$param1 param2=$param2 stat=$stat fieldcount="$fieldcount" batchsize="$batchsize" cellsize="$cellsize" iter=$iIter 
         iIter=$[$iIter+1] 
     done
     printf "\n"
@@ -293,7 +300,7 @@ getTestDataSingle()
 
 				if [ $first == "true" ]; then
 				    first="false"
-				    rm "/tmp/dat"$iter".txt"
+				    \rm "/tmp/dat"$iter".txt"
 				else
 				    writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
 				fi
@@ -369,7 +376,7 @@ getTestDataSingleNew()
 			
 			if [ $first == "true" ]; then
 			    first="false"
-			    rm "/tmp/dat"$iter".txt"
+			    \rm "/tmp/dat"$iter".txt"
 			else
 			    writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
 			fi
@@ -437,17 +444,16 @@ getTestDataSingleAnyYcsb()
 	    #------------------------------------------------------------
 	    
 	    *'event_type="start"'*)
-		echo "Found line: $p"
+#		echo "Found line: $p"
 		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
 		    sub=${BASH_REMATCH[1]}
-		    echo "Found sub: $sub"
+#		    echo "Found sub: $sub"
 
 		    if [ $first == "true" ]; then
 			first="false"
 		#	rm "/tmp/dat"$iter".txt"
 		    else
-			echo "Calling writeVal with val1 = $val1 val2 = $val2"
-
+			echo "Calling writeVal with val1 = $val1 val2 = $val2" > /dev/null
 		    fi
 		    
 		    total=`echo $av | bc`
@@ -473,10 +479,10 @@ getTestDataSingleAnyYcsb()
 	    #------------------------------------------------------------
 	    
 	    *\[OVERALL\],\ Throughput*)
-		echo "Found a throughput line: $p"
+#		echo "Found a throughput line: $p"
 		if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
 		    av+="+"${BASH_REMATCH[1]}
-		    echo "av = $av"
+#		    echo "av = $av"
 		fi
 
 		if [ $haveEnd == "false" ]; then
@@ -496,14 +502,27 @@ getTestDataSingleAnyYcsb()
 
 getTestDataSingleYcsb()
 {
-    file=$1
-    param1=$2
-    param2=$3
-    cellsize=$4
-    iter=$5
-    stat=$6
+    local file=$(valOrDef file '' "$@")
+    file=${file//\"/}
+    
+    local param1=$(valOrDef param1 '' "$@")
+    param1=${param1//\"/}
+    
+    local param2=$(valOrDef param2 '' "$@")
+    param2=${param2//\"/}
+    
+    local cellsize=$(valOrDef cellsize '' "$@")
+    local fieldcount=$(valOrDef fieldcount '' "$@")
+    local batchsize=$(valOrDef batchsize '' "$@")
 
-    echo "Inside YCSB with file=$file param1=$param1 param2=$param2 cellsize=$cellsize iter=$iter stat=$stat"
+    local stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
+
+    local iter=$(valOrDef iter 'ops' "$@")
+    iter=${iter//\"/}
+
+    echo "Inside YCSB with file=$file param1=$param1 param2=$param2 stat='$stat' cellsize=$cellsize fieldcount=$fieldcount batchsize=$batchsize iter=$iter "
+    
     printf "\rProcessing $file..."
     
     first="true"
@@ -524,16 +543,44 @@ getTestDataSingleYcsb()
 
 		    if [ $first == "true" ]; then
 			first="false"
-			rm "/tmp/dat"$iter".txt"
+			\rm "/tmp/dat"$iter".txt"
 		    else
 			echo "Calling writeVal with val1 = $val1 val2 = $val2"
-			writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+			writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat
 		    fi
 		    
 		    val1=$(parseparamnew "$sub" $param1)
 		    val2=$(parseparamnew "$sub" $param2)
 
-		    echo "param1 = $param1 val1 = $val1"
+		    # These are all the things we need to calculate writes/sec and bytes/sec
+		    
+		    nbyte=$(parseparamnew "$sub" fieldlength)
+		    ncol=$(parseparamnew "$sub" fieldcount)
+		    batch=$(parseparamnew "$sub" batchsize)
+
+		    echo "Found nbyte=$nbyte ncol=$ncol batch=$batch"
+		    
+		    #------------------------------------------------------------
+		    # Override defaults if we can
+		    #------------------------------------------------------------
+		    
+		    if [ ! -z $batch ]
+		    then
+			batchsize=$batch
+		    fi
+
+		    if [ ! -z $nbyte ]
+		    then
+			cellsize=$nbyte
+		    fi
+
+		    if [ ! -z $ncol ]
+		    then
+			fieldcount=$ncol
+		    fi
+		    
+		    echo "param1 = $param1 val1 = $val1 param2 = $param2 val2 = $val2 nbyte = $nbyte ncol = $ncol batch = $batch"
+		    
 		    av="scale=4;(0.0"
 		fi
 		;;
@@ -554,10 +601,10 @@ getTestDataSingleYcsb()
 	    #------------------------------------------------------------
 	    
 	    *\[OVERALL\],\ Throughput*)
-		echo "Found a throughput line: $p"
+#		echo "Found a throughput line: $p"
 		if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
 		    av+="+"${BASH_REMATCH[1]}
-		    echo "av = $av"
+#		    echo "av = $av"
 		fi
 
 		if [ $haveEnd == "false" ]; then
@@ -568,7 +615,7 @@ getTestDataSingleYcsb()
 	esac
     done <$file
 
-    writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+    writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat
 }
 
 getDate()
@@ -600,6 +647,10 @@ generatePythonPlots()
     plotwithaction=${12}
     cellsizes=${13}
 
+    local contour=$(valOrDef contour 'none' "$@")
+    contour=${contour//\"/}
+
+    echo "contour = '$contour'"
     echo "figsize = $figsize"
     echo "figview = $figview"
     echo "labels = $labels"
@@ -684,7 +735,11 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  if overplot:\n"
     pycomm+="    for iCol in range(0,nColPerRow):\n"
-    pycomm+="      ax = fig.add_subplot(1, nColPerRow, iCol+1, projection='3d');\n"
+    if [ $contour == contouronly ]; then
+	pycomm+="      ax = fig.add_subplot(1, nColPerRow, iCol+1);\n"
+    else
+	pycomm+="      ax = fig.add_subplot(1, nColPerRow, iCol+1, projection='3d');\n"
+    fi
     pycomm+="      axes[iCol] = []\n"
     pycomm+="      for iFile in range(0,nFile):\n"
     pycomm+="        axes[iCol].append(ax)\n"
@@ -700,7 +755,11 @@ generatePythonPlots()
     pycomm+="        currSubplotInd=nColPerRow * iFile + iCol + 1\n"
     pycomm+="        if axes[iCol] == None:\n"
     pycomm+="          axes[iCol] = []\n"
-    pycomm+="        axes[iCol].append(fig.add_subplot(nFile, nColPerRow, currSubplotInd, projection='3d'));\n"
+    if [ $contour == contouronly ]; then
+	pycomm+="        axes[iCol].append(fig.add_subplot(nFile, nColPerRow, currSubplotInd));\n"
+    else
+	pycomm+="        axes[iCol].append(fig.add_subplot(nFile, nColPerRow, currSubplotInd, projection='3d'));\n"
+    fi
     pycomm+="\n"
     pycomm+="  return axes\n"
 
@@ -767,11 +826,30 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  x,y,z,unit2 = getData(fileName, index);\n"
     pycomm+="  plt.hold(doHold);\n"
-    pycomm+="  ax.plot_surface(x, y, z/scale, color=Color);\n"
+
+    if [ $contour == contouronly ]; then
+	pycomm+="  plt.hold(True);\n"
+	pycomm+="  CSZ = ax.contour(x, y, z/scale, 20)\n"
+	pycomm+="  extent =  ax.axis()\n"
+	pycomm+="  ax.set_aspect(abs((extent[1]-extent[0])/(extent[3]-extent[2])))\n"
+	pycomm+="  ax.clabel(CSZ, inline=True, fontsize=10)\n"
+	pycomm+="  ax.set_title('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
+    elif [ $contour == contour ]; then
+	pycomm+="  plt.hold(True);\n"
+	pycomm+="  ax.plot_surface(x, y, z/scale, color=Color);\n"
+	pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
+	pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
+	pycomm+="  CSZ = ax.contourf(x, y, z/scale, 20, zdir='z', offset=0)\n"
+	pycomm+="  plt.colorbar(CSZ, orientation='horizontal', ax=ax, shrink=0.7)\n"
+    else
+	pycomm+="  ax.plot_surface(x, y, z/scale, color=Color);\n"
+	pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
+	pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
+    fi
+
     pycomm+="  ax.set_xlabel('\\\\n' + xlabel, fontsize=defaultFontsize);\n"
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel, fontsize=defaultFontsize);\n"
-    pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
-    pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
+
     #    pycomm+="  retick(ax, 'y')\n"
     pycomm+="  ax.tick_params(labelsize=defaultFontsize)\n"
     pycomm+="\n"
@@ -785,14 +863,46 @@ generatePythonPlots()
     pycomm+="  elif action == '+':\n"
     pycomm+="    ax.plot_surface(x1, y1, (z1 + z2)/scale, color=Color);\n"
     pycomm+="  elif action == '/':\n"
-    pycomm+="    ax.plot_surface(x1, y1, z1 / z2, color=Color);\n"
+    pycomm+="\n"
+    if [ $contour == contouronly ]; then
+	echo "CONTOUR IS contouronly"
+	pycomm+="    plt.hold(True);\n"
+	pycomm+="\n"
+	pycomm+="    r = z1/z2;\n"
+	pycomm+="    maxVal = np.max(z1/z2);\n"
+	pycomm+="    CSZ = ax.contour(x1, y1, r, 20)\n"
+	pycomm+="    extent =  ax.axis()\n"
+	pycomm+="    ax.set_aspect(abs((extent[1]-extent[0])/(extent[3]-extent[2])))\n"
+	pycomm+="    ax.clabel(CSZ, inline=True, fontsize=10)\n"
+	pycomm+="    ax.set_title('\\\\n' + zlabel + ' (ratio)', fontsize=defaultFontsize);\n"
+	pycomm+="    print 'Label = ' + zlabel + ' mean = ' + str(np.mean(r)) + ' +- ' + str(np.std(r, ddof=1));\n"
+	pycomm+="    print 'Ratio of max = ' + str(np.max(z1)/np.max(z2));\n"
+	pycomm+="    print 'Max of ratio = ' + str(np.max(r));\n"
+
+    elif [ $contour == contour ]; then
+	echo "CONTOUR IS contour"
+	pycomm+="    plt.hold(True);\n"
+	pycomm+="\n"
+	pycomm+="    r = z1/z2;\n"
+	pycomm+="    ax.plot_surface(x1, y1, r, color=Color);\n"
+	pycomm+="    maxVal = np.max(z1/z2);\n"
+	pycomm+="    CSZ = ax.contourf(x1, y1, r, 20, zdir='z', offset=0)\n"
+	pycomm+="    plt.colorbar(CSZ, orientation='horizontal', ax=ax, shrink=0.7)\n"
+	pycomm+="    ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
+	pycomm+="    ax.set_zlim(0, maxVal*1.1);\n"
+    else
+	echo "CONTOUR IS $contour"
+	pycomm+="    r = z1/z2;\n"
+	pycomm+="    ax.plot_surface(x1, y1, r, color=Color);\n"
+	pycomm+="    maxVal = np.max(z1/z2);\n"
+	pycomm+="    ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
+	pycomm+="    ax.set_zlim(0, maxVal*1.1);\n"
+    fi
     pycomm+="  elif action == '*':\n"
     pycomm+="    ax.plot_surface(x1, y1, z1 * z2, color=Color);\n"
     pycomm+="  ax.set_xlabel('\\\\n' + xlabel);\n"
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel);\n"
-    pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
-    pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
-    pycomm+="  retick(ax, 'y')\n"
+    pycomm+="#  retick(ax, 'y')\n"
 
     echo "view = $figview"
     if [ $figview != \"\" ]; then
@@ -991,6 +1101,7 @@ generatePythonPlots()
 
 
     pycomm+="plt.axis('off')\n"
+    title=${title//"\n"/"\\\\n"}
     pycomm+="plt.title('${title//\"/}')\n"
     
     if [ $overplot == \""true\"" ]; then
@@ -1008,7 +1119,7 @@ generatePythonPlots()
     fi
 
 #    pycomm+="plt.tight_layout(w_pad=2,pad=5)\n"
-    pycomm+="print str(plt.rcParams)\n"
+#    pycomm+="print str(plt.rcParams)\n"
 	
     if [ "$labels" != \"\" ]; then
 
@@ -1024,15 +1135,22 @@ generatePythonPlots()
 	pycomm+="  sint = hspace / (nFile)\n"
 	pycomm+="\n"
 
-	labarr=(`echo $labels`)
+	IFS=';' read -ra labarr <<< "$labels"
 	labarrsize=${#labarr[@]}
+
+	echo "Labarr size = $labarrsize"
 
 	if [ $overplot == \""false\"" ] && [ $labarrsize -gt 1 ]; then
 	    label=${labarr[$iter]//\"/}
+
 	    iIter="0"
 	    pyLabs=""
-	    for label in $labels; do
-		label=${label//\'/}
+	    for label in "${labarr[@]}"; do
+
+		echo "Label = $label"
+
+		label=${label//"\n"/"\\\\n"}
+		
 		if [ $iIter -eq 0 ]	; then
 		    pyLabs+="['"${label//\"/}"'"
 		else
@@ -1040,12 +1158,14 @@ generatePythonPlots()
 		fi
 		iIter=$[$iIter+1]
 	    done
+
 	    pyLabs+="]"
 	    pycomm+="labels = $pyLabs\n"
 	    pycomm+="for i in range(0,nFile):\n"
 	    pycomm+="  y = top - (i + 0.5)*yint - i*sint\n"
 	    pycomm+="  plt.figtext(0.03, y, labels[i], fontsize=defaultFontsize)\n"
 	else
+	    labels=${labels//"\n"/"\\\\n"}
 	    pycomm+="plt.figtext(0.03, 0.5, '${labels//\"/}', fontsize=defaultFontsize)\n"
 	fi
     fi
@@ -1079,6 +1199,8 @@ plotlogfile()
     plotwithfiles=$(valOrDef plotwith '' "$@")
     plotwithaction=$(valOrDef plotwithaction 'p' "$@")
     stat=$(valOrDef stat 'ops' "$@")
+
+    
     output=$(valOrDef output '' "$@")
     figview=$(valOrDef figview '' "$@")
 
@@ -1126,7 +1248,21 @@ plotlogfile()
 
 plotlogfileycsb()
 {
+    local files=$(valOrDef files '' "$@")
+    files=${files//\"/}
+
+    local param1=$(valOrDef param1 '' "$@")
+    param1=${param1//\"/}
+
+    local param2=$(valOrDef param2 '' "$@")
+    param2=${param2//\"/}
+
     cellsize=$(valOrDef cellsize '' "$@")
+
+    batchsize=$(valOrDef batchsize '' "$@")
+    batchsize=${batchsize//\"/}
+    
+    fieldcount=$(valOrDef fieldcount '' "$@")
     overplot=$(valOrDef overplot false "$@")
     figsize=$(valOrDef figsize '' "$@")
     labels=$(valOrDef labels '' "$@")
@@ -1134,17 +1270,23 @@ plotlogfileycsb()
     scaleto=$(valOrDef scaleto '' "$@")
     plotwithfiles=$(valOrDef plotwith '' "$@")
     plotwithaction=$(valOrDef plotwithaction 'p' "$@")
+
     stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
+    
     output=$(valOrDef output '' "$@")
     figview=$(valOrDef figview '' "$@")
 
+    contour=$(valOrDef contour '' "$@")
+    contour=${contour//\"/}
+    
     echo "figsize = $figsize"
-    files="$1"
-    local param1=$2
-    local param2=$3
+    echo "labels  = '$labels'"
     
     allfiles=$files
     allcellsize=$cellsize
+    allbatchsize=$batchsize
+    allfieldcount=$fieldcount
     scale=false
     plotwith=false
     
@@ -1158,6 +1300,8 @@ plotlogfileycsb()
 	plotwith=true
 	allfiles=$allfiles" "${plotwithfiles//\"/}
 	allcellsize=$allcellsize" "$cellsize
+	allbatchsize=$allbatchsize" "$batchsize
+	allfieldcount=$allfieldcount" "$fieldcount
     fi
 
     #------------------------------------------------------------
@@ -1170,9 +1314,12 @@ plotlogfileycsb()
 	scale=true
 	allfiles=$allfiles" "${scaleto//\"/}
 	allcellsize=$allcellsize" "$cellsize
+	allbatchsize=$allbatchsize" "$batchsize
+	allfieldcount=$allfieldcount" "$fieldcount
     fi
 
-    getTestDataYcsb "$allfiles" $param1 $param2 "$allcellsize" $stat
+    getTestDataYcsb files="$allfiles" param1=$param1 param2=$param2 cellsize="$allcellsize" batchsize="$allbatchsize" fieldcount="$allfieldcount" stat=$stat
+
     echo "output(1) = $output"
     if [ $output == \"\" ]; then
 	echo "output is null"
@@ -1180,7 +1327,7 @@ plotlogfileycsb()
 
     echo "allcells = $allcellsize figsize=$figsize"
     
-    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize"
+    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize" contour=$contour
 }
 
 makeycsbplot()
@@ -1196,6 +1343,91 @@ makeycsbplot()
     #    plotlogfileycsb "ycsb2.log ycsb2.log" threadcount fieldcount cellsize="1 1" figsize="$figsize" labels="Cellsize=1 Cellsize=1" title="Riak PUT (YCSB)"
 
     plotlogfileycsb $output threadcount fieldcount cellsize="10" figsize="$figsize" labels="Cellsize=10" title="Riak PUT (YCSB)"
+}
+
+make5by5plots()
+{
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_5by5_100.out" param1=threadcount param2=fieldcount figsize="(18,12)" labels="5by5, 10Bytes;5by5, 100Bytes" title="Riak PUT Throughput (YCSB)" batchsize=1
+}
+
+make10byteplots()
+{
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5+5 Cluster\n10 Bytes per column;10+10 Cluster\n10 Bytes per column;15+15 Cluster\n10 Bytes per column" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none
+}
+
+make10colbatchplots()
+{
+    plotlogfileycsb files="ycsb_5by5_100byte_10col_batch.out ycsb_10by10_100byte_10col_batch.out ycsb_15by15_100byte_10col_batch.out " param1=threadcount param2=batchsize figsize="(18,18)" labels="5+5 Cluster\n100 Bytes per column\n10 Cols per row\nBatched;10+10 Cluster\n100 Bytes per column\n10 Cols per row\nBatched;15+15 Cluster\n100 Bytes per column\n10 Cols per row\nBatched" title="RiakTS PUT Throughput (YCSB)" contour=none
+}
+
+make100colbatchplots()
+{
+    plotlogfileycsb files="ycsb_5by5_100byte_100col_batch.out ycsb_10by10_100byte_100col_batch.out ycsb_15by15_100byte_100col_batch.out " param1=threadcount param2=batchsize figsize="(18,18)" labels="5+5 Cluster\n100 Bytes per column\n100 Cols per row\nBatched;10+10 Cluster\n100 Bytes per column\n100 Cols per row\nBatched;15+15 Cluster\n100 Bytes per column\n100 Cols per row\nBatched" title="RiakTS PUT Throughput (YCSB)" contour=none
+}
+
+make100byteplots()
+{
+    plotlogfileycsb files="ycsb_5by5_100.out ycsb_10by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5+5 Cluster\n100 Bytes per column;10+10 Cluster\n100 Bytes per column;15+15 Cluster\n100 Bytes per column" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none
+}
+
+get10bytedata()
+{
+    getTestDataYcsb files="ycsb_5by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount batchsize=1
+    mv /tmp/dat0.txt ycsb_5by5_10.txt
+    mv /tmp/dat1.txt ycsb_10by10_10.txt
+    mv /tmp/dat2.txt ycsb_15by15_10.txt
+}
+
+get100bytedata()
+{
+    getTestDataYcsb files="ycsb_5by5_100.out ycsb_10by10_100.out ycsb_15by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount batchsize=1
+    mv /tmp/dat0.txt $RIAK_TEST_BASE/data/ycsb_5by5_100.txt
+    mv /tmp/dat1.txt $RIAK_TEST_BASE/data/ycsb_10by10_100.txt
+    mv /tmp/dat2.txt $RIAK_TEST_BASE/data/ycsb_15by10_100.txt
+    mv /tmp/dat3.txt $RIAK_TEST_BASE/data/ycsb_15by15_100.txt
+}
+
+get100bytebatchdata()
+{
+    getTestDataYcsb files="ycsb_5by5_100byte_100col_batch.out ycsb_10by10_100byte_100col_batch.out ycsb_15by15_100byte_100col_batch.out" param1=threadcount param2=batchsize
+    mv /tmp/dat0.txt ycsb_5by5_100byte_100col.txt
+    mv /tmp/dat1.txt ycsb_10by10_100byte_100col.txt
+    mv /tmp/dat2.txt ycsb_15by15_100byte_100col.txt
+}
+
+make100byteratioplots()
+{
+    plotlogfileycsb files="ycsb_10by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,12)" labels="10+10 Cluster\n100 Bytes;15+15 Cluster\n100 Bytes" title="RiakTS PUT Throughput (YCSB)\n" batchsize="1 1" plotwithaction='/' plotwith="ycsb_5by5_100.out ycsb_5by5_100.out" contour=contouronly
+}
+
+make15by15plots()
+{
+    plotlogfileycsb files="ycsb_15by15_10.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,6)" labels="15by15, 10Bytes; 100 Bytes" title="RiakTS PUT Throughput (YCSB)" batchsize=1
+}
+
+makeexcessharnessplots()
+{
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_10by10_100.out" param1=threadcount param2=fieldcount figsize="(18,6)" labels="5by5\n10 Bytes;10by10\n100 Bytes" title="RiakTS PUT Throughput (YCSB)" batchsize="1 1" plotwith="ycsb_15by10_100.out ycsb_15by10_100.out" plotwithaction="p"
+}
+
+make10by10plots()
+{
+    plotlogfileycsb files="ycsb_10by10_10.out ycsb_10by10_100.out" param1=threadcount param2=fieldcount figsize="(18,6)" labels="10by10, 10Bytes;10by10, 100Bytes" title="RiakTS PUT Throughput (YCSB)" batchsize=1
+}
+
+make5by5batchplot()
+{
+    plotlogfileycsb files="ycsb_5by5_100byte_10col_batch.out ycsb_5by5_100byte_100col_batch.out" param1=threadcount param2=batchsize figsize="(18,6)" labels="5by5 100Bytes\n10Cols batched;5by5 100Bytes\n100Cols batched" title="RiakTS PUT Throughput (YCSB)"
+}
+
+make10by10batchplot()
+{
+    plotlogfileycsb files="ycsb_10by10_100byte_10col_batch.out ycsb_10by10_100byte_100col_batch.out" param1=threadcount param2=batchsize figsize="(18,6)" labels="10by10 100Bytes\n10Cols batched;10by10 100Bytes\n100Cols batched" title="RiakTS PUT Throughput (YCSB)"
+}
+
+make15by15batchplot()
+{
+    plotlogfileycsb files="ycsb_15by15_100byte_10col_batch.out ycsb_15by15_100byte_100col_batch.out" param1=threadcount param2=batchsize figsize="(18,6)" labels="15by15 100Bytes\n10Cols batched;15by15 100Bytes\n100Cols batched" title="RiakTS PUT Throughput (YCSB)"
 }
 
 makeplot()
@@ -2072,3 +2304,13 @@ testSequenceSL()
     done
 }
 
+labeltest()
+{
+    labels=$(valOrDef labels '' "$@")
+    labels=${labels//\"/}
+
+    IFS=';' read -ra ADDR <<< "$labels"
+    for i in "${ADDR[@]}"; do
+	echo "val = '$i'"
+    done
+}

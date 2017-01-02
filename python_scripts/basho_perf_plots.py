@@ -65,6 +65,10 @@ def getData(iCol, datum, dat1, dat2, dat3):
         e.append(np.std(d1/d1, ddof=1))
         e.append(np.std(d2/d1, ddof=1))
         e.append(np.std(d3/d1, ddof=1))
+    elif datum == 'ratiomax':
+        y.append(np.max(d1)/np.max(d1))
+        y.append(np.max(d2)/np.max(d1))
+        y.append(np.max(d3)/np.max(d1))
     elif datum == 'max':
         y.append(np.max(d1))
         y.append(np.max(d2))
@@ -99,13 +103,13 @@ def makeCompPlots():
     dat15, uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_15by15_100.txt')
     dat1510, uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_15by10_100.txt')
 
-    dat5t,  uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_5by5_10.txt')
-    dat10t, uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_10by10_10.txt')
-    dat15t, uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_15by15_10.txt')
-
     dat5b,  uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_5by5_100byte_100col.txt')
     dat10b, uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_10by10_100byte_100col.txt')
     dat15b, uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_15by15_100byte_100col.txt')
+
+    dat5t,  uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_5by5_10.txt')
+    dat10t, uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_10by10_10.txt')
+    dat15t, uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_15by15_10.txt')
 
     fig = plt.figure(figsize=(12,12))
     fig.set_facecolor('white');
@@ -113,33 +117,58 @@ def makeCompPlots():
     legFontSize = 11
     bline = mlines.Line2D([], [], color='b', label='10-byte cols')
     cline = mlines.Line2D([], [], color='c', label='100-byte cols')
-    mline = mlines.Line2D([], [], color='m', label='100-byte cols, batched')
+    mline = mlines.Line2D([], [], color='c', linestyle='--', label='100-byte cols, batched')
 
+    #------------------------------------------------------------
+    # First plot is ops/sec
+    #------------------------------------------------------------
+    
     ax = fig.add_subplot(2,2,1)
     makePlot(ax, dat5t, dat10t, dat15t, 0, 'max', 'Max ops/sec','b')
     makePlot(ax, dat5, dat10, dat15, 0, 'max', 'Max ops/sec','c')
-#    makePlot(ax, dat5, dat1510, dat15, 0, 'max', 'Max ops/sec','c')
     resetLimits(ax)
     plt.legend(handles=[bline, cline], fontsize=legFontSize, loc='upper left')
+
+    #------------------------------------------------------------
+    # Second plot is ratio ops/sec
+    #------------------------------------------------------------
     
     ax = fig.add_subplot(2,2,2)
     makePlot(ax, dat5t, dat10t, dat15t, 0, 'meanratio', 'Ratio ops/sec', 'b')
+    makePlot(ax, dat5t, dat10t, dat15t, 0, 'ratiomax', 'Ratio ops/sec', 'b', '--')
+    
     makePlot(ax, dat5, dat10, dat15, 0, 'meanratio', 'Ratio ops/sec', 'c')
-
+    makePlot(ax, dat5, dat10, dat15, 0, 'ratiomax', 'Ratio ops/sec', 'c', '--')
     resetLimits(ax)
-    plt.legend(handles=[bline, cline], fontsize=legFontSize, loc='upper left')
 
+
+    rbline  = mlines.Line2D([], [], color='b', label='10-byte cols, mean')
+    rbbline = mlines.Line2D([], [], color='b', linestyle='--', label='10-byte cols, max')
+    
+    rcline  = mlines.Line2D([], [], color='c', label='100-byte cols, mean')
+    rcbline = mlines.Line2D([], [], color='c', linestyle='--', label='100-byte cols, max')
+
+    plt.legend(handles=[rbline, rbbline, rcline, rcbline], fontsize=legFontSize, loc='upper left')
+
+    #------------------------------------------------------------
+    # Third plot is cols/sec
+    #------------------------------------------------------------
+    
     ax = fig.add_subplot(2,2,3)
     makePlot(ax, dat5t, dat10t, dat15t, 1, 'max', 'Max cols/sec', 'b')
     makePlot(ax, dat5, dat10, dat15, 1, 'max', 'Max cols/sec', 'c')
-    makePlot(ax, dat5b, dat10b, dat15b, 1, 'max', 'Max cols/sec', 'm')
+    makePlot(ax, dat5b, dat10b, dat15b, 1, 'max', 'Max cols/sec', 'c', '--')
     resetLimits(ax)
     plt.legend(handles=[bline, cline, mline], fontsize=legFontSize, loc='upper left')
+
+    #------------------------------------------------------------
+    # Fourth plot is bytes/sec
+    #------------------------------------------------------------
     
     ax = fig.add_subplot(2,2,4)
     makePlot(ax, dat5t, dat10t, dat15t, 2, 'max', 'Max bytes/sec', 'b')
     makePlot(ax, dat5, dat10, dat15, 2, 'max', 'Max bytes/sec', 'c')
-    makePlot(ax, dat5b, dat10b, dat15b, 2, 'max', 'Max bytes/sec', 'm')
+    makePlot(ax, dat5b, dat10b, dat15b, 2, 'max', 'Max bytes/sec', 'c', '--')
     resetLimits(ax)
     plt.legend(handles=[bline, cline, mline], fontsize=legFontSize, loc='upper left')
 
@@ -147,14 +176,14 @@ def makeCompPlots():
     
     plt.show()
 
-def makePlot(ax, dat1, dat2, dat3, iCol, datum, axName, color):
+def makePlot(ax, dat1, dat2, dat3, iCol, datum, axName, color, ls='-'):
 
     x,y,e,scale,unit = getData(iCol, datum, dat1, dat2, dat3)
 
     print 'Plotting with color = ' + color
     ax.plot(x, y/scale, color + '.')
     plt.hold(True)
-    ax.plot(x, y/scale, color + '-')
+    ax.plot(x, y/scale, color + ls)
         
     if e is not None:
         plt.hold(True)

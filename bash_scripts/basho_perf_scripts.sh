@@ -1367,15 +1367,17 @@ make100colbatchplots()
 
 make100byteplots()
 {
-    plotlogfileycsb files="ycsb_5by5_100.out ycsb_10by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5 + 5 Cluster\n100-byte cols;10 + 10 Cluster\n100-byte cols;15 + 15 Cluster\n100-byte cols" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none output=$RIAK_TEST_BASE/images/nodeComp100Byte
+    plotlogfileycsb files="ycsb_5by5_100.out ycsb_10by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5 + 5 Cluster\n100-byte cols;10 + 10 Cluster\n100-byte cols;15 + 15 Cluster\n100-byte cols" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none
+    #output=$RIAK_TEST_BASE/images/nodeComp100Byte
 }
 
 get10bytedata()
 {
-    getTestDataYcsb files="ycsb_5by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount batchsize=1
-    mv /tmp/dat0.txt ycsb_5by5_10.txt
-    mv /tmp/dat1.txt ycsb_10by10_10.txt
-    mv /tmp/dat2.txt ycsb_15by15_10.txt
+    getTestDataYcsb files="ycsb_5by5_10.out ycsb_7by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount batchsize=1
+    mv /tmp/dat0.txt $RIAK_TEST_BASE/data/ycsb_5by5_10.txt
+    mv /tmp/dat1.txt $RIAK_TEST_BASE/data/ycsb_7by5_10.txt
+    mv /tmp/dat2.txt $RIAK_TEST_BASE/data/ycsb_10by10_10.txt
+    mv /tmp/dat3.txt $RIAK_TEST_BASE/data/ycsb_15by15_10.txt
 }
 
 get100bytedata()
@@ -1407,7 +1409,7 @@ make15by15plots()
 
 makeexcessharnessplots()
 {
-    plotlogfileycsb files="ycsb_5by5_10.out ycsb_10by10_100.out" param1=threadcount param2=fieldcount figsize="(18,6)" labels="5by5\n10 Bytes;10by10\n100 Bytes" title="RiakTS PUT Throughput (YCSB)" batchsize="1 1" plotwith="ycsb_15by10_100.out ycsb_15by10_100.out" plotwithaction="p"
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_7by5_10.out" param1=threadcount param2=fieldcount figsize="(18,6)" labels="5by5\n10 Bytes;10by10\n100 Bytes" title="RiakTS PUT Throughput (YCSB)" batchsize="1 1" overplot=true
 }
 
 make10by10plots()

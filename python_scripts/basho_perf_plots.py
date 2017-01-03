@@ -65,6 +65,18 @@ def getData(iCol, datum, dat1, dat2, dat3):
         e.append(np.std(d1/d1, ddof=1))
         e.append(np.std(d2/d1, ddof=1))
         e.append(np.std(d3/d1, ddof=1))
+    elif datum == 'meanratiocolmax':
+        print 'd1 = ' + str(d1) + ' col0 = ' + str(d1[:,0])
+        cm1 = getColMax(d1)
+        cm2 = getColMax(d2)
+        cm3 = getColMax(d3)
+        y.append(np.mean(cm1/cm1))
+        y.append(np.mean(cm2/cm1))
+        y.append(np.mean(cm3/cm1))
+        e = []
+        e.append(np.std(cm1/cm1, ddof=1))
+        e.append(np.std(cm2/cm1, ddof=1))
+        e.append(np.std(cm3/cm1, ddof=1))
     elif datum == 'ratiomax':
         y.append(np.max(d1)/np.max(d1))
         y.append(np.max(d2)/np.max(d1))
@@ -95,6 +107,17 @@ def getData(iCol, datum, dat1, dat2, dat3):
 
     return x,y,e,scale,unit
 
+def getColMax(d):
+    ncols = np.shape(d)[1]
+    print 'd = ' + str(d)
+    print 'shap = ' + str(np.shape(d)) + ' ncol = ' + str(ncols)
+    
+    cm = []
+    for iCol in range(0, ncols):
+        cm.append(np.max(d[:,iCol]))
+
+    return np.asarray(cm)
+    
 def makeCompPlots():
     dataDir = str(os.environ['RIAK_TEST_BASE'])
 
@@ -135,10 +158,13 @@ def makeCompPlots():
     
     ax = fig.add_subplot(2,2,2)
     makePlot(ax, dat5t, dat10t, dat15t, 0, 'meanratio', 'Ratio ops/sec', 'b')
-    makePlot(ax, dat5t, dat10t, dat15t, 0, 'ratiomax', 'Ratio ops/sec', 'b', '--')
+#    makePlot(ax, dat5t, dat10t, dat15t, 0, 'ratiomax', 'Ratio ops/sec', 'b', '--')
+    makePlot(ax, dat5t, dat10t, dat15t, 0, 'meanratiocolmax', 'Ratio ops/sec', 'b', '--')
     
     makePlot(ax, dat5, dat10, dat15, 0, 'meanratio', 'Ratio ops/sec', 'c')
-    makePlot(ax, dat5, dat10, dat15, 0, 'ratiomax', 'Ratio ops/sec', 'c', '--')
+ #   makePlot(ax, dat5, dat10, dat15, 0, 'ratiomax', 'Ratio ops/sec', 'c', '--')
+
+    makePlot(ax, dat5, dat10, dat15, 0, 'meanratiocolmax', 'Ratio ops/sec', 'c', '--')
     resetLimits(ax)
 
 
@@ -205,7 +231,13 @@ def resetLimits(ax):
     ax.set_xlim(lims[0] - 0.1*xrng, lims[1] + 0.1*xrng)
     ax.set_ylim(lims[2] - 0.1*yrng, lims[3] + 0.1*yrng)
     
+def testCompPlots():
+    dataDir = str(os.environ['RIAK_TEST_BASE'])
+    dat5,  uparam1, uparam2 = getSortedDat(dataDir + '/data/ycsb_5by5_100.txt')
+    getData(1, 'meancolmax', dat5, dat5, dat5)
+
 makeCompPlots()
+#testCompPlots()
 
 
 

@@ -179,7 +179,7 @@ writeValNew()
     enddate="${11}"
     stat=${12}
 
-    echo "Inside writeValNew with stat='$stat' batchsize='$batchsize'"
+#    echo "Inside writeValNew with stat='$stat' batchsize='$batchsize'"
     
     total=0.0
     if [ $stat == ops ]; then
@@ -255,7 +255,7 @@ getTestDataYcsb()
     local batchsize=$(valOrDef batchsize '' "$@")
     batchsize=${batchsize//\"/}
     
-    echo "Inside getTestDataYcsb with files='$files'"
+#    echo "Inside getTestDataYcsb with files='$files'"
     
     local iIter="0"                                                                      
     for i in $files; do
@@ -279,8 +279,6 @@ getTestDataSingle()
     first="true"
     haveEnd="false"
 
-    echo "Here 1"
-	
     while read p; do
 	case "$p" in
 
@@ -452,8 +450,8 @@ getTestDataSingleAnyYcsb()
 		    if [ $first == "true" ]; then
 			first="false"
 		#	rm "/tmp/dat"$iter".txt"
-		    else
-			echo "Calling writeVal with val1 = $val1 val2 = $val2" > /dev/null
+#		    else
+#			echo "Calling writeVal with val1 = $val1 val2 = $val2" > /dev/null
 		    fi
 		    
 		    total=`echo $av | bc`
@@ -521,7 +519,7 @@ getTestDataSingleYcsb()
     local iter=$(valOrDef iter 'ops' "$@")
     iter=${iter//\"/}
 
-    echo "Inside YCSB with file=$file param1=$param1 param2=$param2 stat='$stat' cellsize=$cellsize fieldcount=$fieldcount batchsize=$batchsize iter=$iter "
+#    echo "Inside YCSB with file=$file param1=$param1 param2=$param2 stat='$stat' cellsize=$cellsize fieldcount=$fieldcount batchsize=$batchsize iter=$iter "
     
     printf "\rProcessing $file..."
     
@@ -536,16 +534,16 @@ getTestDataSingleYcsb()
 	    #------------------------------------------------------------
 	    
 	    *'event_type="start"'*)
-		echo "Found line: $p"
+#		echo "Found line: $p"
 		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
 		    sub=${BASH_REMATCH[1]}
-		    echo "Found sub: $sub"
+#		    echo "Found sub: $sub"
 
 		    if [ $first == "true" ]; then
 			first="false"
 			\rm "/tmp/dat"$iter".txt"
 		    else
-			echo "Calling writeVal with val1 = $val1 val2 = $val2"
+#			echo "Calling writeVal with val1 = $val1 val2 = $val2"
 			writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat
 		    fi
 		    
@@ -558,7 +556,7 @@ getTestDataSingleYcsb()
 		    ncol=$(parseparamnew "$sub" fieldcount)
 		    batch=$(parseparamnew "$sub" batchsize)
 
-		    echo "Found nbyte=$nbyte ncol=$ncol batch=$batch"
+#		    echo "Found nbyte=$nbyte ncol=$ncol batch=$batch"
 		    
 		    #------------------------------------------------------------
 		    # Override defaults if we can
@@ -579,7 +577,7 @@ getTestDataSingleYcsb()
 			fieldcount=$ncol
 		    fi
 		    
-		    echo "param1 = $param1 val1 = $val1 param2 = $param2 val2 = $val2 nbyte = $nbyte ncol = $ncol batch = $batch"
+#		    echo "param1 = $param1 val1 = $val1 param2 = $param2 val2 = $val2 nbyte = $nbyte ncol = $ncol batch = $batch"
 		    
 		    av="scale=4;(0.0"
 		fi
@@ -650,14 +648,14 @@ generatePythonPlots()
     local contour=$(valOrDef contour 'none' "$@")
     contour=${contour//\"/}
 
-    echo "contour = '$contour'"
-    echo "figsize = $figsize"
-    echo "figview = $figview"
-    echo "labels = $labels"
-    echo "param1 = $param1"
-    echo "param2 = $param2"
-    echo "overplot = $overplot"
-    
+#    echo "contour  = '$contour'"
+#    echo "figsize  = $figsize"
+#    echo "figview  = $figview"
+#    echo "labels   = $labels"
+#    echo "param1   = $param1"
+#    echo "param2   = $param2"
+#    echo "overplot = $overplot"
+
     pycomm="import scipy.interpolate as int;\n"
     pycomm+="import numpy as np;\n"
     pycomm+="import matplotlib.pyplot as plt;\n"
@@ -735,6 +733,7 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  if overplot:\n"
     pycomm+="    for iCol in range(0,nColPerRow):\n"
+
     if [ $contour == contouronly ]; then
 	pycomm+="      ax = fig.add_subplot(1, nColPerRow, iCol+1);\n"
     else
@@ -755,6 +754,7 @@ generatePythonPlots()
     pycomm+="        currSubplotInd=nColPerRow * iFile + iCol + 1\n"
     pycomm+="        if axes[iCol] == None:\n"
     pycomm+="          axes[iCol] = []\n"
+
     if [ $contour == contouronly ]; then
 	pycomm+="        axes[iCol].append(fig.add_subplot(nFile, nColPerRow, currSubplotInd));\n"
     else
@@ -864,8 +864,8 @@ generatePythonPlots()
     pycomm+="    ax.plot_surface(x1, y1, (z1 + z2)/scale, color=Color);\n"
     pycomm+="  elif action == '/':\n"
     pycomm+="\n"
+
     if [ $contour == contouronly ]; then
-	echo "CONTOUR IS contouronly"
 	pycomm+="    plt.hold(True);\n"
 	pycomm+="\n"
 	pycomm+="    r = z1/z2;\n"
@@ -880,7 +880,6 @@ generatePythonPlots()
 	pycomm+="    print 'Max of ratio = ' + str(np.max(r));\n"
 
     elif [ $contour == contour ]; then
-	echo "CONTOUR IS contour"
 	pycomm+="    plt.hold(True);\n"
 	pycomm+="\n"
 	pycomm+="    r = z1/z2;\n"
@@ -891,7 +890,6 @@ generatePythonPlots()
 	pycomm+="    ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
 	pycomm+="    ax.set_zlim(0, maxVal*1.1);\n"
     else
-	echo "CONTOUR IS $contour"
 	pycomm+="    r = z1/z2;\n"
 	pycomm+="    ax.plot_surface(x1, y1, r, color=Color);\n"
 	pycomm+="    maxVal = np.max(z1/z2);\n"
@@ -904,18 +902,15 @@ generatePythonPlots()
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel);\n"
     pycomm+="#  retick(ax, 'y')\n"
 
-    echo "view = $figview"
     if [ $figview != \"\" ]; then
 	pycomm+="  ax.view_init${figview//\"/};\n"
     fi
-    
+
     pycomm+="\n"
 
     pycomm+="def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units, maxs):\n"
     pycomm+="  nfile=np.shape(files)[0]\n"
     pycomm+="  ncolor=np.shape(colors)[0];\n"
-    pycomm+="\n"
-    pycomm+="  print 'plotwithaction = ' + str(plotwithaction)"
     pycomm+="\n"
     pycomm+="  for iFile in range(0,nfile):\n"
     pycomm+="\n"
@@ -991,7 +986,7 @@ generatePythonPlots()
     #------------------------------------------------------------
     # Generate a list of data files
     #------------------------------------------------------------
-    
+
     iIter="0"
     fileNames=""
     first=true
@@ -1055,7 +1050,7 @@ generatePythonPlots()
     iIter="0"
     cells=""
     first=true
-    echo "Cellsizes = $cellsizes"
+
     for i in $cellsizes; do
 	if [ $first == "true" ]; then
 	    cells+="[$i"
@@ -1137,8 +1132,6 @@ generatePythonPlots()
 
 	IFS=';' read -ra labarr <<< "$labels"
 	labarrsize=${#labarr[@]}
-
-	echo "Labarr size = $labarrsize"
 
 	if [ $overplot == \""false\"" ] && [ $labarrsize -gt 1 ]; then
 	    label=${labarr[$iter]//\"/}
@@ -1236,12 +1229,6 @@ plotlogfile()
     fi
 
     getTestData "$allfiles" $2 $3 "$allcellsize" $stat
-    echo "output(1) = $output"
-    if [ $output == \"\" ]; then
-	echo "output is null"
-    fi
-
-    echo "allcells = $allcellsize"
     
     generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize"
 }
@@ -1277,12 +1264,9 @@ plotlogfileycsb()
     output=$(valOrDef output '' "$@")
     figview=$(valOrDef figview '' "$@")
 
-    contour=$(valOrDef contour '' "$@")
+    contour=$(valOrDef contour 'none' "$@")
     contour=${contour//\"/}
 
-    echo "figsize = $figsize"
-    echo "labels  = '$labels'"
-    
     allfiles=$files
     allcellsize=$cellsize
     allbatchsize=$batchsize
@@ -1320,13 +1304,6 @@ plotlogfileycsb()
 
     getTestDataYcsb files="$allfiles" param1=$param1 param2=$param2 cellsize="$allcellsize" batchsize="$allbatchsize" fieldcount="$allfieldcount" stat=$stat
 
-    echo "output(1) = $output"
-    if [ $output == \"\" ]; then
-	echo "output is null"
-    fi
-
-    echo "allcells = $allcellsize figsize=$figsize"
-    
     generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize" contour=$contour
 }
 

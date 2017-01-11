@@ -2161,6 +2161,23 @@ retrieveAnalyzerFiles()
     export analyzerFiles=$files
 }
 
+resetAnalyzerFiles()
+{
+    cluster=$1
+
+    hosts=$(systemhosts $cluster)
+
+    echo "Hosts are: $hosts"
+    
+    files=""
+    for host in $hosts
+    do
+	files+=$host"_counters.txt "
+    done
+
+    export analyzerFiles=$files
+}
+
 retrieveEventFiles()
 {
     cluster=$1
@@ -2187,10 +2204,11 @@ animate()
 
     skip=$(valOrDef skip '175' "$@")
     save=$(valOrDef save 'False' "$@")
+    labels=$(valOrDef labels 'False' "$@")
     nframe=$(valOrDef nframe '45' "$@")
     tags=$(valOrDef tags 'syncput query' "$@")
 
-    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="${tags//\"/}" skipstart=${skip//\"/} nframe=${nframe//\"/} save=${save//\"/}
+    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="${tags//\"/}" skipstart=${skip//\"/} nframe=${nframe//\"/} save=${save//\"/} labels=${labels//\"/}
 }
 
 getGenBucketJson()
@@ -2230,6 +2248,39 @@ createGenBucket()
     riak-admin bucket-type create $tableName ${JSON}
     sleep 3
     riak-admin bucket-type activate $tableName
+}
+
+getBucketTypeJson()
+{
+    local nval=$(valOrDef nval '1' "$@")
+    nval=${nval//\"/}
+
+    local write_once=$(valOrDef write_once 'false' "$@")
+    write_once=${write_once//\"/}
+
+    JSON="{\"props\": {\"n_val\": $nval, \"write_once\": $write_once}}"
+
+    echo $JSON
+}
+
+createBucketType()
+{
+    local name=$(valOrDef name 'TestBucketType' "$@")
+    name=${name//\"/}
+
+    local nval=$(valOrDef nval '1' "$@")
+    nval=${nval//\"/}
+
+    local write_once=$(valOrDef write_once 'false' "$@")
+    write_once=${write_once//\"/}
+
+    JSON=$(getBucketTypeJson nval=$nval write_once=$write_once)
+    
+    echo "Creating bucket $name with JSON = $JSON"
+    
+    riak-admin bucket-type create $name ${JSON}
+    sleep 3
+    riak-admin bucket-type activate $name
 }
 
 testSequenceSL()
@@ -2315,4 +2366,26 @@ labeltest()
     for i in "${ADDR[@]}"; do
 	echo "val = '$i'"
     done
+}
+
+initAwsSinkRepl()
+{
+    riak=$(valOrDef riak '' "$@")
+    riak=${riak//\"/}
+
+    $riak/bin/riak-repl clustername awsb
+}
+
+initAwsSourceRepl()
+{
+    riak=$(valOrDef riak '' "$@")
+    riak=${riak//\"/}
+
+    $riak/bin/riak-repl clustername awsa
+    $riak/bin/riak-repl realtime enable awsb
+    $riak/bin/riak-repl fullsync enable awsb
+    $riak/bin/riak-repl realtime cascades always
+
+    $riak/bin/riak-repl realtime start
+    $riak/bin/riak-repl fullsync start
 }

@@ -20,7 +20,7 @@ export RIAK_TEST_BASE=$CWD
 # Add relevant directories to our python path
 #------------------------------------------------------------
 
-#export PYTHONPATH=${PYTHONPATH}:${RIAK_TEST_BASE}/python_scripts:/usr/local/lib/python2.7/site-packages
+export PYTHONPATH=${PYTHONPATH}:${RIAK_TEST_BASE}/python_scripts
 
 #------------------------------------------------------------
 # Finally, source bash scripts

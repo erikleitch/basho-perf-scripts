@@ -533,17 +533,14 @@ getTestDataSingleYcsb()
 	    # If this is a config line, extract the parameter vals from it
 	    #------------------------------------------------------------
 	    
-	    *'event_type="start"'*)
-#		echo "Found line: $p"
+	    *'event_type="setup"'*)
 		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
 		    sub=${BASH_REMATCH[1]}
-#		    echo "Found sub: $sub"
 
 		    if [ $first == "true" ]; then
 			first="false"
 			\rm "/tmp/dat"$iter".txt"
 		    else
-#			echo "Calling writeVal with val1 = $val1 val2 = $val2"
 			writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat
 		    fi
 		    
@@ -1923,9 +1920,17 @@ harnesshosts()
 {
     cluster=$1
     slhosts=`hosts $cluster 2>&1`
-    if [[ "$slhosts" =~ [[:print:]]*"harness_hosts: hosts (4):"([[:print:]]*) ]]
+    if [[ "$slhosts" =~ [[:print:]]*"harness_hosts:"([[:print:]]*) ]]
     then
-	echo ${BASH_REMATCH[1]}
+	savestr=${BASH_REMATCH[1]}
+	subs=${BASH_REMATCH[1]}
+	if [[ "$subs" =~ [[:print:]]*"):"([[:print:]]*) ]]
+	then
+	    echo ${BASH_REMATCH[1]}
+	else
+	    echo $savestr
+	fi
+	
     fi
 }
 

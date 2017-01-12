@@ -1653,6 +1653,27 @@ constructInfluxQuery()
     wget -qO - "http://localhost:58086/query?db=collectd&q=$query"
 }
 
+pythonInfluxYcsbQuery()
+{
+    starttime="$1"
+    stoptime="$2"
+    interval="$3"
+    
+    utcstart=$(localTimeToUtc "$starttime")
+    utcstop=$(localTimeToUtc "$stoptime")
+    
+    query="http://localhost:58086/query?db=collectd&q=select non_negative_derivative(sum(value),$interval)/10 from ycsb_operations where time > '$utcstart' and time < '$utcstop' and ( host = 'ip-10-1-3-1' ) group by time($interval) fill(0)"
+
+    echo $query >> /tmp/queries.txt
+    
+    local pycomm="import requests\n"
+    pycomm+="\n"
+    pycomm+="r = requests.get(\"$query\")\n"
+
+    printf "$pycomm" | python
+    printf "$pycomm" >> /tmp/queryTest.py
+}
+
 pythonInfluxQuery()
 {
     starttime="$1"

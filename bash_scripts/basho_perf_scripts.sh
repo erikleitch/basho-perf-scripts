@@ -357,8 +357,11 @@ getTestDataSingleNew()
     printf "\rProcessing $file..."
     
     first="true"
+    firstStart="true"
     haveEnd="false"
 
+    echo "FirstStart = $firstStart"
+    
     while read p; do
 	case "$p" in
 
@@ -367,24 +370,28 @@ getTestDataSingleNew()
 	    #------------------------------------------------------------
 	    
 	    *'event_type=start'*)
-		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
-		    sub=${BASH_REMATCH[1]}
-		    if [[ $sub =~ [a-z]*{(.*)}[a-z]* ]]; then
+		if [ $firstStart == "true" ]; then
+		    firstStart="false"
+		else
+		    if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
 			sub=${BASH_REMATCH[1]}
-			
-			if [ $first == "true" ]; then
-			    first="false"
-			    \rm "/tmp/dat"$iter".txt"
-			else
-			    writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+			if [[ $sub =~ [a-z]*{(.*)}[a-z]* ]]; then
+			    sub=${BASH_REMATCH[1]}
+			    
+			    if [ $first == "true" ]; then
+				first="false"
+				\rm "/tmp/dat"$iter".txt"
+			    else
+				writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+			    fi
+			    
+			    val1=$(parseparam "$sub" $param1)
+			    val2=$(parseparam "$sub" $param2)
+			    
+			    av="scale=4;(0.0"
 			fi
 			
-			val1=$(parseparam "$sub" $param1)
-			val2=$(parseparam "$sub" $param2)
-			
-			av="scale=4;(0.0"
 		    fi
-		    
 		fi
 		;;
 
@@ -431,33 +438,51 @@ getTestDataSingleAnyYcsb()
     printf "\rProcessing $file..."
     
     first="true"
+    firstStart="true"
     haveEnd="false"
-
+    setup="false"
+    start="false"
+    
     av="0"
     while read p; do
 	case "$p" in
 
 	    #------------------------------------------------------------
-	    # If this is a config line, extract the parameter vals from it
+	    # If we encounter a setup line, set start to false, and
+	    # mark the setup line as encountered.  Setting start to
+	    # false will prevent us from erroneously including setup
+	    # operations in the final Throughput count
+	    #------------------------------------------------------------
+	    
+	    *'event_type="setup"'*)
+		setup="true"
+		start="false"
+		;;
+
+	    #------------------------------------------------------------
+	    # If we've seen a setup line, then this is a valid start
+	    # event (the first event in the file is also a 'start'
+	    # event, but doesn't correspond to a specific test
+	    #
+	    # Extract the parameter vals from the config line
 	    #------------------------------------------------------------
 	    
 	    *'event_type="start"'*)
-#		echo "Found line: $p"
-		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
-		    sub=${BASH_REMATCH[1]}
-#		    echo "Found sub: $sub"
+		if [ $setup == "true" ]; then
+		    start="true"
+		    if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
+			sub=${BASH_REMATCH[1]}
 
-		    if [ $first == "true" ]; then
-			first="false"
-		#	rm "/tmp/dat"$iter".txt"
-#		    else
-#			echo "Calling writeVal with val1 = $val1 val2 = $val2" > /dev/null
+			if [ $first == "true" ]; then
+			    first="false"
+			    rm "/tmp/dat"$iter".txt"
+			fi
+		    
+			total=`echo $av | bc`
+			echo "Total = $total"
+			
+			av="0"
 		    fi
-		    
-		    total=`echo $av | bc`
-		    echo "Total = $total"
-		    
-		    av="0"
 		fi
 		;;
 
@@ -477,15 +502,18 @@ getTestDataSingleAnyYcsb()
 	    #------------------------------------------------------------
 	    
 	    *\[OVERALL\],\ Throughput*)
-#		echo "Found a throughput line: $p"
-		if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
-		    av+="+"${BASH_REMATCH[1]}
-#		    echo "av = $av"
-		fi
+		if [ $start == "true" ]; then
 
-		if [ $haveEnd == "false" ]; then
-		    enddate=$(getDate "$p")
-		    haveEnd="true"
+		    echo "Found a Throughput line and start = $start: $p"
+
+		    if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
+			av+="+"${BASH_REMATCH[1]}
+		    fi
+		    
+		    if [ $haveEnd == "false" ]; then
+			enddate=$(getDate "$p")
+			haveEnd="true"
+		    fi
 		fi
 		;;
 	esac
@@ -524,59 +552,75 @@ getTestDataSingleYcsb()
     printf "\rProcessing $file..."
     
     first="true"
+    firstStart="true"
     haveEnd="false"
-
+    start="false"
+    setup="false"
+    
     while read p; do
+
 	case "$p" in
 
 	    #------------------------------------------------------------
 	    # If this is a config line, extract the parameter vals from it
 	    #------------------------------------------------------------
-	    
+
 	    *'event_type="setup"'*)
-		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
-		    sub=${BASH_REMATCH[1]}
+		setup="true"
+		start="false"
+		;;
 
-		    if [ $first == "true" ]; then
-			first="false"
-			\rm "/tmp/dat"$iter".txt"
-		    else
-			writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat
+	    *'event_type="start"'*)
+
+		if [ $setup == "true" ]; then
+
+		    start="true"
+		    
+		    if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
+			sub=${BASH_REMATCH[1]}
+			
+			if [ $first == "true" ]; then
+			    first="false"
+			    \rm "/tmp/dat"$iter".txt"
+			else
+			    writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat
+			fi
+			
+			val1=$(parseparamnew "$sub" $param1)
+			val2=$(parseparamnew "$sub" $param2)
+			
+			# These are all the things we need to calculate writes/sec and bytes/sec
+			
+			nbyte=$(parseparamnew "$sub" fieldlength)
+			ncol=$(parseparamnew "$sub" fieldcount)
+			batch=$(parseparamnew "$sub" batchsize)
+			
+			#		    echo "Found nbyte=$nbyte ncol=$ncol batch=$batch"
+			
+			#------------------------------------------------------------
+			# Override defaults if we can
+			#------------------------------------------------------------
+			
+			if [ ! -z $batch ]
+			then
+			    batchsize=$batch
+			fi
+			
+			if [ ! -z $nbyte ]
+			then
+			    cellsize=$nbyte
+			fi
+			
+			if [ ! -z $ncol ]
+			then
+			    fieldcount=$ncol
+			fi
+			
+			#		    echo "param1 = $param1 val1 = $val1 param2 = $param2 val2 = $val2 nbyte = $nbyte ncol = $ncol batch = $batch"
+			
+			av="scale=4;(0.0"
 		    fi
-		    
-		    val1=$(parseparamnew "$sub" $param1)
-		    val2=$(parseparamnew "$sub" $param2)
 
-		    # These are all the things we need to calculate writes/sec and bytes/sec
-		    
-		    nbyte=$(parseparamnew "$sub" fieldlength)
-		    ncol=$(parseparamnew "$sub" fieldcount)
-		    batch=$(parseparamnew "$sub" batchsize)
-
-#		    echo "Found nbyte=$nbyte ncol=$ncol batch=$batch"
-		    
-		    #------------------------------------------------------------
-		    # Override defaults if we can
-		    #------------------------------------------------------------
-		    
-		    if [ ! -z $batch ]
-		    then
-			batchsize=$batch
-		    fi
-
-		    if [ ! -z $nbyte ]
-		    then
-			cellsize=$nbyte
-		    fi
-
-		    if [ ! -z $ncol ]
-		    then
-			fieldcount=$ncol
-		    fi
-		    
-#		    echo "param1 = $param1 val1 = $val1 param2 = $param2 val2 = $val2 nbyte = $nbyte ncol = $ncol batch = $batch"
-		    
-		    av="scale=4;(0.0"
 		fi
 		;;
 
@@ -596,15 +640,17 @@ getTestDataSingleYcsb()
 	    #------------------------------------------------------------
 	    
 	    *\[OVERALL\],\ Throughput*)
-#		echo "Found a throughput line: $p"
-		if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
-		    av+="+"${BASH_REMATCH[1]}
-#		    echo "av = $av"
-		fi
 
-		if [ $haveEnd == "false" ]; then
-		    enddate=$(getDate "$p")
-		    haveEnd="true"
+		if [ $start == "true" ]; then
+		    if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
+			av+="+"${BASH_REMATCH[1]}
+		    fi
+		    
+		    if [ $haveEnd == "false" ]; then
+			enddate=$(getDate "$p")
+			haveEnd="true"
+		    fi
+
 		fi
 		;;
 	esac
@@ -644,6 +690,9 @@ generatePythonPlots()
 
     local contour=$(valOrDef contour 'none' "$@")
     contour=${contour//\"/}
+
+    local interp=$(valOrDef interp 'cubic' "$@")
+    interp=${interp//\"/}
 
 #    echo "contour  = '$contour'"
 #    echo "figsize  = $figsize"
@@ -785,7 +834,7 @@ generatePythonPlots()
     pycomm+="  y1=np.linspace(np.min(uy), np.max(uy), 200);\n"
     pycomm+="  x2,y2 = np.meshgrid(x1, y1);\n"
     pycomm+="  if nx > 3 and ny > 3:\n"
-    pycomm+="    z2=int.griddata(points, d, (x2, y2), method='cubic')\n"
+    pycomm+="    z2=int.griddata(points, d, (x2, y2), method='$interp')\n"
     pycomm+="  else:\n"
     pycomm+="    z2=int.griddata(points, d, (x2, y2), method='linear')\n"
     pycomm+="  return x2, y2, z2, unit\n"
@@ -1189,7 +1238,6 @@ plotlogfile()
     plotwithfiles=$(valOrDef plotwith '' "$@")
     plotwithaction=$(valOrDef plotwithaction 'p' "$@")
     stat=$(valOrDef stat 'ops' "$@")
-
     
     output=$(valOrDef output '' "$@")
     figview=$(valOrDef figview '' "$@")
@@ -1264,6 +1312,9 @@ plotlogfileycsb()
     contour=$(valOrDef contour 'none' "$@")
     contour=${contour//\"/}
 
+    interp=$(valOrDef interp 'cubic' "$@")
+    interp=${interp//\"/}
+    
     allfiles=$files
     allcellsize=$cellsize
     allbatchsize=$batchsize
@@ -1301,7 +1352,7 @@ plotlogfileycsb()
 
     getTestDataYcsb files="$allfiles" param1=$param1 param2=$param2 cellsize="$allcellsize" batchsize="$allbatchsize" fieldcount="$allfieldcount" stat=$stat
 
-    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize" contour=$contour
+    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize" contour=$contour interp=$interp
 }
 
 makeycsbplot()
@@ -1658,14 +1709,31 @@ pythonInfluxYcsbQuery()
     
     utcstart=$(localTimeToUtc "$starttime")
     utcstop=$(localTimeToUtc "$stoptime")
+
+    hh=$(harnesshosts)
+    firsthost=($hh)
+    echo "hh =- $hh"
+    hostFilter=""
+    for host in $hh
+    do
+	echo $firsthost
+	if [ $host == $firsthost ]; then
+	    hostFilter+=" host = '$host' "
+	else
+	    hostFilter+="or host = '$host' "
+	fi
+    done
+
+    echo $hostFilter
     
-    query="http://localhost:58086/query?db=collectd&q=select non_negative_derivative(sum(value),$interval)/10 from ycsb_operations where time > '$utcstart' and time < '$utcstop' and ( host = 'ip-10-1-3-1' ) group by time($interval) fill(0)"
+    query="http://localhost:58086/query?db=collectd&q=select non_negative_derivative(sum(value),$interval)/10 from ycsb_operations where time > '$utcstart' and time < '$utcstop' and ( $hostFilter ) group by time($interval) fill(0)"
 
     echo $query >> /tmp/queries.txt
     
     local pycomm="import requests\n"
     pycomm+="\n"
     pycomm+="r = requests.get(\"$query\")\n"
+    pycomm+="print str(r.json())"
 
     printf "$pycomm" | python
     printf "$pycomm" >> /tmp/queryTest.py

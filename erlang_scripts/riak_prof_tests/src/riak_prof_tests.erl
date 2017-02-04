@@ -1467,3 +1467,7 @@ putKvKey(Bucket, Key, Val) ->
     Obj = riakc_obj:new(Bucket, Key, Val),
     riakc_pb_socket:put(Pid, Obj).
 
+geoQueryAws(Range) ->
+    C = getClient("127.0.0.1", 8087),
+    riakc_ts:query(C, "select * from GeoCheckin where myfamily='family1' and myseries='seriesX' and time > 0 and time < " ++ integer_to_list(Range)).
+

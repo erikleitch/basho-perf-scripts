@@ -4,7 +4,6 @@ import matplotlib as mpl
 import scipy.interpolate as int;
 from mpl_toolkits.mplot3d import Axes3D;
 import sys
-import os
 from os import listdir
 from os.path import isfile, join
 import scipy.stats as stats

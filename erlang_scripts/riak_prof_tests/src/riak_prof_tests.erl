@@ -25,6 +25,8 @@ getClient(sldeva) ->
     getClient("10.109.234.226", 8087);
 getClient(slb) ->
     getClient("10.109.234.238", 8087);
+getClient(aws) ->
+    getClient("10.1.3.1", 8087);
 getClient(_) ->
     getClient("127.0.0.1", 10017).
 
@@ -990,7 +992,12 @@ runKvPutLatencyPercentileTest(N) ->
     C = getClient(),
     [kvPutLatencyPercentileTest(C, N, Nbyte) || Nbyte <- Bytes].
 
-runKvLatencyTests() ->
+runKvLatencyTests([ArgStr]) ->
+    ArgDict = getArgDict(ArgStr),
+    Client  = getArgKey(ArgDict, "client", local),
+    Bucket  = list_to_binary(getArgKey(ArgDict, "bucket", "TestBucketType")),
+    io:format("Client = ~p Bucket - ~p~n Dict = ~p~n", [Client, Bucket, ArgDict]),
+
     Bytes = [{100,       1}, 
 	     {100,      10}, 
 	     {100,     100}, 
@@ -999,43 +1006,42 @@ runKvLatencyTests() ->
 	     {100,  100000}, 
 	     {100, 1000000}, 
 	     {10, 10000000}],
-    [runKvLatencyTest(N, Nbyte) || {N, Nbyte} <- Bytes].
+    [runKvLatencyTest(N, Nbyte, Client, Bucket) || {N, Nbyte} <- Bytes].
 
-runKvLatencyTest(N, Nbyte) ->
-    kvPutTest(N, Nbyte),
-    kvGetTest(N, Nbyte),
-    kvDelTest(N, Nbyte).
+runKvLatencyTest(N, Nbyte, Client, Bucket) ->
+    kvPutTest(N, Nbyte, Client, Bucket),
+    kvGetTest(N, Nbyte, Client, Bucket),
+    kvDelTest(N, Nbyte, Client, Bucket).
     
 runKvLatencyTest(Args) ->
     [Nstr, NbyteStr] = Args,
     N = list_to_integer(Nstr),
     Nbyte = list_to_integer(NbyteStr),
-    kvPutTest(N, Nbyte),
-    kvGetTest(N, Nbyte).
+    kvPutTest(N, Nbyte, local, <<"TestBucketType">>),
+    kvGetTest(N, Nbyte, local, <<"TestBucketType">>).
      
 kvTestData(Nbyte) ->
     crypto:rand_bytes(Nbyte).
 
-kvPutTest(N,Nbyte) ->
-    C = getClient(),
+kvPutTest(N,Nbyte,Client,Bucket) ->
+    C = getClient(Client),
     profiler:profile({prefix, "/tmp/client_profiler_results"}),
     profiler:profile({noop, false}),
     Name = list_to_atom("put_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
-    profiler:profile({start, Name}),
-    io:format("Generating data ~n", []),
     Data = kvTestData(Nbyte),
-    io:format("Done generating data ~n", []),
-    kvPutTest(C,Data,Name,N,0).
-kvPutTest(_C,_Data,Name,_N,_N) ->
+    profiler:profile({start, Name}),
+    kvPutTest(C,Bucket,Data,Name,N,0).
+kvPutTest(_C,_Bucket,_Data,Name,_N,_N) ->
     profiler:profile({stop, Name}),
     profiler:profile({debug}),
     ok;
-kvPutTest(C,Data,Name, N,Acc) ->
+kvPutTest(C,Bucket,Data,Name, N,Acc) ->
     Key = list_to_binary("key" ++ integer_to_list(Acc)),
-    Obj = riakc_obj:new({<<"TestBucketType">>, <<"GeoCheckin">>}, Key, Data),
+    Obj = riakc_obj:new({Bucket, <<"GeoCheckin">>}, Key, Data),
     riakc_pb_socket:put(C, Obj),
-    kvPutTest(C,Data,Name,N,Acc+1).
+    kvPutTest(C,Bucket,Data,Name,N,Acc+1).
 
+<<<<<<< HEAD
 kvPutLatencyPercentileTest(C, N, Nbyte) ->
     Name = list_to_atom("put_nbyte" ++ integer_to_list(Nbyte) ++ "_nrow" ++ integer_to_list(N)),
     FileName = "/tmp/kvlatency_perc/" ++ atom_to_list(Name),
@@ -1067,35 +1073,39 @@ kvPutLatencyPercentileTestLoop({C, Data, IoDevice}, N, Acc) ->
 
 kvGetTest(N,Nbyte) ->
     C = getClient(),
+=======
+kvGetTest(N,Nbyte,Client,Bucket) ->
+    C = getClient(Client),
+>>>>>>> 877b761e14ed554716ebc02b2778327fb834b242
     profiler:profile({prefix, "/tmp/client_profiler_results"}),
     profiler:profile({noop, false}),
     Name = list_to_atom("get_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
     profiler:profile({start, Name}),
-    kvGetTest(C,Name,N,0).
-kvGetTest(_C,Name,_N,_N) ->
+    kvGetTest(C,Bucket,Name,N,0).
+kvGetTest(_C,_Bucket,Name,_N,_N) ->
     profiler:profile({stop, Name}),
     profiler:profile({debug}),
     ok;
-kvGetTest(C,Name,N,Acc) ->
+kvGetTest(C,Bucket,Name,N,Acc) ->
     Key = list_to_binary("key" ++ integer_to_list(Acc)),
-    riakc_pb_socket:get(C, {<<"TestBucketType">>, <<"GeoCheckin">>}, Key),
-    kvGetTest(C,Name,N,Acc+1).
+    riakc_pb_socket:get(C, {Bucket, <<"GeoCheckin">>}, Key),
+    kvGetTest(C,Bucket,Name,N,Acc+1).
 
-kvDelTest(N,Nbyte) ->
-    C = getClient(),
+kvDelTest(N,Nbyte,Client,Bucket) ->
+    C = getClient(Client),
     profiler:profile({prefix, "/tmp/client_profiler_results"}),
     profiler:profile({noop, false}),
     Name = list_to_atom("del_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
     profiler:profile({start, Name}),
-    kvDelTest(C,Name,N,0).
-kvDelTest(_C,Name,_N,_N) ->
+    kvDelTest(C,Bucket,Name,N,0).
+kvDelTest(_C,_Bucket,Name,_N,_N) ->
     profiler:profile({stop, Name}),
     profiler:profile({debug}),
     ok;
-kvDelTest(C,Name,N,Acc) ->
+kvDelTest(C,Bucket,Name,N,Acc) ->
     Key = list_to_binary("key" ++ integer_to_list(Acc)),
-    riakc_pb_socket:delete(C, {<<"TestBucketType">>, <<"GeoCheckin">>}, Key),
-    kvDelTest(C,Name,N,Acc+1).
+    riakc_pb_socket:delete(C, {Bucket, <<"GeoCheckin">>}, Key),
+    kvDelTest(C,Bucket,Name,N,Acc+1).
 
 keys(Bucket) ->
     keys(getClient(), Bucket).
@@ -1695,6 +1705,7 @@ putKvKey(Bucket, Key, Val) ->
     Obj = riakc_obj:new(Bucket, Key, Val),
     riakc_pb_socket:put(Pid, Obj).
 
+<<<<<<< HEAD
 
 getModList() ->
     Ret = file:list_dir(app_helper:get_env(riak_core,platform_data_dir) ++ "/ddl_ebin"),
@@ -1748,4 +1759,9 @@ findDDLPath() ->
 		end
 	end,
     [Fn(Entry) || Entry <- L].
+=======
+geoQueryAws(Range) ->
+    C = getClient("127.0.0.1", 8087),
+    riakc_ts:query(C, "select * from GeoCheckin where myfamily='family1' and myseries='seriesX' and time > 0 and time < " ++ integer_to_list(Range)).
+>>>>>>> 877b761e14ed554716ebc02b2778327fb834b242
 

@@ -2675,6 +2675,20 @@ buildPartitionFileSF()
     echo "node $nodename sum $sum" >> $outputfile
 }
 
+plotRing()
+{
+    devdir=$1
+    devs=("`ls $devdir`")
+    \rm -rf ring.txt
+    for dev in $devs
+    do
+	buildPartitionFile $devdir/$dev $dev $dev".txt"
+	cat $dev".txt" >> ring.txt
+    done
+
+    python $RIAK_TEST_BASE/python_scripts/makeringplot.py
+}
+
 buildPartitionFile()
 {
     prefixdir=$1

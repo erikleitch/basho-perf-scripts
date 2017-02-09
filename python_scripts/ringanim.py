@@ -11,6 +11,9 @@ import warnings
 
 warnings.simplefilter(action = "ignore", category = FutureWarning)
 
+def str2bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
 #=======================================================================
 # A file object
 #=======================================================================
@@ -94,7 +97,7 @@ class File(object):
 
 class Cluster(object):
     
-    def __init__(self, axes, tags, fileNames, skipstart, nFrame, floor):
+    def __init__(self, axes, tags, fileNames, skipstart, nFrame, floor, dispLabels):
 
         self.nNode     = np.size(fileNames)
         self.nodes     = []
@@ -142,16 +145,26 @@ class Cluster(object):
         # successive ring will have radii that conserve the area of
         # the outer ring
         #
+        #
         # dANp is the total conserved area that we want to match for
         # each successive ring
+        #
 
-        outerRadius = 0.93
-        dANp = 4*np.pi * (1.0*1.0 - outerRadius*outerRadius)
+        minRadius = 0.6
+        totalArea = 4 * np.pi * (1.0*1.0 - minRadius*minRadius)
+        nRing = np.size(self.files) + 1
+        print 'nRing = ' + str(nRing)
+        dANp  = totalArea / nRing
+        outerRadius = np.sqrt(1.0 - dANp / (4*np.pi))
 
+        print 'outerRadius = ' + str(outerRadius)
+        
         self.totalNode = Node(axes, tags, self.files[0], 1.0, dANp)
+        self.totalNode.dispLabels = dispLabels
                 
         for f in self.files:
             node = Node(axes, tags, f, outerRadius, dANp)
+            node.dispLabels = False
             outerRadius = node.radiusa
             self.nodes.append(node)
 
@@ -287,14 +300,25 @@ class Cluster(object):
 
         self.nonzero = 0
         self.nops = 0
+        totals = []
+        
         for node in self.nodes:
-
+                
+            #------------------------------------------------------------
             # If this is the last frame, display cumulative totals for all nodes
+            #------------------------------------------------------------
             
             if val == self.nLine:
+                vals = node.tagTotals[tag]
+                nz=vals[np.where(vals > 0.0)]
+                mn=np.mean(nz)
+#                print 'Totals = ' + str(nz/mn) + ' mean = ' + str(np.mean(nz))
+                totals.append(np.sum(nz))
                 node.drawRing(val, tagInd, self.tagLims, node.tagTotals[tag], self.tagTotalLims, self.floor, color)
 
+            #------------------------------------------------------------
             # Else display the instantaneous count
+            #------------------------------------------------------------
             
             else:
                     
@@ -316,7 +340,10 @@ class Cluster(object):
         if val != self.nLine:
             text += '\n' + 'n_active = ' + str(self.nonzero)
             text += '\n' + 'n_ops    = ' + str(self.nops)
-
+        else:
+          print 'totals = ' + str(totals)
+          print 'Total = ' + str(np.sum(totals)) + ' '
+            
         ax.text(0, 0, text, color=color, size=18, ha='center', va='center')
 
         
@@ -354,6 +381,14 @@ class Node(object):
 
         self.nPart = np.size(self.ps)
 
+        self.pls = []
+        for i in range(0, self.nPart):
+            self.pls.append(self.partitionList[self.ps[i]])
+
+#        print 'ps       = ' + str(self.ps)
+#        print 'partList = ' + str(self.partitionList)
+#        print 'pls      = ' + str(self.pls)
+        
         #------------------------------------------------------------
         # Get a map of tags
         #------------------------------------------------------------
@@ -410,6 +445,7 @@ class Node(object):
             partInd  = self.ps[i]
             countInd = partInd * self.nTag + tagInd
             vals[i] = int(counters[countInd])
+#            print 'Part = ' + str(self.pls[i]) + ' Val = ' + str(vals[i])
 
         return vals
 
@@ -429,6 +465,7 @@ class Node(object):
         
         if inpVals == None:
             vals = self.getOrderedCounts(self.counters, tag)
+#            print 'vals = ' + str(vals)
         else:
             vals = inpVals
 
@@ -456,6 +493,13 @@ class Node(object):
             # 'ring' will look very angular
             
             patch = self.getPatch(theta, dtheta, int(24 * (8.0/self.nPart)))
+
+            if self.dispLabels:
+                x = 1.1*np.cos(theta)
+                y = 1.1*np.sin(theta)
+
+                pstr = str(self.pls[i])
+                ax.text(x, y, pstr[0:4], color='m', rotation=theta*180.0/np.pi, horizontalalignment='center')
 
             if vals[i] == 0:
                 mult = floorval
@@ -547,12 +591,12 @@ skipstart = int(getOptArgs(sys.argv,   'skipstart', 0))
 nframe    = int(getOptArgs(sys.argv,   'nframe',    0))
 save      = getOptArgs(sys.argv,  'save',      False) == "True"
 floor     = float(getOptArgs(sys.argv, 'floor',     0.0))
+dispLabels= getOptArgs(sys.argv, 'labels', False) == "True"
 
-print 'Tags = ' + str(tags.split(' '))
+print 'Tags = ' + str(tags.split(' ')) + ' Labels = ' + str(dispLabels)
 
 fig, axes = getAxes(tags.split(' '))
-
-ring = Cluster(axes, tags.split(' '), files.split(' '), skipstart, nframe, floor)
+ring = Cluster(axes, tags.split(' '), files.split(' '), skipstart, nframe, floor, dispLabels)
 
 #------------------------------------------------------------
 # And run the animation

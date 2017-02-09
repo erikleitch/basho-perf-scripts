@@ -54,54 +54,12 @@ parseparamnew()
     done
 }
 
-#-----------------------------------------------------------------------
-# Given a throughput sum, and a set of parameters, return writes/sec, or
-# empty string if none is available
-#-----------------------------------------------------------------------
-
-getWrites()
+getElement()
 {
-    local av=$1
-    param1=$2
-    val1=$3
-    param2=$4
-    val2=$5
+    cellsize=$1
+    iter=$2
 
-    if [[ $param1 == 'columns' ]]; then
-	echo $av"*"$val1 | bc
-    elif [[ $param2 == 'columns' ]]; then
-	echo $av"*"$val2 | bc
-    elif [[ $param1 == 'fieldcount' ]]; then
-	echo $av"*"$val1 | bc
-    elif [[ $param2 == 'fieldcount' ]]; then
-	echo $av"*"$val2 | bc
-    else
-	echo ""
-    fi
-}
-
-getCellsize()
-{
-    param1=$1
-    val1=$2
-    param2=$3
-    val2=$4
-    cellsize=$5
-    iter=$6
-
-    if [   $param1 == 'cell_size' ]; then
-	echo $val1
-    elif [ $param2 == 'cell_size' ]; then
-	echo $val2
-    elif [ $param1 == 'fieldsize' ]; then
-	echo $val1
-    elif [ $param2 == 'fieldsize' ]; then
-	echo $val2
-    elif [ $param1 == 'fieldlength' ]; then
-	echo $val1
-    elif [ $param2 == 'fieldlength' ]; then
-	echo $val2
-    elif [ ! -z "$cellsize" ]; then
+    if [ ! -z "$cellsize" ]; then
 	cellarr=(`echo $cellsize`)
 	cellarrsize=${#cellarr[@]}
 	if [ $cellarrsize -gt 1 ]; then
@@ -115,6 +73,28 @@ getCellsize()
 }
 
 #-----------------------------------------------------------------------
+# Given a throughput sum, and a set of parameters, return writes/sec, or
+# empty string if none is available
+#-----------------------------------------------------------------------
+
+getWrites()
+{
+    local av=$1
+    local fieldcount=$2
+    local batchsize=$3
+    local iter=$4
+
+    fieldcount=$(getElement "$fieldcount" $iter)
+    batchsize=$(getElement "$batchsize" $iter)
+
+    if [ ! -z "$fieldcount" ] && [ ! -z "$batchsize" ]; then
+	echo $av"*"$fieldcount"*"$batchsize | bc
+    else
+	echo ""
+    fi
+}
+
+#-----------------------------------------------------------------------
 # Given a throughput sum, and a set of parameters, return bytes/sec, or
 # empty string if none is available
 #-----------------------------------------------------------------------
@@ -122,22 +102,17 @@ getCellsize()
 getBytes()
 {
     local av=$1
-    param1=$2
-    val1=$3
-    param2=$4
-    val2=$5
-    iter=$7
+    local cellsize=$2
+    local fieldcount=$3
+    local batchsize=$4
+    local iter=$5
 
-    cellsize=$(getCellsize $param1 $val1 $param2 $val2 "$6" $7)
+    cellsize=$(getElement "$cellsize" $iter)
+    fieldcount=$(getElement "$fieldcount" $iter)
+    batchsize=$(getElement "$batchsize" $iter)
     
-    if [   $param1 == 'columns' ]    && [ ! -z "$cellsize" ]; then
-	echo $av"*"$cellsize"*"$val1 | bc
-    elif [ $param2 == 'columns' ]    && [ ! -z "$cellsize" ]; then
-	echo $av"*"$cellsize"*"$val2 | bc
-    elif [ $param1 == 'fieldcount' ] && [ ! -z "$cellsize" ]; then
-	echo $av"*"$cellsize"*"$val1 | bc
-    elif [ $param2 == 'fieldcount' ] && [ ! -z "$cellsize" ]; then
-	echo $av"*"$cellsize"*"$val2 | bc
+    if [ ! -z "$fieldcount" ] && [ ! -z "$cellsize" ] && [ ! -z "$batchsize" ]; then
+	echo $av"*"$cellsize"*"$fieldcount"*"$batchsize | bc
     else
 	echo ""
     fi
@@ -168,7 +143,7 @@ writeVal()
 	av+=")"
 	total=`echo $av | bc`
 
-	echo "About to getWrites"
+	echo "About to getWrites cellsize = $cellsize"
 	writes=$(getWrites "$av" $param1 $val1 $param2 $val2)
 	bytes=$(getBytes "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter)
 
@@ -197,21 +172,24 @@ writeValNew()
     param2=$4
     val2=$5
     cellsize=$6
-    iter=$7
-    startdate="$8"
-    enddate="$9"
-    stat=${10}
+    fieldcount=$7
+    batchsize=$8
+    iter=$9
+    startdate="${10}"
+    enddate="${11}"
+    stat=${12}
+    nHarness=${13}
 
-    echo "Inside writeVal with stat=$stat"
+#    echo "Inside writeValNew with stat='$stat' batchsize='$batchsize'"
+    
     total=0.0
-    if [ $stat == \"ops\" ]; then
+    if [ $stat == ops ]; then
 	av+=")"
 	total=`echo $av | bc`
 
-	echo "Inside writeVal with stat=$stat total=$total"
-	writes=$(getWrites "$av" $param1 $val1 $param2 $val2)
-	bytes=$(getBytes "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter)
-
+	writes=$(getWrites "$av" "$fieldcount" "$batchsize" $iter)
+	bytes=$(getBytes "$av" "$cellsize"  "$fieldcount" "$batchsize" $iter)
+	
 	if [ $total != "0" ]; then
 	    if [ ! -z "$bytes" ]; then
 		echo $val1 " " $val2 " " $total " " $writes " " $bytes >> "/tmp/dat"$iter".txt"
@@ -222,6 +200,15 @@ writeValNew()
 	    fi
 	fi
 
+    elif [ $stat == avlatency ]; then
+	av+=")/$nHarness"
+	total=`echo $av | bc`
+	echo $val1 " " $val2 " " $total >> "/tmp/dat"$iter".txt"
+
+    elif [ $stat == minlatency ] || [ $stat == maxlatency ] || [ $stat == 95thlatency ] || [ $stat == 99thlatency ]; then
+	total=`echo $av | bc`
+	echo $val1 " " $val2 " " $total >> "/tmp/dat"$iter".txt"
+	
     elif [ $stat == \"cpu\" ]; then
 	total=$(pythonInfluxQuery "$startdate" "$enddate")
 	echo $val1 " " $val2 " " $total >> "/tmp/dat"$iter".txt"
@@ -247,11 +234,35 @@ getTestData()
 
 getTestDataYcsb()
 {
-    local files="$1"
+    echo "All args='$@'"
+    
+    local files=$(valOrDef files '' "$@")
+    files=${files//\"/}
+    
+    local param1=$(valOrDef param1 '' "$@")
+    param1=${param1//\"/}
+    
+    local param2=$(valOrDef param2 '' "$@")
+    param2=${param2//\"/}
+    
+    local cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
 
-    iIter="0"                                                                      
+    echo "Inside getTestDataYcsb with cellsize= '$cellsize'";
+    
+    local stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
+
+    local fieldcount=$(valOrDef fieldcount '' "$@")
+
+    local batchsize=$(valOrDef batchsize '' "$@")
+    batchsize=${batchsize//\"/}
+    
+    echo "Inside getTestDataYcsb with fieldcount='$fieldcount' cellsize='$cellsize'"
+    
+    local iIter="0"                                                                      
     for i in $files; do
-	getTestDataSingleYcsb $i $2 $3 "$4" $iIter $5
+	getTestDataSingleYcsb file=$i param1=$param1 param2=$param2 stat=$stat fieldcount="$fieldcount" batchsize="$batchsize" cellsize="$cellsize" iter=$iIter 
         iIter=$[$iIter+1] 
     done
     printf "\n"
@@ -271,8 +282,6 @@ getTestDataSingle()
     first="true"
     haveEnd="false"
 
-    echo "Here 1"
-	
     while read p; do
 	case "$p" in
 
@@ -292,7 +301,7 @@ getTestDataSingle()
 
 				if [ $first == "true" ]; then
 				    first="false"
-				    rm "/tmp/dat"$iter".txt"
+				    \rm "/tmp/dat"$iter".txt"
 				else
 				    writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
 				fi
@@ -351,8 +360,11 @@ getTestDataSingleNew()
     printf "\rProcessing $file..."
     
     first="true"
+    firstStart="true"
     haveEnd="false"
 
+    echo "FirstStart = $firstStart"
+    
     while read p; do
 	case "$p" in
 
@@ -361,24 +373,28 @@ getTestDataSingleNew()
 	    #------------------------------------------------------------
 	    
 	    *'event_type=start'*)
-		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
-		    sub=${BASH_REMATCH[1]}
-		    if [[ $sub =~ [a-z]*{(.*)}[a-z]* ]]; then
+		if [ $firstStart == "true" ]; then
+		    firstStart="false"
+		else
+		    if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
 			sub=${BASH_REMATCH[1]}
-			
-			if [ $first == "true" ]; then
-			    first="false"
-			    rm "/tmp/dat"$iter".txt"
-			else
-			    writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+			if [[ $sub =~ [a-z]*{(.*)}[a-z]* ]]; then
+			    sub=${BASH_REMATCH[1]}
+			    
+			    if [ $first == "true" ]; then
+				first="false"
+				\rm "/tmp/dat"$iter".txt"
+			    else
+				writeVal "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+			    fi
+			    
+			    val1=$(parseparam "$sub" $param1)
+			    val2=$(parseparam "$sub" $param2)
+			    
+			    av="scale=4;(0.0"
 			fi
 			
-			val1=$(parseparam "$sub" $param1)
-			val2=$(parseparam "$sub" $param2)
-			
-			av="scale=4;(0.0"
 		    fi
-		    
 		fi
 		;;
 
@@ -425,34 +441,51 @@ getTestDataSingleAnyYcsb()
     printf "\rProcessing $file..."
     
     first="true"
+    firstStart="true"
     haveEnd="false"
-
+    setup="false"
+    start="false"
+    
     av="0"
     while read p; do
 	case "$p" in
 
 	    #------------------------------------------------------------
-	    # If this is a config line, extract the parameter vals from it
+	    # If we encounter a setup line, set start to false, and
+	    # mark the setup line as encountered.  Setting start to
+	    # false will prevent us from erroneously including setup
+	    # operations in the final Throughput count
+	    #------------------------------------------------------------
+	    
+	    *'event_type="setup"'*)
+		setup="true"
+		start="false"
+		;;
+
+	    #------------------------------------------------------------
+	    # If we've seen a setup line, then this is a valid start
+	    # event (the first event in the file is also a 'start'
+	    # event, but doesn't correspond to a specific test
+	    #
+	    # Extract the parameter vals from the config line
 	    #------------------------------------------------------------
 	    
 	    *'event_type="start"'*)
-		echo "Found line: $p"
-		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
-		    sub=${BASH_REMATCH[1]}
-		    echo "Found sub: $sub"
+		if [ $setup == "true" ]; then
+		    start="true"
+		    if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
+			sub=${BASH_REMATCH[1]}
 
-		    if [ $first == "true" ]; then
-			first="false"
-		#	rm "/tmp/dat"$iter".txt"
-		    else
-			echo "Calling writeVal with val1 = $val1 val2 = $val2"
-
+			if [ $first == "true" ]; then
+			    first="false"
+			    rm "/tmp/dat"$iter".txt"
+			fi
+		    
+			total=`echo $av | bc`
+			echo "Total = $total"
+			
+			av="0"
 		    fi
-		    
-		    total=`echo $av | bc`
-		    echo "Total = $total"
-		    
-		    av="0"
 		fi
 		;;
 
@@ -472,15 +505,16 @@ getTestDataSingleAnyYcsb()
 	    #------------------------------------------------------------
 	    
 	    *\[OVERALL\],\ Throughput*)
-		echo "Found a throughput line: $p"
-		if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
-		    av+="+"${BASH_REMATCH[1]}
-		    echo "av = $av"
-		fi
+		if [ $start == "true" ]; then
 
-		if [ $haveEnd == "false" ]; then
-		    enddate=$(getDate "$p")
-		    haveEnd="true"
+		    if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
+			av+="+"${BASH_REMATCH[1]}
+		    fi
+		    
+		    if [ $haveEnd == "false" ]; then
+			enddate=$(getDate "$p")
+			haveEnd="true"
+		    fi
 		fi
 		;;
 	esac
@@ -495,54 +529,109 @@ getTestDataSingleAnyYcsb()
 
 getTestDataSingleYcsb()
 {
-    file=$1
-    param1=$2
-    param2=$3
-    cellsize=$4
-    iter=$5
-    stat=$6
+    local file=$(valOrDef file '' "$@")
+    file=${file//\"/}
+    
+    local param1=$(valOrDef param1 '' "$@")
+    param1=${param1//\"/}
+    
+    local param2=$(valOrDef param2 '' "$@")
+    param2=${param2//\"/}
+    
+    local cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+    
+    local fieldcount=$(valOrDef fieldcount '' "$@")
+    local batchsize=$(valOrDef batchsize '' "$@")
 
-    echo "Inside YCSB with file=$file param1=$param1 param2=$param2 cellsize=$cellsize $iter=$iter stat=$stat"
+    local stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
+
+    local iter=$(valOrDef iter 'ops' "$@")
+    iter=${iter//\"/}
+
+#    echo "Inside YCSB with file=$file param1=$param1 param2=$param2 stat='$stat' cellsize=$cellsize fieldcount=$fieldcount batchsize=$batchsize iter=$iter "
+    
     printf "\rProcessing $file..."
     
     first="true"
+    firstStart="true"
     haveEnd="false"
-
+    start="false"
+    setup="false"
+    nHarness=0
+    
     while read p; do
+
 	case "$p" in
 
 	    #------------------------------------------------------------
 	    # If this is a config line, extract the parameter vals from it
 	    #------------------------------------------------------------
-	    
+
+	    *'event_type="setup"'*)
+		setup="true"
+		start="false"
+		;;
+
 	    *'event_type="start"'*)
-		echo "Found line: $p"
-		if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
-		    sub=${BASH_REMATCH[1]}
-		    echo "Found sub: $sub"
+		if [ $setup == "true" ]; then
 
-		    if [ $first == "true" ]; then
-			first="false"
-			rm "/tmp/dat"$iter".txt"
-		    else
-			echo "Calling writeVal with val1 = $val1 val2 = $val2"
-			writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
-		    fi
+		    start="true"
 		    
-		    val1=$(parseparamnew "$sub" $param1)
-		    val2=$(parseparamnew "$sub" $param2)
+		    if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
+			sub=${BASH_REMATCH[1]}
+			
+			if [ $first == "true" ]; then
+			    first="false"
+			    \rm "/tmp/dat"$iter".txt"
+			else
+			    echo "About to writeValNew av = '$av' cellsize = $cellsize"
+			    writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat $nHarness
+			fi
 
-		    echo "param1 = $param1 val1 = $val1"
-		    av="scale=4;(0.0"
+			val1=$(parseparamnew "$sub" $param1)
+			val2=$(parseparamnew "$sub" $param2)
+			
+			# These are all the things we need to calculate writes/sec and bytes/sec
+			
+			nbyte=$(parseparamnew "$sub" fieldlength)
+			ncol=$(parseparamnew "$sub" fieldcount)
+			batch=$(parseparamnew "$sub" batchsize)
+			
+			#------------------------------------------------------------
+			# Override defaults if we can
+			#------------------------------------------------------------
+			
+			if [ ! -z $batch ]
+			then
+			    batchsize=$batch
+			fi
+			
+			if [ ! -z $nbyte ]
+			then
+			    cellsize=$nbyte
+			fi
+			
+			if [ ! -z $ncol ]
+			then
+			    fieldcount=$ncol
+			fi
+			
+			av="scale=4;(0.0"
+			nHarness=0
+		    fi
+
 		fi
 		;;
 
 	    #------------------------------------------------------------
-	    # Else accumulate throughputs for this set of parameters
+	    # Else accumulate stats for this set of parameters
 	    # if this is a throughput report
 	    #------------------------------------------------------------
 	    
 	    *deploy_basho_perf*)
+		echo "Found deploy line"
 		startdate=$(getDate "$p")
 		haveEnd="false"
 		;;
@@ -553,21 +642,147 @@ getTestDataSingleYcsb()
 	    #------------------------------------------------------------
 	    
 	    *\[OVERALL\],\ Throughput*)
-		echo "Found a throughput line: $p"
-		if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
-		    av+="+"${BASH_REMATCH[1]}
-		    echo "av = $av"
-		fi
-
-		if [ $haveEnd == "false" ]; then
-		    enddate=$(getDate "$p")
-		    haveEnd="true"
+		if [ $stat == "ops" ]; then
+		    if [ $start == "true" ]; then
+			if [[ $p =~ [a-z]*'Throughput(ops/sec), '(.*) ]]; then
+			    av+="+"${BASH_REMATCH[1]}
+			    nHarness=$[$nHarness+1] 
+			fi
+			
+			if [ $haveEnd == "false" ]; then
+			    enddate=$(getDate "$p")
+			    haveEnd="true"
+			fi
+			
+		    fi
 		fi
 		;;
+
+	    *\[INSERT\],\ AverageLatency*)
+		if [ $stat == "avlatency" ]; then
+		    if [ $start == "true" ]; then
+			if [[ $p =~ [a-z]*'AverageLatency(us), '(.*) ]]; then
+			    av+="+"${BASH_REMATCH[1]}
+			    nHarness=$[$nHarness+1] 
+			fi
+			
+			if [ $haveEnd == "false" ]; then
+			    enddate=$(getDate "$p")
+			    haveEnd="true"
+			fi
+			
+		    fi
+		fi
+		;;
+
+	    *\[INSERT\],\ MinLatency*)
+		if [ $stat == "minlatency" ]; then
+		    if [ $start == "true" ]; then
+			if [[ $p =~ [a-z]*'MinLatency(us), '(.*) ]]; then
+			    if [ $nHarness == 0 ]; then
+				av=${BASH_REMATCH[1]}
+				echo "Setting av to '$av'"
+
+			    else
+				lat=${BASH_REMATCH[1]}
+				echo "Comparing $av to '$lat'"
+				res=`echo "if($lat < $av) print 1 else print 0" | bc`
+				if [ $res == 1 ]; then
+				    av=$lat
+				fi
+				echo "Comparing $av is now $av"
+			    fi
+			    nHarness=$[$nHarness+1] 
+			fi
+			
+			if [ $haveEnd == "false" ]; then
+			    enddate=$(getDate "$p")
+			    haveEnd="true"
+			fi
+			
+		    fi
+		fi
+		;;
+
+	    *\[INSERT\],\ MaxLatency*)
+		if [ $stat == "maxlatency" ]; then
+		    if [ $start == "true" ]; then
+			if [[ $p =~ [a-z]*'MaxLatency(us), '(.*) ]]; then
+			    if [ $nHarness == 0 ]; then
+				av=${BASH_REMATCH[1]}
+			    else
+				lat=${BASH_REMATCH[1]}
+				res=`echo "if($lat > $av) print 1 else print 0" | bc`
+				if [ $res == 1 ]; then
+				    av=$lat
+				fi
+			    fi
+			    nHarness=$[$nHarness+1] 
+			fi
+			
+			if [ $haveEnd == "false" ]; then
+			    enddate=$(getDate "$p")
+			    haveEnd="true"
+			fi
+			
+		    fi
+		fi
+		;;
+
+	    *\[INSERT\],\ 95thPercentileLatency*)
+		if [ $stat == "95thlatency" ]; then
+		    if [ $start == "true" ]; then
+			if [[ $p =~ [a-z]*'95thPercentileLatency(us), '(.*) ]]; then
+			    if [ $nHarness == 0 ]; then
+				av=${BASH_REMATCH[1]}
+			    else
+				lat=${BASH_REMATCH[1]}
+				res=`echo "if($lat > $av) print 1 else print 0" | bc`
+				if [ $res == 1 ]; then
+				    av=$lat
+				fi
+			    fi
+			    nHarness=$[$nHarness+1] 
+			fi
+			
+			if [ $haveEnd == "false" ]; then
+			    enddate=$(getDate "$p")
+			    haveEnd="true"
+			fi
+			
+		    fi
+		fi
+		;;
+
+	    *\[INSERT\],\ 99thPercentileLatency*)
+		if [ $stat == "99thlatency" ]; then
+		    if [ $start == "true" ]; then
+			if [[ $p =~ [a-z]*'99thPercentileLatency(us), '(.*) ]]; then
+			    if [ $nHarness == 0 ]; then
+				av=${BASH_REMATCH[1]}
+			    else
+				lat=${BASH_REMATCH[1]}
+				res=`echo "if($lat > $av) print 1 else print 0" | bc`
+				if [ $res == 1 ]; then
+				    av=$lat
+				fi
+			    fi
+			    nHarness=$[$nHarness+1] 
+			fi
+			
+			if [ $haveEnd == "false" ]; then
+			    enddate=$(getDate "$p")
+			    haveEnd="true"
+			fi
+			
+		    fi
+		fi
+		;;
+
 	esac
     done <$file
 
-    writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" $iter "$startdate" "$enddate" $stat
+    writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat $nHarness
 }
 
 getDate()
@@ -599,12 +814,15 @@ generatePythonPlots()
     plotwithaction=${12}
     cellsizes=${13}
 
-    echo "figsize = $figsize"
-    echo "figview = $figview"
-    echo "labels = $labels"
-    echo "param1 = $param1"
-    echo "param2 = $param2"
-    
+    local contour=$(valOrDef contour 'none' "$@")
+    contour=${contour//\"/}
+
+    local interp=$(valOrDef interp 'cubic' "$@")
+    interp=${interp//\"/}
+
+    local stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
+
     pycomm="import scipy.interpolate as int;\n"
     pycomm+="import numpy as np;\n"
     pycomm+="import matplotlib.pyplot as plt;\n"
@@ -643,24 +861,45 @@ generatePythonPlots()
     pycomm+="  scales = []\n"
     pycomm+="  maxs = []\n"
     pycomm+="\n"
-    pycomm+="  for i in range(2,ncol):\n"
-    pycomm+="    index = i-2\n"
-    pycomm+="    if np.max(mxs[index]) > 1e9:\n"
-    pycomm+="      scales.append(1e9)\n"
-    pycomm+="      units.append('G')\n"
-    pycomm+="      maxs.append(np.max(mxs[index])/1e9)\n"
-    pycomm+="    elif np.max(mxs[index]) > 1e6:\n"
-    pycomm+="      scales.append(1e6)\n"
-    pycomm+="      units.append('M')\n"
-    pycomm+="      maxs.append(np.max(mxs[index])/1e6)\n"
-    pycomm+="    elif np.max(mxs[index]) > 1e3:\n"
-    pycomm+="      scales.append(1e3)\n"
-    pycomm+="      units.append('K')\n"
-    pycomm+="      maxs.append(np.max(mxs[index])/1e3)\n"
-    pycomm+="    else:\n"
-    pycomm+="      scales.append(1)\n"
-    pycomm+="      units.append('')\n"
-    pycomm+="      maxs.append(np.max(mxs[index]))\n"
+    if [ $stat == ops ]; then
+	pycomm+="  for i in range(2,ncol):\n"
+	pycomm+="    index = i-2\n"
+	pycomm+="    if np.max(mxs[index]) > 1e9:\n"
+	pycomm+="      scales.append(1e9)\n"
+	pycomm+="      units.append('G')\n"
+	pycomm+="      maxs.append(np.max(mxs[index])/1e9)\n"
+	pycomm+="    elif np.max(mxs[index]) > 1e6:\n"
+	pycomm+="      scales.append(1e6)\n"
+	pycomm+="      units.append('M')\n"
+	pycomm+="      maxs.append(np.max(mxs[index])/1e6)\n"
+	pycomm+="    elif np.max(mxs[index]) > 1e3:\n"
+	pycomm+="      scales.append(1e3)\n"
+	pycomm+="      units.append('K')\n"
+	pycomm+="      maxs.append(np.max(mxs[index])/1e3)\n"
+	pycomm+="    else:\n"
+	pycomm+="      scales.append(1)\n"
+	pycomm+="      units.append('')\n"
+	pycomm+="      maxs.append(np.max(mxs[index]))\n"
+    elif [ $stat == avlatency ] || [ $stat == minlatency ] || [ $stat == maxlatency ] || [ $stat == 95thlatency ] || [ $stat == 99thlatency ]; then
+	pycomm+="  for i in range(2,ncol):\n"
+	pycomm+="    index = i-2\n"
+	pycomm+="    if np.max(mxs[index]) > 1e9:\n"
+	pycomm+="      scales.append(1e9)\n"
+	pycomm+="      units.append('x1e9 us')\n"
+	pycomm+="      maxs.append(np.max(mxs[index])/1e9)\n"
+	pycomm+="    elif np.max(mxs[index]) > 1e6:\n"
+	pycomm+="      scales.append(1e6)\n"
+	pycomm+="      units.append('x1e6 us')\n"
+	pycomm+="      maxs.append(np.max(mxs[index])/1e6)\n"
+	pycomm+="    elif np.max(mxs[index]) > 1e3:\n"
+	pycomm+="      scales.append(1e3)\n"
+	pycomm+="      units.append('x1e3 us')\n"
+	pycomm+="      maxs.append(np.max(mxs[index])/1e3)\n"
+	pycomm+="    else:\n"
+	pycomm+="      scales.append(1)\n"
+	pycomm+="      units.append('us')\n"
+	pycomm+="      maxs.append(np.max(mxs[index]))\n"
+    fi
     pycomm+="\n"
     pycomm+="  return scales, units, maxs\n"
 
@@ -682,7 +921,12 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  if overplot:\n"
     pycomm+="    for iCol in range(0,nColPerRow):\n"
-    pycomm+="      ax = fig.add_subplot(1, nColPerRow, iCol+1, projection='3d');\n"
+
+    if [ $contour == contouronly ]; then
+	pycomm+="      ax = fig.add_subplot(1, nColPerRow, iCol+1);\n"
+    else
+	pycomm+="      ax = fig.add_subplot(1, nColPerRow, iCol+1, projection='3d');\n"
+    fi
     pycomm+="      axes[iCol] = []\n"
     pycomm+="      for iFile in range(0,nFile):\n"
     pycomm+="        axes[iCol].append(ax)\n"
@@ -698,7 +942,12 @@ generatePythonPlots()
     pycomm+="        currSubplotInd=nColPerRow * iFile + iCol + 1\n"
     pycomm+="        if axes[iCol] == None:\n"
     pycomm+="          axes[iCol] = []\n"
-    pycomm+="        axes[iCol].append(fig.add_subplot(nFile, nColPerRow, currSubplotInd, projection='3d'));\n"
+
+    if [ $contour == contouronly ]; then
+	pycomm+="        axes[iCol].append(fig.add_subplot(nFile, nColPerRow, currSubplotInd));\n"
+    else
+	pycomm+="        axes[iCol].append(fig.add_subplot(nFile, nColPerRow, currSubplotInd, projection='3d'));\n"
+    fi
     pycomm+="\n"
     pycomm+="  return axes\n"
 
@@ -727,7 +976,7 @@ generatePythonPlots()
     pycomm+="  y1=np.linspace(np.min(uy), np.max(uy), 200);\n"
     pycomm+="  x2,y2 = np.meshgrid(x1, y1);\n"
     pycomm+="  if nx > 3 and ny > 3:\n"
-    pycomm+="    z2=int.griddata(points, d, (x2, y2), method='cubic')\n"
+    pycomm+="    z2=int.griddata(points, d, (x2, y2), method='$interp')\n"
     pycomm+="  else:\n"
     pycomm+="    z2=int.griddata(points, d, (x2, y2), method='linear')\n"
     pycomm+="  return x2, y2, z2, unit\n"
@@ -765,11 +1014,30 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  x,y,z,unit2 = getData(fileName, index);\n"
     pycomm+="  plt.hold(doHold);\n"
-    pycomm+="  ax.plot_surface(x, y, z/scale, color=Color);\n"
+
+    if [ $contour == contouronly ]; then
+	pycomm+="  plt.hold(True);\n"
+	pycomm+="  CSZ = ax.contour(x, y, z/scale, 20)\n"
+	pycomm+="  extent =  ax.axis()\n"
+	pycomm+="  ax.set_aspect(abs((extent[1]-extent[0])/(extent[3]-extent[2])))\n"
+	pycomm+="  ax.clabel(CSZ, inline=True, fontsize=10)\n"
+	pycomm+="  ax.set_title('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
+    elif [ $contour == contour ]; then
+	pycomm+="  plt.hold(True);\n"
+	pycomm+="  ax.plot_surface(x, y, z/scale, color=Color);\n"
+	pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
+	pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
+	pycomm+="  CSZ = ax.contourf(x, y, z/scale, 20, zdir='z', offset=0)\n"
+	pycomm+="  plt.colorbar(CSZ, orientation='horizontal', ax=ax, shrink=0.7)\n"
+    else
+	pycomm+="  ax.plot_surface(x, y, z/scale, color=Color);\n"
+	pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
+	pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
+    fi
+
     pycomm+="  ax.set_xlabel('\\\\n' + xlabel, fontsize=defaultFontsize);\n"
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel, fontsize=defaultFontsize);\n"
-    pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);\n"
-    pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
+
     #    pycomm+="  retick(ax, 'y')\n"
     pycomm+="  ax.tick_params(labelsize=defaultFontsize)\n"
     pycomm+="\n"
@@ -778,32 +1046,65 @@ generatePythonPlots()
     pycomm+="  x1,y1,z1,unitIgnore = getData(fileName, index);\n"
     pycomm+="  x2,y2,z2,unitIgnore = getData(fileName2, index);\n"
     pycomm+="  plt.hold(doHold);\n"
+
+    pycomm+="  if action == '/':\n"
+    pycomm+="    plotunit = 'ratio'\n"
+    pycomm+="  else:\n"
+    pycomm+="    plotunit = unit\n"
+
     pycomm+="  if action == '-':\n"
     pycomm+="    ax.plot_surface(x1, y1, (z1 - z2)/scale, color=Color);\n"
     pycomm+="  elif action == '+':\n"
     pycomm+="    ax.plot_surface(x1, y1, (z1 + z2)/scale, color=Color);\n"
     pycomm+="  elif action == '/':\n"
-    pycomm+="    ax.plot_surface(x1, y1, z1 / z2, color=Color);\n"
+    pycomm+="\n"
+
+    if [ $contour == contouronly ]; then
+	pycomm+="    plt.hold(True);\n"
+	pycomm+="\n"
+	pycomm+="    r = z1/z2;\n"
+	pycomm+="    maxVal = np.max(z1/z2);\n"
+	pycomm+="    CSZ = ax.contour(x1, y1, r, 20)\n"
+	pycomm+="    extent =  ax.axis()\n"
+	pycomm+="    ax.set_aspect(abs((extent[1]-extent[0])/(extent[3]-extent[2])))\n"
+	pycomm+="    ax.clabel(CSZ, inline=True, fontsize=10)\n"
+	pycomm+="    ax.set_title('\\\\n' + zlabel + ' (' + plotunit + ')', fontsize=defaultFontsize);\n"
+	pycomm+="    print 'Label = ' + zlabel + ' mean = ' + str(np.mean(r)) + ' +- ' + str(np.std(r, ddof=1));\n"
+	pycomm+="    print 'Ratio of max = ' + str(np.max(z1)/np.max(z2));\n"
+	pycomm+="    print 'Max of ratio = ' + str(np.max(r));\n"
+
+    elif [ $contour == contour ]; then
+	pycomm+="    plt.hold(True);\n"
+	pycomm+="\n"
+	pycomm+="    r = z1/z2;\n"
+	pycomm+="    ax.plot_surface(x1, y1, r, color=Color);\n"
+	pycomm+="    maxVal = np.max(z1/z2);\n"
+	pycomm+="    CSZ = ax.contourf(x1, y1, r, 20, zdir='z', offset=0)\n"
+	pycomm+="    plt.colorbar(CSZ, orientation='horizontal', ax=ax, shrink=0.7)\n"
+	pycomm+="    ax.set_zlabel('\\\\n' + zlabel + ' (' + plotunit + ')');\n"
+	pycomm+="    ax.set_zlim(0, maxVal*1.1);\n"
+    else
+	pycomm+="    r = z1/z2;\n"
+	pycomm+="    ax.plot_surface(x1, y1, r, color=Color);\n"
+	pycomm+="    maxVal = np.max(z1/z2);\n"
+	pycomm+="    ax.set_zlabel('\\\\n' + zlabel + ' (' + plotunit + ')');\n"
+	pycomm+="    ax.set_zlim(0, maxVal*1.1);\n"
+    fi
     pycomm+="  elif action == '*':\n"
     pycomm+="    ax.plot_surface(x1, y1, z1 * z2, color=Color);\n"
     pycomm+="  ax.set_xlabel('\\\\n' + xlabel);\n"
     pycomm+="  ax.set_ylabel('\\\\n' + ylabel);\n"
-    pycomm+="  ax.set_zlabel('\\\\n' + zlabel + ' (' + unit + ')');\n"
-    pycomm+="  ax.set_zlim(0, maxVal*1.1);\n"
-    pycomm+="  retick(ax, 'y')\n"
+    pycomm+="#  retick(ax, 'y')\n"
 
-    echo "view = $figview"
     if [ $figview != \"\" ]; then
 	pycomm+="  ax.view_init${figview//\"/};\n"
     fi
-    
+
     pycomm+="\n"
 
     pycomm+="def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units, maxs):\n"
     pycomm+="  nfile=np.shape(files)[0]\n"
     pycomm+="  ncolor=np.shape(colors)[0];\n"
-    pycomm+="\n"
-    pycomm+="  print 'plotwithaction = ' + str(plotwithaction)"
     pycomm+="\n"
     pycomm+="  for iFile in range(0,nfile):\n"
     pycomm+="\n"
@@ -830,13 +1131,18 @@ generatePythonPlots()
     pycomm+="\n"
     pycomm+="  naxes=np.shape(axes)[0]\n"
     pycomm+="\n"
-    pycomm+="  makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, '$param1', '$param2', 'Ops/sec', scales[0], units[0], maxs[0]);\n"
-    pycomm+="\n"
-    pycomm+="  if naxes > 1 and axes[1] != None:\n"
-    pycomm+="    makeSubPlot(fileNames[iFile], 3, axes[1][iFile], doHold, Color, '$param1', '$param2', 'Writes/sec', scales[1], units[1], maxs[1]);\n"
-    pycomm+="\n"
-    pycomm+="  if naxes > 2 and axes[2] != None:\n"
-    pycomm+="    makeSubPlot(fileNames[iFile], 4, axes[2][iFile], doHold, Color, '$param1', '$param2', 'Bytes/sec', scales[2], units[2], maxs[2]);\n"
+    if [ $stat == ops ]; then
+	pycomm+="  makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, '$param1', '$param2', 'Ops/sec', scales[0], units[0], maxs[0]);\n"
+	pycomm+="\n"
+	pycomm+="  if naxes > 1 and axes[1] != None:\n"
+	pycomm+="    makeSubPlot(fileNames[iFile], 3, axes[1][iFile], doHold, Color, '$param1', '$param2', 'Writes/sec', scales[1], units[1], maxs[1]);\n"
+	pycomm+="\n"
+	pycomm+="  if naxes > 2 and axes[2] != None:\n"
+	pycomm+="    makeSubPlot(fileNames[iFile], 4, axes[2][iFile], doHold, Color, '$param1', '$param2', 'Bytes/sec', scales[2], units[2], maxs[2]);\n"
+    elif [ $stat == avlatency ] || [ $stat == minlatency ] || [ $stat == maxlatency ] || [ $stat == 95thlatency ] || [ $stat == 99thlatency ]; then
+	pycomm+="  makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, '$param1', '$param2', 'Latency', scales[0], units[0], maxs[0]);\n"
+	pycomm+="\n"
+    fi
     pycomm+="\n"
     pycomm+="def plotDataTwo(fileNames, fileNames2, action, iFile, doHold, axes, Color, scales, units, maxs):\n"
     pycomm+="\n"
@@ -879,7 +1185,7 @@ generatePythonPlots()
     #------------------------------------------------------------
     # Generate a list of data files
     #------------------------------------------------------------
-    
+
     iIter="0"
     fileNames=""
     first=true
@@ -943,7 +1249,7 @@ generatePythonPlots()
     iIter="0"
     cells=""
     first=true
-    echo "Cellsizes = $cellsizes"
+
     for i in $cellsizes; do
 	if [ $first == "true" ]; then
 	    cells+="[$i"
@@ -989,6 +1295,7 @@ generatePythonPlots()
 
 
     pycomm+="plt.axis('off')\n"
+    title=${title//"\n"/"\\\\n"}
     pycomm+="plt.title('${title//\"/}')\n"
     
     if [ $overplot == \""true\"" ]; then
@@ -1006,7 +1313,7 @@ generatePythonPlots()
     fi
 
 #    pycomm+="plt.tight_layout(w_pad=2,pad=5)\n"
-    pycomm+="print str(plt.rcParams)\n"
+#    pycomm+="print str(plt.rcParams)\n"
 	
     if [ "$labels" != \"\" ]; then
 
@@ -1022,15 +1329,20 @@ generatePythonPlots()
 	pycomm+="  sint = hspace / (nFile)\n"
 	pycomm+="\n"
 
-	labarr=(`echo $labels`)
+	IFS=';' read -ra labarr <<< "$labels"
 	labarrsize=${#labarr[@]}
 
 	if [ $overplot == \""false\"" ] && [ $labarrsize -gt 1 ]; then
 	    label=${labarr[$iter]//\"/}
+
 	    iIter="0"
 	    pyLabs=""
-	    for label in $labels; do
-		label=${label//\'/}
+	    for label in "${labarr[@]}"; do
+
+		echo "Label = $label"
+
+		label=${label//"\n"/"\\\\n"}
+		
 		if [ $iIter -eq 0 ]	; then
 		    pyLabs+="['"${label//\"/}"'"
 		else
@@ -1038,12 +1350,14 @@ generatePythonPlots()
 		fi
 		iIter=$[$iIter+1]
 	    done
+
 	    pyLabs+="]"
 	    pycomm+="labels = $pyLabs\n"
 	    pycomm+="for i in range(0,nFile):\n"
 	    pycomm+="  y = top - (i + 0.5)*yint - i*sint\n"
 	    pycomm+="  plt.figtext(0.03, y, labels[i], fontsize=defaultFontsize)\n"
 	else
+	    labels=${labels//"\n"/"\\\\n"}
 	    pycomm+="plt.figtext(0.03, 0.5, '${labels//\"/}', fontsize=defaultFontsize)\n"
 	fi
     fi
@@ -1077,6 +1391,7 @@ plotlogfile()
     plotwithfiles=$(valOrDef plotwith '' "$@")
     plotwithaction=$(valOrDef plotwithaction 'p' "$@")
     stat=$(valOrDef stat 'ops' "$@")
+    
     output=$(valOrDef output '' "$@")
     figview=$(valOrDef figview '' "$@")
 
@@ -1112,19 +1427,30 @@ plotlogfile()
     fi
 
     getTestData "$allfiles" $2 $3 "$allcellsize" $stat
-    echo "output(1) = $output"
-    if [ $output == \"\" ]; then
-	echo "output is null"
-    fi
-
-    echo "allcells = $allcellsize"
     
     generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize"
 }
 
 plotlogfileycsb()
 {
-    cellsize=$(valOrDef cellsize '' "$@")
+    local files=$(valOrDef files '' "$@")
+    files=${files//\"/}
+
+    local param1=$(valOrDef param1 '' "$@")
+    param1=${param1//\"/}
+
+    local param2=$(valOrDef param2 '' "$@")
+    param2=${param2//\"/}
+
+    local cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+    
+    echo "cellsize = '$cellsize'"
+    
+    batchsize=$(valOrDef batchsize '' "$@")
+    batchsize=${batchsize//\"/}
+    
+    fieldcount=$(valOrDef fieldcount '' "$@")
     overplot=$(valOrDef overplot false "$@")
     figsize=$(valOrDef figsize '' "$@")
     labels=$(valOrDef labels '' "$@")
@@ -1132,17 +1458,23 @@ plotlogfileycsb()
     scaleto=$(valOrDef scaleto '' "$@")
     plotwithfiles=$(valOrDef plotwith '' "$@")
     plotwithaction=$(valOrDef plotwithaction 'p' "$@")
+
     stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
+    
     output=$(valOrDef output '' "$@")
     figview=$(valOrDef figview '' "$@")
 
-    echo "figsize = $figsize"
-    files="$1"
-    local param1=$2
-    local param2=$3
+    contour=$(valOrDef contour 'none' "$@")
+    contour=${contour//\"/}
+
+    interp=$(valOrDef interp 'cubic' "$@")
+    interp=${interp//\"/}
     
     allfiles=$files
     allcellsize=$cellsize
+    allbatchsize=$batchsize
+    allfieldcount=$fieldcount
     scale=false
     plotwith=false
     
@@ -1156,6 +1488,8 @@ plotlogfileycsb()
 	plotwith=true
 	allfiles=$allfiles" "${plotwithfiles//\"/}
 	allcellsize=$allcellsize" "$cellsize
+	allbatchsize=$allbatchsize" "$batchsize
+	allfieldcount=$allfieldcount" "$fieldcount
     fi
 
     #------------------------------------------------------------
@@ -1168,17 +1502,14 @@ plotlogfileycsb()
 	scale=true
 	allfiles=$allfiles" "${scaleto//\"/}
 	allcellsize=$allcellsize" "$cellsize
+	allbatchsize=$allbatchsize" "$batchsize
+	allfieldcount=$allfieldcount" "$fieldcount
     fi
 
-    getTestDataYcsb "$allfiles" $param1 $param2 "$allcellsize" $stat
-    echo "output(1) = $output"
-    if [ $output == \"\" ]; then
-	echo "output is null"
-    fi
+    echo "All cellsize = '$allcellsize'"
+    getTestDataYcsb files="$allfiles" param1=$param1 param2=$param2 cellsize="$allcellsize" batchsize="$allbatchsize" fieldcount="$allfieldcount" stat=$stat
 
-    echo "allcells = $allcellsize figsize=$figsize"
-    
-    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize"
+    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize" contour=$contour interp=$interp stat=$stat
 }
 
 makeycsbplot()
@@ -1186,12 +1517,121 @@ makeycsbplot()
     output=$(valOrDef output '' "$@")
     output=${output//\"/}
 
-    figsize=$(valOrDef figsize '(15,18)' "$@")
+    figsize=$(valOrDef figsize '(15,6)' "$@")
     figsize=${figsize//\"/}
 
 #    plotlogfileycsb "output.log output.log" threadcount fieldcount cellsize="1 1" figsize="$figsize" labels="Cellsize=1 Cellsize=1" title="Riak PUT (YCSB)"
 
-    plotlogfileycsb "ycsb2.log ycsb2.log" threadcount fieldcount cellsize="1 1" figsize="$figsize" labels="Cellsize=1 Cellsize=1" title="Riak PUT (YCSB)"
+    #    plotlogfileycsb "ycsb2.log ycsb2.log" threadcount fieldcount cellsize="1 1" figsize="$figsize" labels="Cellsize=1 Cellsize=1" title="Riak PUT (YCSB)"
+
+    plotlogfileycsb $output threadcount fieldcount cellsize="10" figsize="$figsize" labels="Cellsize=10" title="Riak PUT (YCSB)"
+}
+
+make5by5plots()
+{
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_5by5_100.out" param1=threadcount param2=fieldcount figsize="(18,12)" labels="5by5, 10Bytes;5by5, 100Bytes" title="Riak PUT Throughput (YCSB)" batchsize=1
+}
+
+make10byteplots()
+{
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5 + 5 Cluster\n10-byte cols;10 + 10 Cluster\n10-byte cols;15 + 15 Cluster\n10-byte cols" title="RiakTS PUT Throughput (YCSB)" cellsize="10 10 10" batchsize="1 1 1" contour=none output=$RIAK_TEST_BASE/images/nodeComp10Byte
+}
+
+make10byteOptplot()
+{
+    plotlogfileycsb files="ycsb_5by5_10_optimized.out ycsb_5by5_10_baseline.out" param1=threadcount param2=fieldcount figsize="(18,12)" labels="5 + 5 Cluster\n10-byte cols\n(optimized OS);5 + 5 Cluster\n10-byte cols\n(no optimization)" title="RiakTS PUT Throughput (YCSB)" cellsize="10 10" batchsize="1 1" contour=none interp=linear overplot=true #output=$RIAK_TEST_BASE/images/nodeComp10Byte
+}
+
+make10colbatchplots()
+{
+    plotlogfileycsb files="ycsb_5by5_100byte_10col_batch.out ycsb_10by10_100byte_10col_batch.out ycsb_15by15_100byte_10col_batch.out " param1=threadcount param2=batchsize figsize="(18,18)" labels="5+5 Cluster\n100 Bytes per column\n10 Cols per row\nBatched;10+10 Cluster\n100 Bytes per column\n10 Cols per row\nBatched;15+15 Cluster\n100 Bytes per column\n10 Cols per row\nBatched" title="RiakTS PUT Throughput (YCSB)" contour=none
+}
+
+make100colbatchplots()
+{
+    plotlogfileycsb files="ycsb_5by5_100byte_100col_batch.out ycsb_10by10_100byte_100col_batch.out ycsb_15by15_100byte_100col_batch.out " param1=threadcount param2=batchsize figsize="(18,18)" labels="5 + 5 Cluster\n100-byte cols\n100-col rows\nBatched;10 + 10 Cluster\n100-byte cols\n100-col rows\nBatched;15 + 15 Cluster\n100-byte cols\n100-col rows\nBatched" title="RiakTS PUT Throughput (YCSB)" contour=none output=$RIAK_TEST_BASE/images/nodeComp100Byte100ColBatch
+}
+
+make100byteplots()
+{
+    plotlogfileycsb files="ycsb_5by5_100.out ycsb_10by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5 + 5 Cluster\n100-byte cols;10 + 10 Cluster\n100-byte cols;15 + 15 Cluster\n100-byte cols" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none
+    #output=$RIAK_TEST_BASE/images/nodeComp100Byte
+}
+
+makeUbuntuCompPlots()
+{
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_5by5_100.out" param1=threadcount param2=fieldcount figsize="(18,12)" labels="5 + 5 Cluster\n10-byte cols;5 + 5 Cluster\n100-byte cols" title="RiakTS PUT Throughput (YCSB)" batchsize="1 1" contour=none plotwith="ycsb_5by5U1604_10.out ycsb_5by5U1604_100.out" output=ubuntuComp
+}
+
+makeTypeCompPlots()
+{
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_5by5_integer.out ycsb_5by5_double.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5 + 5 Cluster\n10-byte cols;5 + 5 Cluster\ninteger cols;5 + 5 Cluster\ndouble cols" title="RiakTS PUT Throughput (YCSB)" batchsize="1 1 1" contour=none cellsize="10 8 8" overplot=false output=typeComp
+}
+
+makeIntDoubleCompPlots()
+{
+    plotlogfileycsb files="ycsb_5by5_integer.out" param1=threadcount param2=fieldcount figsize="(18,6)" labels="5 + 5\nCluster\n\nint/double" title="RiakTS PUT Throughput (YCSB)" batchsize="1 1" contour=none cellsize="8 8" overplot=false plotwith="ycsb_5by5_double.out" plotwithaction='/' contour=contouronly output=intDoubleComp
+}
+
+get10bytedata()
+{
+    getTestDataYcsb files="ycsb_5by5_10.out ycsb_7by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount batchsize=1
+    mv /tmp/dat0.txt $RIAK_TEST_BASE/data/ycsb_5by5_10.txt
+    mv /tmp/dat1.txt $RIAK_TEST_BASE/data/ycsb_7by5_10.txt
+    mv /tmp/dat2.txt $RIAK_TEST_BASE/data/ycsb_10by10_10.txt
+    mv /tmp/dat3.txt $RIAK_TEST_BASE/data/ycsb_15by15_10.txt
+}
+
+get100bytedata()
+{
+    getTestDataYcsb files="ycsb_5by5_100.out ycsb_10by10_100.out ycsb_15by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount batchsize=1
+    mv /tmp/dat0.txt $RIAK_TEST_BASE/data/ycsb_5by5_100.txt
+    mv /tmp/dat1.txt $RIAK_TEST_BASE/data/ycsb_10by10_100.txt
+    mv /tmp/dat2.txt $RIAK_TEST_BASE/data/ycsb_15by10_100.txt
+    mv /tmp/dat3.txt $RIAK_TEST_BASE/data/ycsb_15by15_100.txt
+}
+
+get100bytebatchdata()
+{
+    getTestDataYcsb files="ycsb_5by5_100byte_100col_batch.out ycsb_10by10_100byte_100col_batch.out ycsb_15by15_100byte_100col_batch.out" param1=threadcount param2=batchsize
+    mv /tmp/dat0.txt ycsb_5by5_100byte_100col.txt
+    mv /tmp/dat1.txt ycsb_10by10_100byte_100col.txt
+    mv /tmp/dat2.txt ycsb_15by15_100byte_100col.txt
+}
+
+make100byteratioplots()
+{
+    plotlogfileycsb files="ycsb_10by10_100.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,12)" labels="10+10 Cluster\n100 Bytes;15+15 Cluster\n100 Bytes" title="RiakTS PUT Throughput (YCSB)\n" batchsize="1 1" plotwithaction='/' plotwith="ycsb_5by5_100.out ycsb_5by5_100.out" contour=contouronly
+}
+
+make15by15plots()
+{
+    plotlogfileycsb files="ycsb_15by15_10.out ycsb_15by15_100.out" param1=threadcount param2=fieldcount figsize="(18,6)" labels="15by15, 10Bytes; 100 Bytes" title="RiakTS PUT Throughput (YCSB)" batchsize=1
+}
+
+makeexcessharnessplots()
+{
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_7by5_10.out" param1=threadcount param2=fieldcount figsize="(18,6)" labels="5by5\n10 Bytes;10by10\n100 Bytes" title="RiakTS PUT Throughput (YCSB)" batchsize="1 1" overplot=true
+}
+
+make10by10plots()
+{
+    plotlogfileycsb files="ycsb_10by10_10.out ycsb_10by10_100.out" param1=threadcount param2=fieldcount figsize="(18,6)" labels="10by10, 10Bytes;10by10, 100Bytes" title="RiakTS PUT Throughput (YCSB)" batchsize=1
+}
+
+make5by5batchplot()
+{
+    plotlogfileycsb files="ycsb_5by5_100byte_10col_batch.out ycsb_5by5_100byte_100col_batch.out" param1=threadcount param2=batchsize figsize="(18,6)" labels="5by5 100Bytes\n10Cols batched;5by5 100Bytes\n100Cols batched" title="RiakTS PUT Throughput (YCSB)"
+}
+
+make10by10batchplot()
+{
+    plotlogfileycsb files="ycsb_10by10_100byte_10col_batch.out ycsb_10by10_100byte_100col_batch.out" param1=threadcount param2=batchsize figsize="(18,6)" labels="10by10 100Bytes\n10Cols batched;10by10 100Bytes\n100Cols batched" title="RiakTS PUT Throughput (YCSB)"
+}
+
+make15by15batchplot()
+{
+    plotlogfileycsb files="ycsb_15by15_100byte_10col_batch.out ycsb_15by15_100byte_100col_batch.out" param1=threadcount param2=batchsize figsize="(18,6)" labels="15by15 100Bytes\n10Cols batched;15by15 100Bytes\n100Cols batched" title="RiakTS PUT Throughput (YCSB)"
 }
 
 makeplot()
@@ -1207,6 +1647,32 @@ makeplot()
 #    plotlogfile "riak_sjb_thread_v_columns_1.log riak_sjb_thread_v_columns_10.log riak_sjb_thread_v_columns_100.log" threads columns cellsize="1 10 100" figsize="(18,5)" overplot=false
 
 #    plotlogfile "riak_sjb_thread_v_columns_100.log" threads columns cellsize="100" figsize="(18,5)" overplot=false
+}
+
+
+makeringsizeplot()
+{
+    plotlogfileycsb files="ycsb_10by10_ringsize.out ycsb_15by15_ringsize.out" param1=threadcount param2=ring_size figsize="(18,12)" labels="10+10 Cluster;15+15 Cluster" title="RiakTS PUT Throughput (YCSB)" batchsize="1 1" interp=linear cellsize="10 10" output=ringComp
+}
+
+debuglatency()
+{
+    plotlogfileycsb files="ycsb_ts_5by5_10_new_ec2.out" param1=threadcount param2=fieldcount figsize="(6,6)" labels="5by5" title="RiakTS PUT Throughput (YCSB)" batchsize=1 interp=cubic stat=$1
+}
+
+plotstring()
+{
+    plotlogfileycsb files="ycsb_ts_5by5_10_new_ec2.out" param1=threadcount param2=fieldcount figsize="(6,6)" labels="5by5" title="RiakTS PUT Throughput (YCSB)" batchsize=1 interp=cubic stat=ops
+}
+
+plotint()
+{
+    plotlogfileycsb files="ycsb_5by5_integer.out" param1=threadcount param2=fieldcount figsize="(6,6)" labels="5by5" title="RiakTS PUT Throughput (YCSB)" batchsize=1 interp=cubic stat=ops cellsize=8
+}
+
+plotdouble()
+{
+    plotlogfileycsb files="ycsb_5by5_double.out" param1=threadcount param2=fieldcount figsize="(6,6)" labels="5by5" title="RiakTS PUT Throughput (YCSB)" batchsize=1 interp=cubic stat=ops cellsize=4
 }
 
 makeplots()
@@ -1436,6 +1902,44 @@ constructInfluxQuery()
     echo $query >> /tmp/constructQueries.txt
     
     wget -qO - "http://localhost:58086/query?db=collectd&q=$query"
+}
+
+pythonInfluxYcsbQuery()
+{
+    starttime="$1"
+    stoptime="$2"
+    interval="$3"
+    
+    utcstart=$(localTimeToUtc "$starttime")
+    utcstop=$(localTimeToUtc "$stoptime")
+
+    hh=$(harnesshosts)
+    firsthost=($hh)
+    echo "hh =- $hh"
+    hostFilter=""
+    for host in $hh
+    do
+	echo $firsthost
+	if [ $host == $firsthost ]; then
+	    hostFilter+=" host = '$host' "
+	else
+	    hostFilter+="or host = '$host' "
+	fi
+    done
+
+    echo $hostFilter
+    
+    query="http://localhost:58086/query?db=collectd&q=select non_negative_derivative(sum(value),$interval)/10 from ycsb_operations where time > '$utcstart' and time < '$utcstop' and ( $hostFilter ) group by time($interval) fill(0)"
+
+    echo $query >> /tmp/queries.txt
+    
+    local pycomm="import requests\n"
+    pycomm+="\n"
+    pycomm+="r = requests.get(\"$query\")\n"
+    pycomm+="print str(r.json())"
+
+    printf "$pycomm" | python
+    printf "$pycomm" >> /tmp/queryTest.py
 }
 
 pythonInfluxQuery()
@@ -1687,9 +2191,17 @@ harnesshosts()
 {
     cluster=$1
     slhosts=`hosts $cluster 2>&1`
-    if [[ "$slhosts" =~ [[:print:]]*"harness_hosts: hosts (4):"([[:print:]]*) ]]
+    if [[ "$slhosts" =~ [[:print:]]*"harness_hosts:"([[:print:]]*) ]]
     then
-	echo ${BASH_REMATCH[1]}
+	savestr=${BASH_REMATCH[1]}
+	subs=${BASH_REMATCH[1]}
+	if [[ "$subs" =~ [[:print:]]*"):"([[:print:]]*) ]]
+	then
+	    echo ${BASH_REMATCH[1]}
+	else
+	    echo $savestr
+	fi
+	
     fi
 }
 
@@ -1923,6 +2435,23 @@ retrieveAnalyzerFiles()
     export analyzerFiles=$files
 }
 
+resetAnalyzerFiles()
+{
+    cluster=$1
+
+    hosts=$(systemhosts $cluster)
+
+    echo "Hosts are: $hosts"
+    
+    files=""
+    for host in $hosts
+    do
+	files+=$host"_counters.txt "
+    done
+
+    export analyzerFiles=$files
+}
+
 retrieveEventFiles()
 {
     cluster=$1
@@ -1949,10 +2478,57 @@ animate()
 
     skip=$(valOrDef skip '175' "$@")
     save=$(valOrDef save 'False' "$@")
+    labels=$(valOrDef labels 'False' "$@")
     nframe=$(valOrDef nframe '45' "$@")
     tags=$(valOrDef tags 'syncput query' "$@")
 
-    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="${tags//\"/}" skipstart=${skip//\"/} nframe=${nframe//\"/} save=${save//\"/}
+    python $RIAK_TEST_BASE/python_scripts/ringanim.py files="$analyzerFiles" tags="${tags//\"/}" skipstart=${skip//\"/} nframe=${nframe//\"/} save=${save//\"/} labels=${labels//\"/}
+}
+
+getGeoBucketJson()
+{
+    tableName="GeoCheckin"
+    quantum=15
+    unit=m
+    
+    JSON="{\"props\": {\"n_val\": 1, \"table_def\": \"CREATE TABLE $tableName (myfamily varchar not null, myseries varchar not null, time timestamp not null, myint sint64 not null, mybin varchar not null, myfloat double not null, mybool boolean not null, "
+    
+    JSON+="PRIMARY KEY ((myfamily, myseries, quantum(time, "$quantum", '"$unit"')), myfamily, myseries, time))\"}}"
+
+    echo $JSON
+}
+
+createGeoBucket()
+{
+    tableName="GeoCheckin"
+    JSON=$(getGeoBucketJson)
+    
+    riak-admin bucket-type create $tableName ${JSON}
+    sleep 3
+    riak-admin bucket-type activate $tableName
+}
+
+getTempBucketJson()
+{
+    tableName="temperatures"
+    quantum=8
+    unit=h
+    
+    JSON="{\"props\": {\"n_val\": 1, \"table_def\": \"CREATE TABLE $tableName (location varchar not null, temperature double not null, time timestamp not null, scale varchar not null, "
+    
+    JSON+="PRIMARY KEY ((location, quantum(time, "$quantum", '"$unit"')), location, time))\"}}"
+
+    echo $JSON
+}
+
+createTempBucket()
+{
+    tableName="temperatures"
+    JSON=$(getTempBucketJson)
+    
+    riak-admin bucket-type create $tableName ${JSON}
+    sleep 3
+    riak-admin bucket-type activate $tableName
 }
 
 getGenBucketJson()
@@ -1992,6 +2568,39 @@ createGenBucket()
     riak-admin bucket-type create $tableName ${JSON}
     sleep 3
     riak-admin bucket-type activate $tableName
+}
+
+getBucketTypeJson()
+{
+    local nval=$(valOrDef nval '1' "$@")
+    nval=${nval//\"/}
+
+    local write_once=$(valOrDef write_once 'false' "$@")
+    write_once=${write_once//\"/}
+
+    JSON="{\"props\": {\"n_val\": $nval, \"write_once\": $write_once}}"
+
+    echo $JSON
+}
+
+createBucketType()
+{
+    local name=$(valOrDef name 'TestBucketType' "$@")
+    name=${name//\"/}
+
+    local nval=$(valOrDef nval '1' "$@")
+    nval=${nval//\"/}
+
+    local write_once=$(valOrDef write_once 'false' "$@")
+    write_once=${write_once//\"/}
+
+    JSON=$(getBucketTypeJson nval=$nval write_once=$write_once)
+    
+    echo "Creating bucket $name with JSON = $JSON"
+    
+    riak-admin bucket-type create $name ${JSON}
+    sleep 3
+    riak-admin bucket-type activate $name
 }
 
 testSequenceSL()
@@ -2068,3 +2677,139 @@ testSequenceSL()
     done
 }
 
+labeltest()
+{
+    labels=$(valOrDef labels '' "$@")
+    labels=${labels//\"/}
+
+    IFS=';' read -ra ADDR <<< "$labels"
+    for i in "${ADDR[@]}"; do
+	echo "val = '$i'"
+    done
+}
+
+initAwsSinkRepl()
+{
+    riak=$(valOrDef riak '' "$@")
+    riak=${riak//\"/}
+
+    $riak/bin/riak-repl clustername awsb
+}
+
+initAwsSourceRepl()
+{
+    riak=$(valOrDef riak '' "$@")
+    riak=${riak//\"/}
+
+    $riak/bin/riak-repl clustername awsa
+    $riak/bin/riak-repl realtime enable awsb
+    $riak/bin/riak-repl fullsync enable awsb
+    $riak/bin/riak-repl realtime cascades always
+
+    $riak/bin/riak-repl realtime start
+    $riak/bin/riak-repl fullsync start
+}
+
+initAwsSinkReplRP()
+{
+    riak=$(valOrDef riak '' "$@")
+    riak=${riak//\"/}
+
+    $riak/bin/riak-repl clustername aws
+}
+
+initLocalSourceReplRP()
+{
+    riak-repl clustername rasppi
+    
+    riak-repl connect 127.0.0.1:9098
+    riak-repl realtime enable aws
+    riak-repl fullsync enable aws
+    riak-repl realtime cascades always
+
+    riak-repl realtime start
+    riak-repl fullsync start
+}
+
+initLocalSourceReplRP()
+{
+    riak=$(valOrDef riak '' "$@")
+    riak=${riak//\"/}
+
+    $riak/bin/riak-repl clustername local
+    
+    $riak/bin/riak-repl connect 35.162.20.66:9098
+    $riak/bin/riak-repl realtime enable aws
+    $riak/bin/riak-repl fullsync enable aws
+    $riak/bin/riak-repl realtime cascades always
+
+    $riak/bin/riak-repl realtime start
+    $riak/bin/riak-repl fullsync start
+}
+
+initLocalSourceReplRPLocal()
+{
+    riak=$(valOrDef riak '' "$@")
+    riak=${riak//\"/}
+
+    $riak/bin/riak-repl clustername local
+    
+    $riak/bin/riak-repl connect 127.0.0.1:9098
+    $riak/bin/riak-repl realtime enable aws
+    $riak/bin/riak-repl fullsync enable aws
+    $riak/bin/riak-repl realtime cascades always
+
+    $riak/bin/riak-repl realtime start
+    $riak/bin/riak-repl fullsync start
+}
+
+bashpasstest1()
+{
+    local cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+
+    echo "cellsize = '$cellsize' (1)"
+    bashpasstest2 cellsize="$cellsize"
+}
+
+bashpasstest2()
+{
+    local cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+
+    echo "cellsize = '$cellsize' (2)"
+    bashpasstest3 cellsize="$cellsize"
+}
+
+bashpasstest3()
+{
+    local cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+
+    echo "cellsize = '$cellsize' (3)"
+}
+
+ldPlot()
+{
+    local hours=$(valOrDef hours '1.0' "$@")
+    hours=${hours//\"/}
+
+    local rt=$(valOrDef rt 'true' "$@")
+    rt=${rt//\"/}
+
+    python basho-perf-scripts/python_scripts/queryTest.py file="throughput_40hr.txt throughput_24hr.txt throughput_8hr.txt" relx=true smooth=true npt=150 rt=$rt hours=$hours
+}
+
+gridPlot()
+{
+    python basho-perf-scripts/python_scripts/makegrid.py stat=mean
+    python basho-perf-scripts/python_scripts/makegrid.py stat=95
+    python basho-perf-scripts/python_scripts/makegrid.py stat=99
+
+    python basho-perf-scripts/python_scripts/surfplot.py "/tmp/tslatency_perc/mean_grid.txt /tmp/tslatency_perc/95_grid.txt /tmp/tslatency_perc/99_grid.txt" overplot=true figsize='10,10'
+}
+
+influxPlot()
+{
+    python basho-perf-scripts/python_scripts/influxPlot.py hoursafter=23.0 db='ycsb_operations ycsb_latency leveldb_value leveldb_value leveldb_value leveldb_value' stat='value value value value value value' type='none none BGCompactDirect ThrottleCounter ThrottleCompacts0 ThrottleCompacts1' harness='true true false false false false' derivative='true true true true true true' smooth=true relx=true
+}

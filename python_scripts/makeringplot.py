@@ -7,6 +7,11 @@ import sys
 import pytz
 from datetime import datetime, timedelta
 
+purple  = [0.5,0.3,1.0]
+
+def str2bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
 class Cluster(object):
     
     def __init__(self, axes, cd, tags):
@@ -33,15 +38,26 @@ class Cluster(object):
         #
         # dANp is the total conserved area that we want to match for
         # each successive ring
+        #
 
-        outerRadius = 0.93
-        dANp = 4*np.pi * (1.0*1.0 - outerRadius*outerRadius)
+        minRadius = 0.6
+        totalArea = 4 * np.pi * (1.0*1.0 - minRadius*minRadius)
+        nRing = np.size(cd['orderedNodes']) + 1
+        print 'nRing = ' + str(nRing)
+        dANp  = totalArea / nRing
+        outerRadius = np.sqrt(1.0 - dANp / (4*np.pi))
 
+        print 'outerRadius = ' + str(outerRadius)
+        
         self.totalNode = Node(axes, tags, cd['totals'], cd['totals'], cd['total'], 1.0, dANp)
-
+        self.totalNode.pls = cd['partitions']
+        self.totalNode.dispLabels = cd['dispLabels']
+        
         nd = cd['nodes']
-        for key in nd.keys():
+        for key in cd['orderedNodes']:
+            print 'Key = ' + key
             node = Node(axes, tags, nd[key]['nkeys'], cd['totals'], cd['total'], outerRadius, dANp)
+            node.dispLabels = False
             outerRadius = node.radiusa
             self.nodes.append(node)
 
@@ -53,7 +69,6 @@ class Cluster(object):
 
         orange  = [255.0/255, 165.0/255,   0.0/255]
         magenta = [255.0/255,   0.0/255, 255.0/255]
-        purple  = [0.5,0.3,1.0]
 
         ccolor = magenta
         color  = purple
@@ -132,6 +147,7 @@ class Node(object):
         radiusa = self.radiusa
         radiusb = self.radiusb
 
+        nstr = 3
         for i in range(0, self.nPart):
             theta = dtheta * i
             
@@ -142,6 +158,33 @@ class Node(object):
             # 'ring' will look very angular
             
             patch = self.getPatch(theta, dtheta, int(24 * (8.0/self.nPart)))
+
+            if self.dispLabels:
+                x = 1.2*np.cos(theta + dtheta/2)
+                y = 1.2*np.sin(theta + dtheta/2)
+
+                if i > 0:
+                  self.ndigOld = self.ndig
+
+                  if self.pls[i] == 0:
+                    self.ndig = 1
+                  else:
+                    self.ndig = int(np.floor(np.log10(float(self.pls[i]))) + 1)
+
+                  if self.ndig > self.ndigOld:
+                    nstr += 1
+
+                  print 'pls = ' + str(self.pls[i]) + ' ndig = ' + str(self.ndig)
+                  
+                else:
+                  if self.pls[i] == 0:
+                    self.ndig = 1
+                  else:
+                    self.ndig = int(np.floor(np.log10(float(self.pls[i]))) + 1)
+
+
+                pstr = str(self.pls[i])
+                ax.text(x, y, pstr[0:nstr], color=purple, rotation=theta*180.0/np.pi, horizontalalignment='center')
             
             mult = float(vals[i]) / valMax
 
@@ -214,13 +257,18 @@ def parseFile(file):
     f = open(file)
     nodes = {}
     sum = 0
+    nodeOrder = {}
+
+    iNode = 0
     for line in f:
         ls = line.split(' ')
         node = ls[1]
         
         if node not in nodes.keys():
             nodes[node] = {}
-                    
+            nodeOrder[node] = iNode
+            iNode += 1
+            
         if ls[2] == 'sum':
             sum += int(ls[3])
         elif ls[2] == 'partition':
@@ -240,7 +288,7 @@ def parseFile(file):
         for partition in nm.keys():
            if partition not in pd.keys():
                pd[partition] = partition
-               pl.append(partition)
+               pl.append(int(partition))
 
     print 'PL = ' + str(pl)
     ps = np.argsort(pl)
@@ -256,6 +304,7 @@ def parseFile(file):
     cluster = {}
     cluster['nodes'] = {}
     cluster['partitions'] = pls
+
     totals = np.zeros(npart, dtype=np.float)
     
     for node in nodes.keys():
@@ -264,9 +313,9 @@ def parseFile(file):
         nd['partitions'] = pls
         pa = np.zeros(npart, dtype=np.float)
         for i in range(0, npart):
-            part = pls[i]
+            part = str(pls[i])
             if part in nodes[node].keys():
-                print 'Node part map = ' + str(nodes[node][part])
+#                print 'Node part map = ' + str(nodes[node][part])
                 pa[i] = int(nodes[node][part]['nkeys'])
                 totals[i] += pa[i]
             else:
@@ -276,7 +325,13 @@ def parseFile(file):
 
     cluster['totals'] = totals
     cluster['total'] = np.sum(totals)
-            
+
+    nNode = np.size(nodeOrder.keys())
+    orderedNodes = np.ndarray(nNode, dtype=object)
+    for node in nodeOrder.keys():
+      orderedNodes[nodeOrder[node]] = node
+    cluster['orderedNodes'] = orderedNodes
+    
     return cluster
 
 #=======================================================================
@@ -290,18 +345,25 @@ def parseFile(file):
 #------------------------------------------------------------
 
 file      = getOptArgs(sys.argv,       'file',     'ring.txt')
-save      = getOptArgs(sys.argv,       'save',      False) == "True"
+output    = getOptArgs(sys.argv,       'output',    None)
 floor     = float(getOptArgs(sys.argv, 'floor',     0.0))
+dispLabels= getOptArgs(sys.argv, 'labels', False) == "True"
 
 cd   = parseFile(file)
+cd['dispLabels'] = dispLabels
 tags = ['N$_{keys}$']
 fig, axes = getAxes(tags)
 
-print str(cd)
+print str(cd['orderedNodes'])
 
 ring = Cluster(axes, cd, tags)
 ring.drawRing()
-plt.show()
+
+if output != None:
+  plt.savefig(output, facecolor='k', edgecolor='none')
+else:
+  plt.show()
 
 totals = cd['totals']
 print 'totals = ' + str(totals) + ' var = ' + str(np.std(totals))
+

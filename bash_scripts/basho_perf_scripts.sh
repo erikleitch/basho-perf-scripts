@@ -1534,7 +1534,12 @@ make5by5plots()
 
 make10byteplots()
 {
-    plotlogfileycsb files="ycsb_5by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5 + 5 Cluster\n10-byte cols;10 + 10 Cluster\n10-byte cols;15 + 15 Cluster\n10-byte cols" title="RiakTS PUT Throughput (YCSB)" batchsize=1 contour=none output=$RIAK_TEST_BASE/images/nodeComp10Byte
+    plotlogfileycsb files="ycsb_5by5_10.out ycsb_10by10_10.out ycsb_15by15_10.out" param1=threadcount param2=fieldcount figsize="(18,18)" labels="5 + 5 Cluster\n10-byte cols;10 + 10 Cluster\n10-byte cols;15 + 15 Cluster\n10-byte cols" title="RiakTS PUT Throughput (YCSB)" cellsize="10 10 10" batchsize="1 1 1" contour=none output=$RIAK_TEST_BASE/images/nodeComp10Byte
+}
+
+make10byteOptplot()
+{
+    plotlogfileycsb files="ycsb_5by5_10_optimized.out ycsb_5by5_10_baseline.out" param1=threadcount param2=fieldcount figsize="(18,12)" labels="5 + 5 Cluster\n10-byte cols\n(optimized OS);5 + 5 Cluster\n10-byte cols\n(no optimization)" title="RiakTS PUT Throughput (YCSB)" cellsize="10 10" batchsize="1 1" contour=none interp=linear overplot=true #output=$RIAK_TEST_BASE/images/nodeComp10Byte
 }
 
 make10colbatchplots()
@@ -2782,4 +2787,29 @@ bashpasstest3()
     cellsize=${cellsize//\"/}
 
     echo "cellsize = '$cellsize' (3)"
+}
+
+ldPlot()
+{
+    local hours=$(valOrDef hours '1.0' "$@")
+    hours=${hours//\"/}
+
+    local rt=$(valOrDef rt 'true' "$@")
+    rt=${rt//\"/}
+
+    python basho-perf-scripts/python_scripts/queryTest.py file="throughput_40hr.txt throughput_24hr.txt throughput_8hr.txt" relx=true smooth=true npt=150 rt=$rt hours=$hours
+}
+
+gridPlot()
+{
+    python basho-perf-scripts/python_scripts/makegrid.py stat=mean
+    python basho-perf-scripts/python_scripts/makegrid.py stat=95
+    python basho-perf-scripts/python_scripts/makegrid.py stat=99
+
+    python basho-perf-scripts/python_scripts/surfplot.py "/tmp/tslatency_perc/mean_grid.txt /tmp/tslatency_perc/95_grid.txt /tmp/tslatency_perc/99_grid.txt" overplot=true figsize='10,10'
+}
+
+influxPlot()
+{
+    python basho-perf-scripts/python_scripts/influxPlot.py hoursafter=23.0 db='ycsb_operations ycsb_latency leveldb_value leveldb_value leveldb_value leveldb_value' stat='value value value value value value' type='none none BGCompactDirect ThrottleCounter ThrottleCompacts0 ThrottleCompacts1' harness='true true false false false false' derivative='true true true true true true' smooth=true relx=true
 }

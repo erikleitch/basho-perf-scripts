@@ -5,6 +5,7 @@ from matplotlib import rcParams;
 from mpl_toolkits.mplot3d import Axes3D;
 import sys
 import os
+import erltestutil as etu
 
 defaultFontsize=14
 
@@ -95,13 +96,17 @@ def getSubplots(fileNames, overplot):
 
   return axes
 
-def getData(fileName, index, interp):
+def getData(fileName, index, opts):
 
   dat = np.loadtxt(fileName);
   nline = np.shape(dat)[0];
   x = dat[0:nline,0];
+  if opts['logx']:
+    x = np.log10(x)
   nx = np.size(np.unique(x));
   y = dat[0:nline,1];
+  if opts['logy']:
+    y = np.log10(y)
   ny = np.size(np.unique(y));
   [d, unit] = getDataAndUnits(dat, nline, index);
   npoints=np.size(x);
@@ -117,12 +122,63 @@ def getData(fileName, index, interp):
   x1=np.linspace(np.min(ux), np.max(ux), 200);
   y1=np.linspace(np.min(uy), np.max(uy), 200);
   x2,y2 = np.meshgrid(x1, y1);
-  if nx > 3 and ny > 3:
-    z2=int.griddata(points, d, (x2, y2), method=interp)
+
+  if opts['interp'] == 'gauss':
+    z2=gaussInterp(points, d, x2, y2)
   else:
+    print 'd = ' + str(d) + ' shape = ' + str(np.shape(d))
+    print 'points = ' + str(points) + ' shape = ' + str(np.shape(points))
+    print 'x2 = ' + str(x2) + ' shape = ' + str(np.shape(x2))
     z2=int.griddata(points, d, (x2, y2), method=interp)
+
   return x2, y2, z2, unit
 
+def gaussInterp(points, z, x2, y2):
+
+  npoints = np.shape(points)[0]
+  x = []
+  y = []
+  for i in range(0,npoints):
+    x.append(points[i][0])
+    y.append(points[i][1])
+
+  print ' points = ' + str(points) + ' shape = ' + str(np.shape(points)) + ' x = ' + str(x)
+
+  
+  z2 = np.zeros(np.shape(x2), dtype=np.double)
+  w2 = np.zeros(np.shape(x2), dtype=np.double)
+
+  n = np.size(x)
+  n1 = np.shape(x2)[0]
+  n2 = np.shape(x2)[1]
+
+  xmax = np.max(x2)
+  xmin = np.min(x2)
+  ymax = np.max(y2)
+  ymin = np.min(y2)
+  
+  sx = (xmax - xmin) / 2.0
+  sy = (ymax - ymin) / 2.0
+
+  print 'iterating over ' + str(n1) + ' ' + str(n2)
+  
+  for i1 in range(0,n1):
+    for i2 in range(0,n2):
+      x0 = x2[i1][i2]
+      y0 = y2[i1][i2]
+
+      for i in range(0,n):
+        xv = x[i]
+        yv = y[i]
+        zv = z[i]
+        zmn = z2[i1][i2]
+        w = np.exp(-((x0-xv)*(x0-xv)/(2*sx*sx) + (y0-yv)*(y0-yv)/(2*sy*sy)))
+#        w = 1.0
+        w2[i1][i2] += w
+        z2[i1][i2] += (zv * w - zmn) / w2[i1][i2]
+
+  return z2
+      
 def retick(ax, axname):
   if axname == 'x':
     rng = ax.get_xlim()
@@ -152,23 +208,29 @@ def retick(ax, axname):
 
   return
 
-def makeSubPlot(fileName, index, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal, interp):
+def makeSubPlot(fileName, index, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal, opts):
 
-  x,y,z,unit2 = getData(fileName, index, interp);
+  x,y,z,unit2 = getData(fileName, index, opts);
   plt.hold(doHold);
   ax.plot_surface(x, y, z/scale, color=Color);
   ax.set_zlabel('\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);
   ax.set_zlim(0, maxVal*1.1);
   ax.set_xlabel('\n' + xlabel, fontsize=defaultFontsize);
   ax.set_ylabel('\n' + ylabel, fontsize=defaultFontsize);
+
+  if opts['logx']:
+    retick(ax, 'x')
+  if opts['logy']:
+    retick(ax, 'y')
+
   ax.tick_params(labelsize=defaultFontsize)
 
-def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal, interp):
+def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal, opts):
 
   print 'Inside sp2 with action = ' + str(action)
   
-  x1,y1,z1,unitIgnore = getData(fileName,  index, interp);
-  x2,y2,z2,unitIgnore = getData(fileName2, index, interp);
+  x1,y1,z1,unitIgnore = getData(fileName,  index, opts);
+  x2,y2,z2,unitIgnore = getData(fileName2, index, opts);
   plt.hold(doHold);
   if action == '/':
     plotunit = 'ratio'
@@ -189,9 +251,12 @@ def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, xlabel
     ax.plot_surface(x1, y1, z1 * z2, color=Color);
   ax.set_xlabel('\n' + xlabel);
   ax.set_ylabel('\n' + ylabel);
-#  retick(ax, 'y')
+  if opts['logx']:
+    retick(ax, 'x')
+  if opts['logy']:
+    retick(ax, 'y')
 
-def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units, maxs, param1, param2, interp):
+def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units, maxs, param1, param2, optDict):
 
   nfile=np.shape(files)[0]
   ncolor=np.shape(colors)[0];
@@ -201,45 +266,45 @@ def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units,
     if plotwithfiles != None:
       if iFile == 0:
         if plotwithaction == 'p':
-          plotData(files, iFile, False, axes, 'c', scales, units, maxs, param1, param2, interp)
-          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs, param1, param2, interp)
+          plotData(files, iFile, False, axes, 'c', scales, units, maxs, param1, param2, optDict)
+          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs, param1, param2, optDict)
         else:
-          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, False, axes, 'c', scales, units, maxs, param1, param2, interp)
+          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, False, axes, 'c', scales, units, maxs, param1, param2, optDict)
       else:
         if plotwithaction == 'p':
-          plotData(files, iFile,  True, axes, 'c', scales, units, maxs, param1, param2, interp)
-          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs, param1, param2, interp)
+          plotData(files, iFile,  True, axes, 'c', scales, units, maxs, param1, param2, optDict)
+          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs, param1, param2, optDict)
         else:
-          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, True, axes, 'c', scales, units, maxs, param1, param2, interp)
+          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, True, axes, 'c', scales, units, maxs, param1, param2, optDict)
     else:
       if iFile == 0:
-        plotData(files, iFile, False, axes, colors[iFile % ncolor], scales, units, maxs, param1, param2, interp)
+        plotData(files, iFile, False, axes, colors[iFile % ncolor], scales, units, maxs, param1, param2, optDict)
       else:
-        plotData(files, iFile,  True, axes, colors[iFile % ncolor], scales, units, maxs, param1, param2, interp)
+        plotData(files, iFile,  True, axes, colors[iFile % ncolor], scales, units, maxs, param1, param2, optDict)
 
-def plotData(fileNames, iFile, doHold, axes, Color, scales, units, maxs, param1, param2, interp):
-
-  naxes=np.shape(axes)[0]
-
-  makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, param1, param2, 'Ops/sec', scales[0], units[0], maxs[0], interp);
-
-  if naxes > 1 and axes[1] != None:
-    makeSubPlot(fileNames[iFile], 3, axes[1][iFile], doHold, Color, param1, param2, 'Writes/sec', scales[1], units[1], maxs[1], interp);
-
-  if naxes > 2 and axes[2] != None:
-    makeSubPlot(fileNames[iFile], 4, axes[2][iFile], doHold, Color, param1, param2, 'Bytes/sec', scales[2], units[2], maxs[2], interp);
-
-def plotDataTwo(fileNames, fileNames2, action, iFile, doHold, axes, Color, scales, units, maxs, param1, param2, interp):
+def plotData(fileNames, iFile, doHold, axes, Color, scales, units, maxs, param1, param2, optDict):
 
   naxes=np.shape(axes)[0]
 
-  makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 2, action, axes[0][iFile], doHold, Color, param1, param2, 'Ops/sec', scales[0], units[0], maxs[0], interp);
+  makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, param1, param2, 'Ops/sec', scales[0], units[0], maxs[0], optDict);
 
   if naxes > 1 and axes[1] != None:
-    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 3, action, axes[1][iFile], doHold, Color, param1, param2, 'Writes/sec', scales[1], units[1], maxs[1], interp);
+    makeSubPlot(fileNames[iFile], 3, axes[1][iFile], doHold, Color, param1, param2, 'Writes/sec', scales[1], units[1], maxs[1], optDict);
 
   if naxes > 2 and axes[2] != None:
-    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 4, action, axes[2][iFile], doHold, Color, param1, param2, 'Bytes/sec', scales[2], units[2], maxs[2], interp);
+    makeSubPlot(fileNames[iFile], 4, axes[2][iFile], doHold, Color, param1, param2, 'Bytes/sec', scales[2], units[2], maxs[2], optDict);
+
+def plotDataTwo(fileNames, fileNames2, action, iFile, doHold, axes, Color, scales, units, maxs, param1, param2, optDict):
+
+  naxes=np.shape(axes)[0]
+
+  makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 2, action, axes[0][iFile], doHold, Color, param1, param2, 'Ops/sec', scales[0], units[0], maxs[0], optDict);
+
+  if naxes > 1 and axes[1] != None:
+    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 3, action, axes[1][iFile], doHold, Color, param1, param2, 'Writes/sec', scales[1], units[1], maxs[1], optDict);
+
+  if naxes > 2 and axes[2] != None:
+    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 4, action, axes[2][iFile], doHold, Color, param1, param2, 'Bytes/sec', scales[2], units[2], maxs[2], optDict);
 
 def getDataAndUnits(dat, nline, index):
   d=dat[0:nline,index];
@@ -280,7 +345,10 @@ if plotWith != None:
   plotWith = plotWith.split(' ')
 
 plotWithAction = getOptArgs(sys.argv, 'plotwithaction', 'p')
-  
+
+overplot   = etu.str2bool(getOptArgs(sys.argv, 'overplot', 'false'))
+logx       = etu.str2bool(getOptArgs(sys.argv, 'logx', 'false'))
+logy       = etu.str2bool(getOptArgs(sys.argv, 'logy', 'false'))
 labels     = getOptArgs(sys.argv, 'labels', '').split(';')
 title      = getOptArgs(sys.argv, 'title',  '')
 param1     = getOptArgs(sys.argv, 'param1', 'x (unspecified)')
@@ -309,9 +377,14 @@ cellsizes=[10, 10];
 scales,units,maxs  = getScalesAndUnits(files);
 plt.axis('off')
 plt.title(title)
-axes = getSubplots(files, False)
+axes = getSubplots(files, overplot)
 
-plotFiles(files, plotWith, plotWithAction, axes, colors, scales, units, maxs, param1, param2, interp)
+opts = {}
+opts['interp'] = interp
+opts['logx']   = logx
+opts['logy']   = logy
+
+plotFiles(files, plotWith, plotWithAction, axes, colors, scales, units, maxs, param1, param2, opts)
 
 top   =plt.rcParams['figure.subplot.top']
 bottom=plt.rcParams['figure.subplot.bottom']

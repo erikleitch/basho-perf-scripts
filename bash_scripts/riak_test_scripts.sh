@@ -1691,6 +1691,25 @@ testCmpSequence()
 }
 
 #-----------------------------------------------------------------------
+# Run TS1.5 Put vs INSERT tests
+#-----------------------------------------------------------------------
+
+tsPutInsertLatencyTestSequence()
+{
+    testCmpSequence start=0 iter=1 branch=riak_ee_riak_ts_ee_1.5.0rc5 script=ts_setup_gen \
+		    args="1 1+5+10+20+50" \
+		    erlfn1=runTsPutLatencyTests \
+		    erlfn2=runTsPutInsertLatencyTests \
+		    prefix1=tsputlatency_ts1.5_put \
+		    prefix2=tsputlatency_ts1.5_insert
+}
+
+tsPutInsertLatencyPlot()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_put*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_insert*.txt`" $'TS1.5 PUT Latency' $'TS1.5 INSERT Latency' $'$\Delta$ Put Latency' $'$\Delta$Latency (%)' overplot=False op='/'
+}
+
+#-----------------------------------------------------------------------
 # Run TS1.4 v TS1.5 Group-by tests
 #-----------------------------------------------------------------------
 
@@ -1926,12 +1945,12 @@ blobQueryPlotTs1.5()
 
 kv2iQueryLatencyTestSequence()
 {
-    testCmpSequence start=0 iter=10 erlfn=runKv2iQueryLatencyTests nodes=1 args="nbyte=100" \
+    testCmpSequence start=0 iter=1 erlfn=runKv2iQueryLatencyTests nodes=1 args="nbyte=100" \
 		    script=ts_setup_kv_nval1 \
-		    branch1=riak_ee_perf_2i_streaming_folds \
-    		    branch2=riak_ee_1.4.0 \
-		    prefix1=kv2iquerylatency_proto \
-		    prefix2=kv2iquerylatency_normal
+		    branch1=riak_ee_perf_2i_streaming_folds_clean \
+    		    branch2=riak_ee_riak_ts_ee_1.4.0_clean \
+		    prefix1=kv2iquerylatency_v2_proto \
+		    prefix2=kv2iquerylatency_v2_normal
 }
 
 kv2iQueryLatencyTestSequenceNval3()
@@ -1946,7 +1965,7 @@ kv2iQueryLatencyTestSequenceNval3()
 
 kv2iQueryPlot()
 {
-    python $RIAK_TEST_BASE/python_scripts/kv2iquerylatency.py "`echo $RIAK_TEST_BASE/data/kv2iquerylatency_proto*.txt`" "`echo $RIAK_TEST_BASE/data/kv2iquerylatency_normal*.txt`" $'KV 2i Query Latency\n(streaming folds prototype)' $'KV 2i Query Latency\n(normal iteration)' $'Ratio\n(Normal / Prototype)' $'Latency Ratio' overplot=False cmpplot=div chis=False zmax=3 figfile=kv2iquery_prototype.png
+    python $RIAK_TEST_BASE/python_scripts/kv2iquerylatency.py "`echo $RIAK_TEST_BASE/data/kv2iquerylatency_v2_proto*.txt`" "`echo $RIAK_TEST_BASE/data/kv2iquerylatency_v2_normal*.txt`" $'KV 2i Query Latency\n(streaming folds prototype)' $'KV 2i Query Latency\n(normal iteration)' $'Ratio\n(Normal / Prototype)' $'Latency Ratio' overplot=False cmpplot=div chis=False zmax=3
 }
 
 tsQueryLatencyTestSequenceGrid()

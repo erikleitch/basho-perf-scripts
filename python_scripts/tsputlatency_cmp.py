@@ -286,7 +286,11 @@ else:
   if op == '-':
     makePlot(ax, x2, y2, diff*100, -100, 100, 'y', title3 + '\n' + statstr, False, zlabel3)
   else:
-    makePlot(ax, x2, y2, diff, np.min(diff), np.max(diff), 'y', title3 + '\n' + statstr, False, zlabel3)
+    makePlot(ax, x2, y2, diff, np.min(diff), np.max(10), 'y', title3 + '\n' + statstr, False, zlabel3)
+
+print 'x2   = ' + str(x2)
+print 'y2   = ' + str(np.power(10, y2))
+print 'diff = ' + str(diff)
 
 if figfile != None:
   plt.tight_layout(w_pad=2,pad=5)

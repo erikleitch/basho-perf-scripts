@@ -2750,3 +2750,12 @@ generateSeQueryMovie()
     riaktest ts_setup_sep_1h_mult
     for file in /tmp/dev*_events.txt;do mv $file output/`basename $file`"_1h_old"; done
 }
+
+kvperctest()
+{
+    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval1,bucketname=TestBucketNval1,n=1000,nval=1,outdir=/tmp/kvlatency_perc_nval1"
+
+    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval3,bucketname=TestBucketNval3,n=1000,nval=3,outdir=/tmp/kvlatency_perc_nval3"
+
+    python basho-perf-scripts_master/python_scripts/makeconfplot.py bins=50 nsig=6 logx=true logy=true path='/tmp/kvlatency_perc_nval1'
+}

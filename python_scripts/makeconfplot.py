@@ -121,29 +121,24 @@ def saveGridAsLine(vals, fileName):
 stat = etu.getOptArgs(sys.argv, 'stat', 'mean')
 path = etu.getOptArgs(sys.argv, 'path', '/tmp/kvlatency_perc')
 val  = etu.getOptArgs(sys.argv, 'val', '10')
-line = etu.str2bool(etu.getOptArgs(sys.argv, 'line', 'True'))
 
 opts = {}
 opts['nsig']   = etu.getOptArgs(sys.argv, 'nsig', None)
-opts['bins']   = etu.getOptArgs(sys.argv, 'bins', 100)
-opts['logx']   = etu.str2bool(etu.getOptArgs(sys.argv, 'logx', 'false'))
-opts['logy']   = etu.str2bool(etu.getOptArgs(sys.argv, 'logy', 'false'))
+opts['bins']   = etu.getOptArgs(sys.argv, 'bins', 50)
+opts['logx']   = etu.str2bool(etu.getOptArgs(sys.argv, 'logx', 'true'))
+opts['logy']   = etu.str2bool(etu.getOptArgs(sys.argv, 'logy', 'true'))
 opts['title']  = etu.getOptArgs(sys.argv, 'title', '')
 opts['xlabel'] = etu.getOptArgs(sys.argv, 'xlabel', '')
 opts['ylabel'] = etu.getOptArgs(sys.argv, 'ylabel', '')
-opts['legend'] = etu.getOptArgs(sys.argv, 'legend', None)
-opts['loc']    = etu.getOptArgs(sys.argv, 'loc', 'upper right')
+opts['loc']    = etu.getOptArgs(sys.argv, 'loc', 'upper left')
 
-if line:
-    retMn   = getLine(path, stat, 'nbyte', opts)
-    ret1Sig = getLine(path, '68conf', 'nbyte', opts)
-    ret2Sig = getLine(path, '95conf', 'nbyte', opts)
-    ret3Sig = getLine(path, '99conf', 'nbyte', opts)
-    ret99Perc = getLine(path, '99perc', 'nbyte', opts)
-else:
-    xmn, ymn = getGridAsLine(path, stat, 'ncol', 'nbyte', val)
-    x95, y95 = getGridAsLine(path, '95perc', 'ncol', 'nbyte', val)
-    x99, y99 = getGridAsLine(path, '99perc', 'ncol', 'nbyte', val)
+print 'here 0'
+retMn   = getLine(path, 'mean', 'nbyte', opts)
+print 'here 1'
+ret1Sig = getLine(path, '68conf', 'nbyte', opts)
+ret2Sig = getLine(path, '95conf', 'nbyte', opts)
+ret3Sig = getLine(path, '99conf', 'nbyte', opts)
+ret99Perc = getLine(path, '99perc', 'nbyte', opts)
 
 fig = plt.figure(figsize=(10,10))
 fig.set_facecolor('white');
@@ -179,9 +174,6 @@ plt.ylabel(opts['ylabel'])
 plt.title(opts['title'])
 
 plt.legend(handles=[hmode, hmean, h1sig, h2sig, h3sig], loc=opts['loc'])
-
-if opts['legend'] != None:
-    plt.legend(opts['legend'].split(';'), loc=opts['loc'])
 
 plt.show()
 

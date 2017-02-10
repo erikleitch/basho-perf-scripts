@@ -980,17 +980,34 @@ sepQuery(Tag, Hours) ->
 %% KV PUT/GET Latency tests
 %%----------------------------------------------------------------------- 
 
-runKvPutLatencyPercentileTest(N) ->
-    Bytes = [      1,
-	          10, 
-	         100, 
-	        1000, 
-	       10000, 
-	      100000, 
-	     1000000, 
-	    10000000],
-    C = getClient(),
-    [kvPutLatencyPercentileTest(C, N, Nbyte) || Nbyte <- Bytes].
+runKvPutLatencyPercentileTests([ArgStr]) ->
+    ArgDict    = getArgDict(ArgStr),
+
+    ClientIp   = getArgKey(ArgDict, "clientip", "127.0.0.1"),
+    ClientPort = list_to_integer(getArgKey(ArgDict, "clientport", "10017")),
+    N          = list_to_integer(getArgKey(ArgDict, "n", "1000")),
+    NVal       = list_to_integer(getArgKey(ArgDict, "nval", "1")),
+    W1c        = list_to_atom(getArgKey(ArgDict, "w1c", "false")),
+    BucketType = list_to_binary(getArgKey(ArgDict, "buckettype", "TestBucketType")),
+    BucketName = list_to_binary(getArgKey(ArgDict, "bucketname", "GeoCheckin")),
+    Bytes      = getArgKey(ArgDict, "bytes", [1,10,100,1000,10000,100000,1000000,10000000]),
+    Dir        = getArgKey(ArgDict, "outdir", "/tmp/kvlatency_perc/"),
+
+    %% Make the bucket if it doesn't already exist
+    
+    create_kv_bucket(NVal, BucketType, W1c),
+
+    %% Make the directory if it doesn't already exist
+
+    os:cmd("mkdir " ++ Dir),
+
+    %% Instantiate the client
+
+    C = getClient(ClientIp, ClientPort),
+
+    %% And run the tests
+
+    [kvPutLatencyPercentileTest({C, {BucketType, BucketName}, Dir}, N, Nbyte) || Nbyte <- Bytes].
 
 runKvLatencyTests([ArgStr]) ->
     ArgDict = getArgDict(ArgStr),
@@ -1041,26 +1058,30 @@ kvPutTest(C,Bucket,Data,Name, N,Acc) ->
     riakc_pb_socket:put(C, Obj),
     kvPutTest(C,Bucket,Data,Name,N,Acc+1).
 
-<<<<<<< HEAD
-kvPutLatencyPercentileTest(C, N, Nbyte) ->
+%%------------------------------------------------------------
+%% Dump out complete KV latency distribution
+%%------------------------------------------------------------
+
+kvPutLatencyPercentileTest({C, Bucket, Dir}, N, Nbyte) ->
     Name = list_to_atom("put_nbyte" ++ integer_to_list(Nbyte) ++ "_nrow" ++ integer_to_list(N)),
-    FileName = "/tmp/kvlatency_perc/" ++ atom_to_list(Name),
+    FileName = Dir ++ "/" ++ atom_to_list(Name),
+    io:format("File = ~p~n", [FileName]),
     case file:open(FileName, [append]) of
         {ok, IoDevice} ->
 	    IoDevice,
 	    io:format("Generating data ~n", []),
 	    Data = kvTestData(Nbyte),
-	    kvPutLatencyPercentileTestLoop({C, Data, IoDevice}, N, 0);
+	    kvPutLatencyPercentileTestLoop({C, Bucket, Data, IoDevice}, N, 0);
 	{error, Reason} ->
             io:format("~s open error  reason:~s~n", [FileName, Reason])
     end.
 
-kvPutLatencyPercentileTestLoop({_C,_Data, IoDevice},_N,_N) ->
+kvPutLatencyPercentileTestLoop({_C, _Bucket, _Data, IoDevice},_N,_N) ->
     file:close(IoDevice),
     ok;
-kvPutLatencyPercentileTestLoop({C, Data, IoDevice}, N, Acc) ->
+kvPutLatencyPercentileTestLoop({C, Bucket, Data, IoDevice}, N, Acc) ->
     Key = list_to_binary("key" ++ integer_to_list(Acc)),
-    Obj = riakc_obj:new({<<"TestBucketType">>, <<"GeoCheckin">>}, Key, Data),
+    Obj = riakc_obj:new(Bucket, Key, Data),
 
     StartTime = eleveldb:current_usec(),
     riakc_pb_socket:put(C, Obj),
@@ -1069,14 +1090,10 @@ kvPutLatencyPercentileTestLoop({C, Data, IoDevice}, N, Acc) ->
     Bytes = io_lib:format("~p~n", [StopTime - StartTime]),
     file:write(IoDevice, Bytes),
 
-    kvPutLatencyPercentileTestLoop({C, Data, IoDevice}, N, Acc+1).
+    kvPutLatencyPercentileTestLoop({C, Bucket, Data, IoDevice}, N, Acc+1).
 
-kvGetTest(N,Nbyte) ->
-    C = getClient(),
-=======
 kvGetTest(N,Nbyte,Client,Bucket) ->
     C = getClient(Client),
->>>>>>> 877b761e14ed554716ebc02b2778327fb834b242
     profiler:profile({prefix, "/tmp/client_profiler_results"}),
     profiler:profile({noop, false}),
     Name = list_to_atom("get_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
@@ -1705,8 +1722,6 @@ putKvKey(Bucket, Key, Val) ->
     Obj = riakc_obj:new(Bucket, Key, Val),
     riakc_pb_socket:put(Pid, Obj).
 
-<<<<<<< HEAD
-
 getModList() ->
     Ret = file:list_dir(app_helper:get_env(riak_core,platform_data_dir) ++ "/ddl_ebin"),
     
@@ -1759,9 +1774,28 @@ findDDLPath() ->
 		end
 	end,
     [Fn(Entry) || Entry <- L].
-=======
+
 geoQueryAws(Range) ->
     C = getClient("127.0.0.1", 8087),
     riakc_ts:query(C, "select * from GeoCheckin where myfamily='family1' and myseries='seriesX' and time > 0 and time < " ++ integer_to_list(Range)).
->>>>>>> 877b761e14ed554716ebc02b2778327fb834b242
+
+
+create_kv_bucket(NVal, Bucket, WriteOnce) when is_boolean(WriteOnce) ->
+    io:format("Inside CKB with ~p ~p ~p~n", [NVal, Bucket, WriteOnce]),
+    Props =
+        case WriteOnce of
+            false ->
+		io_lib:format("{\"props\": {" ++
+                                  "\"n_val\": " ++ integer_to_list(NVal) ++
+                                  ", \"allow_mult\": false" ++
+                                  "}}", []);
+	    true ->   
+		io_lib:format("{\"props\": {\"n_val\": " ++
+                                  integer_to_list(NVal) ++
+                                  ", \"write_once\": true}}", [])
+        end,
+    os:cmd("riak-admin bucket-type create " ++ binary_to_list(Bucket) ++ " '" ++ Props ++ "'"),
+    timer:sleep(1000),
+    os:cmd("riak-admin bucket-type activate " ++ binary_to_list(Bucket)).
+
 

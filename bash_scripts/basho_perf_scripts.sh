@@ -2813,3 +2813,17 @@ influxPlot()
 {
     python basho-perf-scripts/python_scripts/influxPlot.py hoursafter=23.0 db='ycsb_operations ycsb_latency leveldb_value leveldb_value leveldb_value leveldb_value' stat='value value value value value value' type='none none BGCompactDirect ThrottleCounter ThrottleCompacts0 ThrottleCompacts1' harness='true true false false false false' derivative='true true true true true true' smooth=true relx=true
 }
+
+awsbash()
+{
+    env_ssh system_hosts 'echo "export BASHO_PERF_ROOT=/home/eml/projects/riak/utilities/internal_utilities_checkout/basho-perf_develop" >> /home/eml/.bashrc'
+    env_ssh system_hosts 'echo "export RIAK_DIR=\$BASHO_PERF_ROOT/env/riak_ts" >> /home/eml/.bashrc'
+    env_ssh system_hosts 'echo "export PATH=\$PATH:\$RIAK_DIR/bin" >> /home/eml/.bashrc'
+    env_ssh system_hosts 'echo "source \$BASHO_PERF_ROOT/basho-perf-scripts/prof_source" >> /home/eml/.bashrc'
+}
+
+kvperctestaws()
+{
+    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval1,bucketname=TestBucketNval1,n=1000,nval=1,outdir=/tmp/kvlatency_perc_nval1,clientport=8087" riak=$RIAK_DIR
+    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval3,bucketname=TestBucketNval3,n=1000,nval=3,outdir=/tmp/kvlatency_perc_nval3,clientport=8087" riak=$RIAK_DIR
+}

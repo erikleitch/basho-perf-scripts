@@ -118,9 +118,9 @@ def saveGridAsLine(vals, fileName):
             f.write("%5.2f %5.2f %5.2f\n" % (skey1, skey2, vals[skey1][skey2]))
     f.close()
 
-stat = etu.getOptArgs(sys.argv, 'stat', 'mean')
-path = etu.getOptArgs(sys.argv, 'path', '/tmp/kvlatency_perc')
-val  = etu.getOptArgs(sys.argv, 'val', '10')
+stat  = etu.getOptArgs(sys.argv, 'stat', 'mean')
+paths = etu.getOptArgs(sys.argv, 'path', '/tmp/kvlatency_perc').split(' ')
+val   = etu.getOptArgs(sys.argv, 'val', '10')
 
 opts = {}
 opts['nsig']   = etu.getOptArgs(sys.argv, 'nsig', None)
@@ -132,13 +132,11 @@ opts['xlabel'] = etu.getOptArgs(sys.argv, 'xlabel', '')
 opts['ylabel'] = etu.getOptArgs(sys.argv, 'ylabel', '')
 opts['loc']    = etu.getOptArgs(sys.argv, 'loc', 'upper left')
 
-print 'here 0'
-retMn   = getLine(path, 'mean', 'nbyte', opts)
-print 'here 1'
-ret1Sig = getLine(path, '68conf', 'nbyte', opts)
-ret2Sig = getLine(path, '95conf', 'nbyte', opts)
-ret3Sig = getLine(path, '99conf', 'nbyte', opts)
-ret99Perc = getLine(path, '99perc', 'nbyte', opts)
+opts['xmin']   = etu.getOptArgs(sys.argv, 'xmin', None)
+opts['xmax']   = etu.getOptArgs(sys.argv, 'xmax', None)
+
+opts['ymin']   = etu.getOptArgs(sys.argv, 'ymin', None)
+opts['ymax']   = etu.getOptArgs(sys.argv, 'ymax', None)
 
 fig = plt.figure(figsize=(10,10))
 fig.set_facecolor('white');
@@ -150,21 +148,31 @@ if opts['logx']:
 if opts['logy']:
     ax.set_yscale('log')
 
-#plt.plot(ret99Perc['xs'], ret99Perc['ys'], color='red')
 plt.hold(True)
 
-ax.fill_between(ret3Sig['xs'], ret3Sig['lb'], ret3Sig['ub'], facecolor='pink', edgecolor='pink')
-h3sig = getPatchHandle('pink', '99% Confidence Interval')
+for path in paths:
+    
+    retMn     = getLine(path, 'mean', 'nbyte', opts)
+    retMd     = getLine(path, 'median', 'nbyte', opts)
 
-ax.fill_between(ret2Sig['xs'], ret2Sig['lb'], ret2Sig['ub'], facecolor='lightblue', edgecolor='lightblue')
-h2sig = getPatchHandle('lightblue', '95% Confidence Interval')
+    ret1Sig   = getLine(path, '68conf', 'nbyte', opts)
+    ret2Sig   = getLine(path, '95conf', 'nbyte', opts)
+    ret3Sig   = getLine(path, '99conf', 'nbyte', opts)
 
-plt.plot(retMn['xs'], retMn['ys'], 'g--')
-ax.fill_between(ret1Sig['xs'], ret1Sig['lb'], ret1Sig['ub'], facecolor='lightgreen', edgecolor='lightgreen')
-plt.plot(ret1Sig['xs'], ret1Sig['mx'], color='darkgreen')
-hmode = getLineHandle('green', '-', 'Mode')
-hmean = getLineHandle('green', '--', 'Mean')
-h1sig = getPatchHandle('lightgreen', '68% Confidence Interval')
+    ax.fill_between(ret3Sig['xs'], ret3Sig['lb'], ret3Sig['ub'], facecolor='pink', edgecolor='pink')
+    ax.fill_between(ret2Sig['xs'], ret2Sig['lb'], ret2Sig['ub'], facecolor='lightblue', edgecolor='lightblue')
+    ax.fill_between(ret1Sig['xs'], ret1Sig['lb'], ret1Sig['ub'], facecolor='lightgreen', edgecolor='lightgreen')
+
+    plt.plot(ret1Sig['xs'], ret1Sig['mx'], color='darkgreen')
+    plt.plot(retMn['xs'], retMn['ys'], 'g--')
+    plt.plot(retMd['xs'], retMd['ys'], 'g:')
+
+hmode   = getLineHandle('green', '-', 'Mode')
+hmean   = getLineHandle('green', '--', 'Mean')
+hmedian = getLineHandle('green', ':', 'Median')
+h1sig   = getPatchHandle('lightgreen', '68% Confidence Interval')
+h2sig   = getPatchHandle('lightblue', '95% Confidence Interval')
+h3sig   = getPatchHandle('pink', '99% Confidence Interval')
 
 #plt.plot(ret1Sig['xs'], ret1Sig['lb'], color='g')
 #plt.plot(ret1Sig['xs'], ret1Sig['ub'], color='g')
@@ -173,7 +181,27 @@ plt.xlabel(opts['xlabel'])
 plt.ylabel(opts['ylabel'])
 plt.title(opts['title'])
 
-plt.legend(handles=[hmode, hmean, h1sig, h2sig, h3sig], loc=opts['loc'])
+plt.legend(handles=[hmode, hmean, hmedian, h1sig, h2sig, h3sig], loc=opts['loc'])
+
+axis = plt.axis()
+naxis = []
+naxis.append(axis[0])
+naxis.append(axis[1])
+naxis.append(axis[2])
+naxis.append(axis[3])
+
+print 'ax = ' + str(axis)
+
+if opts['xmin'] != None:
+    naxis[0] = float(opts['xmin'])
+if opts['xmax'] != None:
+    naxis[1] = float(opts['xmax'])
+if opts['ymin'] != None:
+    naxis[2] = float(opts['ymin'])
+if opts['ymax'] != None:
+    naxis[3] = float(opts['ymax'])
+
+plt.axis(naxis)
 
 plt.show()
 

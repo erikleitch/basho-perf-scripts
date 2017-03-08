@@ -40,7 +40,6 @@ def retick(plt, ax):
 
     newlabels = []
     for label in xticks:
-        print 'Label -= ' + str(label)
         utc_dt = datetime.datetime.fromtimestamp(label)
         newlabels.append(utc_dt.strftime("%H:%M:%S"))
 
@@ -95,55 +94,81 @@ def toKArr(y):
 
     return y
 
-def str2bool(v):
-  return v.lower() in ("yes", "true", "t", "1")
+def getInfluxQueryHarness(port, optsDict, utcstart, utcend):
+    return getInfluxQuery(port, optsDict, utcstart, utcend, etu.getHarnessHosts().split(' '))
 
-def str2boolArray(v):
-    boolArr = []
-    for str in v.split(' '):
-        boolArr.append(str2bool(str))
-    return boolArr
+def getInfluxQuerySystem(port, optsDict, utcstart, utcend):
+    return getInfluxQuery(port, optsDict, utcstart, utcend, etu.getSystemHosts().split(' '))
 
-def getInfluxQueryHarness(db, stat, typeFilter, utcstart, utcend, derivative):
-    return getInfluxQuery(db, stat, typeFilter, utcstart, utcend, etu.getHarnessHosts().split(' '), derivative)
+def getInfluxQuery(port, optsDict, utcstart, utcend, hosts):
 
-def getInfluxQuerySystem(db, stat, typeFilter, utcstart, utcend, derivative):
-    return getInfluxQuery(db, stat, typeFilter, utcstart, utcend, etu.getSystemHosts().split(' '), derivative)
-
-def getInfluxQuery(db, stat, typeFilter, utcstart, utcend, hosts, derivative):
-
+    #------------------------------------------------------------
     # Construct value filter
-
-    if derivative:
-        statFilter = "non_negative_derivative(sum(\"" + stat + "\"),30s)/30"
-        groupByFilter = " group by time(30s) fill(0)"
-    else:
-        statFilter = "\"" + stat + "\""
-        groupByFilter = ''
-        
-    # Construct type_instance filter
+    #------------------------------------------------------------
     
-    if typeFilter != 'none':
-        typeFilter = " type_instance = '" + typeFilter + "' and"
+    if optsDict['derivative']:
+        statFilter = "non_negative_derivative(sum(\"" + optsDict['stat'] + "\"),10s)/10"
+        groupByFilter = " group by time(10s) fill(0)"
     else:
-        typeFilter = ""
+        statFilter = "\"" + optsDict['stat'] + "\""
+        groupByFilter = ''
+
+    #------------------------------------------------------------
+    # Construct type filter
+    #------------------------------------------------------------
+
+    selectFilter = ''
+    print 'type Filter = ' + str(optsDict['typeFilter']) + ' select = ' + str(selectFilter)
+    
+    if optsDict['typeFilter'] != 'none':
+        if selectFilter == '':
+            selectFilter = " type = '" + optsDict['typeFilter'] + "'"
+        else:
+            selectFilter = " and type = '" + optsDict['typeFilter'] + "'"
+
+    #------------------------------------------------------------
+    # Construct type_instance filter
+    #------------------------------------------------------------
+
+    if optsDict['typeInstanceFilter'] != 'none':
+        if selectFilter == '':
+            selectFilter = " type_instance = '" + optsDict['typeInstanceFilter'] + "'"
+        else:
+            selectFilter += " and type_instance = '" + optsDict['typeInstanceFilter'] + "'"
+            
+    #------------------------------------------------------------
+    # Construct instance filter
+    #------------------------------------------------------------
+    
+    if optsDict['instanceFilter'] != 'none':
+        if selectFilter == '':
+            selectFilter = " instance = '" + optsDict['instanceFilter'] + "'"
+        else:
+            selectFilter += " and instance = '" + optsDict['instanceFilter'] + "'"
+
+    if selectFilter != '':
+        selectFilter += ' and '
         
+    #------------------------------------------------------------        
     # Construct the host filter
+    #------------------------------------------------------------
     
     nHost = np.size(hosts)
     hostFilter = " ( host = '" + hosts[0] + "' "
     for iHost in range(1, nHost):
         hostFilter += "or host = '" + hosts[iHost] + "' "
     hostFilter += ")"
-    query = "http://localhost:58086/query?db=collectd&q=select " + statFilter + " from " + db + " where " + typeFilter + " time > '" + utcstart + "' and time < '" + utcend + "' and " + hostFilter + groupByFilter
+    query = "http://localhost:" + str(port) + "/query?db=collectd&q=select " + statFilter + " from " + optsDict['db'] + " where " + selectFilter + " time > '" + utcstart + "' and time < '" + utcend + "' and " + hostFilter + groupByFilter
+
     print "Query = '" + query + "'"
+
     r = requests.get(query)
 
-    j   = r.json()
-    res = j['results']
+    j      = r.json()
+    res    = j['results']
     series = res[0]['series']
-    vals = series[0]['values']
-#    print str(vals)
+    vals   = series[0]['values']
+
     return vals
 
 def parseDate(start, end, hoursafter, hoursbefore, lasthours):
@@ -151,15 +176,15 @@ def parseDate(start, end, hoursafter, hoursbefore, lasthours):
     # If last hours specified, this is time before now()
     
     if lasthours != None:
-        utcnow   = datetime.datetime.utcnow()
-        utcstart = utcnow - datetime.timedelta(hours=float(lasthours))
+        utcend   = datetime.datetime.utcnow()
+        utcstart = utcend - datetime.timedelta(hours=float(lasthours))
 
     # Else if hoursafter was specified, this is time since utcstart
     
     elif hoursafter != None:
+        print 'after = ' + str(hoursafter)
         utcstart = datetime.datetime.strptime(start, "%Y-%m-%dT%H:%M:%S.%fZ" )
         utcend   = utcstart + datetime.timedelta(hours=float(hoursafter))
-
     else:
         utcend = datetime.datetime.strptime(end, "%Y-%m-%dT%H:%M:%S.%fZ" )
         utcstart = utcend - datetime.timedelta(hours=float(hoursbefore))
@@ -167,18 +192,90 @@ def parseDate(start, end, hoursafter, hoursbefore, lasthours):
     utcstart = utcstart.isoformat() + 'Z'
     utcend   = utcend.isoformat() + 'Z'
 
+    print 'Parsing utcstart = ' + utcstart + ' end = ' + utcend + ' hours = ' + str(hoursafter)
+
     return utcstart, utcend
 
-def storeXlim(key, ax, xlim, firstPlot):
+def storeXlim(ax, xlim, firstPlot):
+
+    newlim = ax.get_xlim()
+    retlim = []
 
     if firstPlot:
         firstPlot = False
-        xlim = ax.get_xlim()
-        print 'Key = ' + str(key) + ' got xlim = ' + str(xlim)
+        retlim = newlim
+        print 'First plot: newlim = ' + str(newlim) + ' storing retlim = ' + str(retlim)
     else:
-        print 'Key = ' + str(key) + ' set xlim = ' + str(xlim)
-        ax.set_xlim(xlim)
+        retlim.append(etu.min(xlim[0], newlim[0]))
+        retlim.append(etu.max(xlim[1], newlim[1]))
+        ax.set_xlim(retlim)
+        print 'Not first plot: newlim = ' + str(newlim) + ' setting retlim = ' + str(retlim)
         
+    return retlim, firstPlot
+
+def getAxes(plotWith, fileList, rt, statDict, overplot, pltsmooth, overplotsmooth):
+
+    # If overplotting all traces we only have one plot, unless we are
+    # also plotting smoothed versions and not overplotting those on
+    # top of the raw data, in which case we have 2
+
+    if overplot:
+        if pltsmooth and not overplotsmooth:
+            nPlot = 2
+        else:
+            nPlot = 1
+    elif pltsmooth and not overplotsmooth:
+        nPlot = 2*(np.size(fileDict.keys()) + np.size(statDict.keys()))
+    else:
+        nPlot = np.size(fileDict.keys()) + np.size(statDict.keys())
+
+    axs = []
+
+    for iPlot in range(0, nPlot):
+        axs.append(fig.add_subplot(nPlot, 1, iPlot+1))
+
+    return axs
+
+def getAxis(axs, iPlot, smooth, overplot, overplotsmooth):
+    if not smooth or overplotsmooth:
+        if overplot:
+            return axs[0]
+        else:
+            return axs[iPlot]
+    elif overplot:
+        return axs[1]
+    else:
+        nTrace = np.size(axs)/2
+        return axs[nTrace + iPlot]
+    
+def makePlot(ax, valDict, ind, relx, delta, xlim, firstPlot, smoothData, npt, perc, logy):
+
+    x = valDict[ind]['x']
+    y = valDict[ind]['y']
+    n = valDict[ind]['n']
+
+    if smoothData:
+        y = smooth(y, npt)
+
+    if perc:
+        y = percentageArr(y, delta)
+
+    if logy:
+        ax.set_yscale('log')
+
+    print 'Plotting data to axis ' + str(ax)
+    ax.plot(x[delta:n-delta], y[delta:n-delta])
+    xaxis = ax.get_xlim()
+
+    #newxlim = []
+    #newxlim.append(etu.min(xaxis[0], np.min(x[delta:n-delta])))
+    #newxlim.append(etu.max(xaxis[1], np.max(x[delta:n-delta])))
+    
+    if relx == False:
+        retick(plt, ax)
+
+    xlim, firstPlot = storeXlim(ax, xlim, firstPlot)
+
     return xlim, firstPlot
 
 #=======================================================================
@@ -189,16 +286,44 @@ def storeXlim(key, ax, xlim, firstPlot):
 # Arg parsing
 #------------------------------------------------------------
 
-pltsmooth = str2bool(etu.getOptArgs(sys.argv, 'smooth', 'false'))
-relx      = str2bool(etu.getOptArgs(sys.argv, 'relx', 'false'))
-npt       = int(etu.getOptArgs(sys.argv, 'npt', '200'))
-rt        = str2bool(etu.getOptArgs(sys.argv, 'rt', 'true'))
+figsize        = etu.strToIntTuple(etu.getOptArgs(sys.argv, 'figsize', '18,6'))
+pltsmooth      = etu.str2bool(etu.getOptArgs(sys.argv, 'smooth', 'false'))
+relx           = etu.str2bool(etu.getOptArgs(sys.argv, 'relx', 'false'))
+npt            = int(etu.getOptArgs(sys.argv, 'npt', '200'))
+rt             = etu.str2bool(etu.getOptArgs(sys.argv, 'rt', 'true'))
+overplot       = etu.str2bool(etu.getOptArgs(sys.argv, 'overplot', 'false'))
+overplotsmooth = etu.str2bool(etu.getOptArgs(sys.argv, 'overplotsmooth', 'true'))
 
-db        = etu.getOptArgs(sys.argv, 'db', 'ycsb_operations').split(' ')
-stat      = etu.getOptArgs(sys.argv, 'stat', 'value').split(' ')
-typeFilter= etu.getOptArgs(sys.argv, 'type', 'none').split(' ')
-harness   = str2boolArray(etu.getOptArgs(sys.argv, 'harness', 'true'))
-derivative= str2boolArray(etu.getOptArgs(sys.argv, 'derivative', 'true'))
+perc       = etu.str2bool(etu.getOptArgs(sys.argv, 'perc', 'false'))
+ports      = etu.strToIntArray(etu.getOptArgs(sys.argv, 'port', '58086'))
+dbs        = etu.getOptArgs(sys.argv, 'db', 'ycsb_operations').split(' ')
+stats      = etu.getOptArgs(sys.argv, 'stat', 'value').split(' ')
+typeFilters= etu.getOptArgs(sys.argv, 'type', 'none').split(' ')
+instanceFilters= etu.getOptArgs(sys.argv, 'instance', 'none').split(' ')
+typeInstanceFilters= etu.getOptArgs(sys.argv, 'type_instance', 'none').split(' ')
+harnesses  = etu.strToBoolArray(etu.getOptArgs(sys.argv, 'harness', 'true'))
+derivatives= etu.strToBoolArray(etu.getOptArgs(sys.argv, 'derivative', 'true'))
+starts     = etu.getOptArgs(sys.argv, 'start', '2017-02-07T19:50:06.939342Z').split(' ');
+end         = etu.getOptArgs(sys.argv, 'end',   '2017-02-07T20:55:06.000000Z');
+hoursbefore = etu.strToFloatArrayOrNone(etu.getOptArgs(sys.argv, 'hoursbefore', None))
+hoursafter  = etu.strToFloatArrayOrNone(etu.getOptArgs(sys.argv, 'hoursafter',  None))
+lasthours   = etu.getOptArgs(sys.argv, 'lasthours',   None)
+legend      = etu.toStrArrayOrNone(etu.getOptArgs(sys.argv, 'legend',   None), ';')
+xlimopt     = etu.getOptArgs(sys.argv, 'xlim',  None)
+
+nStat = np.size(ports)
+nStat = etu.max(nStat, np.size(starts))
+nStat = etu.max(nStat, np.size(dbs))
+nStat = etu.max(nStat, np.size(stats))
+nStat = etu.max(nStat, np.size(typeFilters))
+nStat = etu.max(nStat, np.size(typeInstanceFilters))
+nStat = etu.max(nStat, np.size(harnesses))
+nStat = etu.max(nStat, np.size(derivatives))
+
+if not rt:
+    nStat = 0
+    
+logys = etu.strToBoolArray(etu.getOptArgs(sys.argv, 'logy', 'false'))
 
 print 'rt = ' + str(rt)
 
@@ -206,18 +331,10 @@ plotWith  = etu.getOptArgs(sys.argv, 'file', None)
 if plotWith != None:
     plotWith = plotWith.split(' ')
 
-start       = etu.getOptArgs(sys.argv, 'start', '2017-02-07T19:50:06.939342Z');
-end         = etu.getOptArgs(sys.argv, 'end',   '2017-02-07T20:55:06.000000Z');
-hoursbefore = etu.getOptArgs(sys.argv, 'hoursbefore', None)
-hoursafter  = etu.getOptArgs(sys.argv, 'hoursafter',  None)
-lasthours   = etu.getOptArgs(sys.argv, 'lasthours',   None)
-
 if pltsmooth:
     dn  = npt
 else:
     dn = 0
-
-nStat = np.size(db)
 
 #------------------------------------------------------------
 # Extract data from any files that were specified
@@ -240,7 +357,7 @@ if plotWith != None:
         fileDict[fileName]['n'] = ln
         fileList.append(fileName)
 
-    toK(fileDict)
+#    toK(fileDict)
 
 #------------------------------------------------------------
 # If overplotting real-time data, construct the query and retrieve it now
@@ -249,33 +366,47 @@ if plotWith != None:
 statDict = {}
 
 if rt:
-    utcstart, utcend = parseDate(start, end, hoursafter, hoursbefore, lasthours)
-
-    print 'utcstart = ' + str(utcstart)
-
     for iStat in range(0, nStat):
+        optsDict = {}
+        
+        utcstart, utcend = parseDate(etu.indOrVal(starts, iStat), end, etu.indOrVal(hoursafter, iStat), etu.indOrVal(hoursbefore, iStat), lasthours)
+        harness    = etu.indOrVal(harnesses, iStat)
 
-        if harness[iStat]:
-            vals = getInfluxQueryHarness(db[iStat], stat[iStat], typeFilter[iStat], utcstart, utcend, derivative[iStat])
+        optsDict['stat']               = etu.indOrVal(stats, iStat)
+        optsDict['db']                 = etu.indOrVal(dbs, iStat)
+        optsDict['typeFilter']         = etu.indOrVal(typeFilters, iStat)
+        optsDict['instanceFilter']     = etu.indOrVal(instanceFilters, iStat)
+        optsDict['typeInstanceFilter'] = etu.indOrVal(typeInstanceFilters, iStat)
+        optsDict['derivative']         = etu.indOrVal(derivatives, iStat)
+
+        port       = etu.indOrVal(ports, iStat)
+        
+        if harness:
+            vals = getInfluxQueryHarness(port, optsDict, utcstart, utcend)
         else:
-            vals = getInfluxQuerySystem(db[iStat], stat[iStat], typeFilter[iStat], utcstart, utcend, derivative[iStat])
+            vals = getInfluxQuerySystem(port, optsDict, utcstart, utcend)
 
+        f = open('influxQuery_' + str(iStat) + '.txt', 'wb')
+        
         x = []
         y = []
         nv = np.size(vals,0)
         for i in range(0, nv):
 
-            if derivative[iStat]:
-                utc_dt = datetime.datetime.strptime(vals[i][0], "%Y-%m-%dT%H:%M:%SZ")
-            else:
+            if vals[i][0].find('.') >= 0:
                 utc_dt = datetime.datetime.strptime(vals[i][0], "%Y-%m-%dT%H:%M:%S.%fZ")
+            else:
+                utc_dt = datetime.datetime.strptime(vals[i][0], "%Y-%m-%dT%H:%M:%SZ")
                 
             xval = time.mktime(utc_dt.timetuple())
             yval = vals[i][1]
             x.append(xval)
             y.append(yval)
 
-
+            f.write("%5.2f %5.2f\n" % (xval, yval))
+            
+        f.close()
+        
         if relx:
             x = relative(x)
         n = np.size(x)
@@ -289,7 +420,7 @@ if rt:
 # Make plots
 #------------------------------------------------------------
 
-fig = plt.figure(figsize=(10,8))
+fig = plt.figure(figsize=figsize)
 fig.set_facecolor('w')
 
 # If also plotting smoothed data, we will need two subplots
@@ -299,86 +430,73 @@ if pltsmooth:
 else:
     delta = 0
 
+#------------------------------------------------------------
 # Plot raw archival data first, then real-time data, if specified
+#------------------------------------------------------------
 
-plt.hold(True)
-nPlot = np.size(fileDict.keys()) + np.size(statDict.keys())
+if overplot:
+    nPlot = 1
+else:
+    nPlot = np.size(fileDict.keys()) + np.size(statDict.keys())
+
+if pltsmooth:
+    if not overplotsmooth:
+        nPlot = nPlot*2
+    
 iPlot = 1
-axs = []
+axs   = []
 
 firstPlot = True
 xlim = []
 
-if plotWith != None:
-    for key in fileList:
-        ax = fig.add_subplot(nPlot,1,iPlot)    
-        lx = fileDict[key]['x']
-        ly = fileDict[key]['y']
-        ln = fileDict[key]['n']
-        ax.plot(lx[delta:ln-delta], ly[delta:ln-delta])
-        if relx == False:
-            retick(plt, ax)
+print 'pltsmooth = ' + str(pltsmooth)
 
-        xlim, firstPlot = storeXlim(key, ax, xlim, firstPlot)
+axs   = getAxes(plotWith, fileList, rt, statDict, overplot, pltsmooth, overplotsmooth)
+nPlot = np.size(axs)
 
-        axs.append(ax)
-        
-        iPlot += 1
-if rt:
-    for iStat in range(0, nStat):
-        ax = fig.add_subplot(nPlot,1, iPlot)    
-        x = statDict[iStat]['x']
-        y = statDict[iStat]['y']
-        n = statDict[iStat]['n']
-        ax.plot(x[delta:n-delta], y[delta:n-delta])
-        if relx == False:
-            retick(plt, ax)
-
-        xlim, firstPlot = storeXlim(iStat, ax, xlim, firstPlot)
-
-        axs.append(ax)
-        iPlot += 1
-
-# Plot smoothed archival data first, then real-time data, if specified
+#------------------------------------------------------------
+# Plot raw archival data first, then real-time data, if specified
+#------------------------------------------------------------
 
 iPlot = 0
+for key in fileList:
+    ax = getAxis(axs, iPlot, False, overplot, overplotsmooth)
+    xlim, firstPlot = makePlot(ax, fileDict, key, relx, delta, xlim, firstPlot, False, npt, False, False)
+    iPlot += 1
+
+for iStat in range(0, nStat):
+    ax = getAxis(axs, iPlot, False, overplot, overplotsmooth)
+    xlim, firstPlot = makePlot(ax, statDict, iStat, relx, delta, xlim, firstPlot, False, npt, False, etu.indOrVal(logys, iStat))
+    iPlot += 1
+        
+#------------------------------------------------------------
+# Plot smoothed archival data first, then real-time data, if specified
+#------------------------------------------------------------
+
 if pltsmooth:
+    
+    iPlot = 0
+    for key in fileList:
+        ax = getAxis(axs, iPlot, True, overplot, overplotsmooth)
+        xlim, firstPlot = makePlot(ax, fileDict, key, relx, delta, xlim, firstPlot, True, npt, perc, False)
+        iPlot += 1
 
-    plt.hold(True)
+    for iStat in range(0, nStat):
+        ax = getAxis(axs, iPlot, True, overplot, overplotsmooth)
+        xlim, firstPlot = makePlot(ax, statDict, iStat, relx, delta, xlim, firstPlot, True, npt, perc, etu.indOrVal(logys, iStat))
+        iPlot += 1
 
-    if plotWith != None:
-        plt.hold(True)
-        for key in fileList:
-            lx = fileDict[key]['x']
-            ly = fileDict[key]['y']
-            ln = fileDict[key]['n']
-            ls = smooth(ly, npt)
-            ax = axs[iPlot]
-            iPlot += 1
-            ax.plot(lx[dn:ln-dn],ls[dn:ln-dn])
-
-            if relx == False:
-                retick(plt, ax)
-
-            xlim, firstPlot = storeXlim(key, ax, xlim, firstPlot)
-                
-    if rt:
-        for iStat in range(0, nStat):
-            x = statDict[iStat]['x']
-            y = statDict[iStat]['y']
-            n = statDict[iStat]['n']
-            s = smooth(y, npt)
-            ax = axs[iPlot]
-            iPlot += 1
-            ax.plot(x[dn:n-dn],s[dn:n-dn])
-
-            if relx == False:
-                retick(plt, ax)
-
-            xlim, firstPlot = storeXlim(iStat, ax, xlim, firstPlot)
-
-
+if legend != None:
+    plt.legend(legend)
+    
 if relx:
     plt.xlabel('Elapsed time (hours)')
+
+if xlimopt != None:
+    lims = plt.xlim()
+    newlims = []
+    newlims.append(lims[0])
+    newlims.append(float(xlimopt))
+    plt.xlim(newlims)
     
-plt.show()
+plt.show(block=True)

@@ -4,10 +4,109 @@ from os import listdir
 from os.path import isfile, join
 import numpy as np
 import subprocess
-#from scipy import stats
+
+def max(v1, v2):
+    if v1 > v2:
+        return v1
+    else:
+        return v2
+
+def min(v1, v2):
+    if v1 < v2:
+        return v1
+    else:
+        return v2
+    
+def indOrVal(arr, ind):
+
+    if arr == None:
+        return None;
+    
+    if np.size(arr) > 1 and ind >= 0 and ind < np.size(arr):
+        return arr[ind]
+    else:
+        return arr[0]
+  
+def strToIntTuple(str):
+  iarr = listToInt(str.split(','))
+  return tuple(iarr)
+
+def strToFloatTuple(str):
+  farr = listToFloat(str.split(','))
+  return tuple(farr)
+
+def strToBool(v):
+  return str2bool(v)
 
 def str2bool(v):
   return v.lower() in ("yes", "true", "t", "1")
+
+def strToBoolArray(v):
+  return str2boolArray(v)
+
+def str2boolArray(v):
+    boolArr = []
+    for str in v.split(' '):
+        boolArr.append(str2bool(str))
+    return boolArr
+
+def strToIntArray(v):
+    intArr = []
+    for str in v.split(' '):
+        intArr.append(int(str))
+    return intArr
+
+def strToFloatArray(v):
+    floatArr = []
+    for str in v.split(' '):
+        floatArr.append(float(str))
+    return floatArr
+
+def strToFloatArrayOrNone(v):
+    floatArr = []
+
+    if v == None:
+        return None
+    
+    for str in v.split(' '):
+        floatArr.append(float(str))
+    return floatArr
+
+def toStrArrayOrNone(v, splstr):
+    strArr = []
+
+    if v == None:
+        return None
+    
+    for str in v.split(splstr):
+        strArr.append(str)
+    return strArr
+
+def listToInt(larr):
+  iarr = []
+  for i in range(0, np.size(larr)):
+    iarr.append(int(larr[i]))
+  return iarr
+
+def listToFloat(larr):
+  farr = []
+  for i in range(0, np.size(larr)):
+    farr.append(float(larr[i]))
+  return farr
+
+def str2bool(v):
+  return v.lower() in ("yes", "true", "t", "1")
+
+def outlierRejectConf(dat, nsig):
+    h = np.histogram(dat, bins=1000)
+    mn, lb, ub = getConfidenceInterval(h[1], h[0], 0.68)
+    sig = (ub-lb)/2
+    n   = np.size(dat)
+    ret = dat[np.where(np.abs(dat - mn) < nsig*sig)]
+    if np.size(ret) < np.size(dat):
+        return outlierReject(ret, nsig)
+    else:
+        return ret
 
 def outlierReject(dat, nsig):
     mn  = np.mean(dat)
@@ -42,8 +141,10 @@ def interval(dat, bins, perc):
 def getStat(path, file, stat, opts):
     dat = np.loadtxt(path + '/' + file);
 
-    if opts['nsig'] != None:
+    if opts['nsig'] > 0.0:
+      print 'Size before outlier rejection: ' + str(np.size(dat))
       dat = outlierReject(dat, float(opts['nsig']))
+      print 'Size after outlier rejection: ' + str(np.size(dat))
 
     nline = np.shape(dat)[0];
     if stat == 'mean':
@@ -75,7 +176,7 @@ def getSystemHosts():
 def getHarnessHosts():
   return "ip-10-1-2-1 ip-10-1-2-2 ip-10-1-2-3 ip-10-1-2-4 ip-10-1-2-5"
 
-def getNextVal(y, n, indlo, indhi, probSum, probTarget):
+def getNextValSymm(y, n, indlo, indhi, probSum, probTarget):
 
     print 'indlo = ' + str(indlo) + ' indhi = ' + str(indhi)
     stop     = False
@@ -120,8 +221,51 @@ def getNextVal(y, n, indlo, indhi, probSum, probTarget):
         probSum += y[indhi]
 
     return indlo, indhi, probSum, stop
+
+def getNextValHighest(y, n, indlo, indhi, probSum, probTarget):
+
+    print 'indlo = ' + str(indlo) + ' indhi = ' + str(indhi)
+    stop     = False
+    indstart = 0
+    indend   = n-1
     
+    # If we've reached the target probability, stop.  Else add the
+    # next point
+
+    if probSum >= probTarget:
+        stop = True
+
+    # Else if we haven't hit either end, add the highest probability next
+    
+    elif indlo > indstart and indhi < indend:
+        hival = y[indhi+1]
+        loval = y[indlo-1]
+
+        if hival > loval:
+            indhi   += 1
+            probSum += hival
+        else:
+            indlo   -= 1
+            probSum += loval
+
+    # Else if we are already at the end of the array, add the lower value
+
+    elif indlo > indstart:
+        indlo   -= 1
+        probSum += y[indlo]
+
+    # Else if we are already at the start of the array, add the higher value
+    
+    else:
+        indhi   += 1
+        probSum += y[indhi]
+
+    return indlo, indhi, probSum, stop
+
 def getConfidenceInterval(x, y, perc):
+  return getConfidenceIntervalHighest(x, y, perc)
+  
+def getConfidenceIntervalHighest(x, y, perc):
     
     n = np.size(y)
 
@@ -137,12 +281,28 @@ def getConfidenceInterval(x, y, perc):
     stop = False
     while not stop:
       print ' sum(0) = ' + str(probSum) + ' target = ' + str(probTarget)
-      indlo, indhi, probSum, stop = getNextVal(y, n, indlo, indhi, probSum, probTarget)
+      indlo, indhi, probSum, stop = getNextValHighest(y, n, indlo, indhi, probSum, probTarget)
       print ' sum(1) = ' + str(probSum) + ' target = ' + str(probTarget)
       
     return x[indmax], x[indlo], x[indhi]
 
-#def mode(arr):
-#  return scipy.stats.mode(arr)
-  
-#print str(getSystemHosts())
+def getConfidenceIntervalSymm(x, y, perc):
+    
+    n = np.size(y)
+
+    indmax = np.argmax(y)
+
+    total      = np.sum(y)
+    probTarget = perc * total
+    probSum    = y[indmax]
+
+    indhi = indmax
+    indlo = indmax
+
+    stop = False
+    while not stop:
+      print ' sum(0) = ' + str(probSum) + ' target = ' + str(probTarget)
+      indlo, indhi, probSum, stop = getNextValSymm(y, n, indlo, indhi, probSum, probTarget)
+      print ' sum(1) = ' + str(probSum) + ' target = ' + str(probTarget)
+      
+    return x[indmax], x[indlo], x[indhi]

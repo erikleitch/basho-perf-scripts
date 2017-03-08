@@ -9,7 +9,7 @@ import erltestutil as etu
 
 defaultFontsize=14
 
-def getScalesAndUnits(fileNames):
+def getScalesAndUnits(fileNames, scale):
 
   mxs = []
   iFile=0
@@ -40,18 +40,23 @@ def getScalesAndUnits(fileNames):
 
   for i in range(2,ncol):
     index = i-2
-    if np.max(mxs[index]) > 1e9:
-      scales.append(1e9)
-      units.append('G')
-      maxs.append(np.max(mxs[index])/1e9)
-    elif np.max(mxs[index]) > 1e6:
-      scales.append(1e6)
-      units.append('M')
-      maxs.append(np.max(mxs[index])/1e6)
-    elif np.max(mxs[index]) > 1e3:
-      scales.append(1e3)
-      units.append('K')
-      maxs.append(np.max(mxs[index])/1e3)
+    if scale:
+      if np.max(mxs[index]) > 1e9:
+        scales.append(1e9)
+        units.append('G')
+        maxs.append(np.max(mxs[index])/1e9)
+      elif np.max(mxs[index]) > 1e6:
+        scales.append(1e6)
+        units.append('M')
+        maxs.append(np.max(mxs[index])/1e6)
+      elif np.max(mxs[index]) > 1e3:
+        scales.append(1e3)
+        units.append('K')
+        maxs.append(np.max(mxs[index])/1e3)
+      else:
+        scales.append(1)
+        units.append('')
+        maxs.append(np.max(mxs[index]))
     else:
       scales.append(1)
       units.append('')
@@ -208,15 +213,20 @@ def retick(ax, axname):
 
   return
 
-def makeSubPlot(fileName, index, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal, opts):
+def makeSubPlot(fileName, index, ax, doHold, Color, zlabel, scale, unit, maxVal, opts):
 
   x,y,z,unit2 = getData(fileName, index, opts);
   plt.hold(doHold);
   ax.plot_surface(x, y, z/scale, color=Color);
-  ax.set_zlabel('\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);
+
+  if unit != '':
+    ax.set_zlabel('\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);
+  else:
+    ax.set_zlabel('\n' + zlabel, fontsize=defaultFontsize);
+    
   ax.set_zlim(0, maxVal*1.1);
-  ax.set_xlabel('\n' + xlabel, fontsize=defaultFontsize);
-  ax.set_ylabel('\n' + ylabel, fontsize=defaultFontsize);
+  ax.set_xlabel('\n' + opts['xlabel'], fontsize=defaultFontsize);
+  ax.set_ylabel('\n' + opts['ylabel'], fontsize=defaultFontsize);
 
   if opts['logx']:
     retick(ax, 'x')
@@ -225,7 +235,7 @@ def makeSubPlot(fileName, index, ax, doHold, Color, xlabel, ylabel, zlabel, scal
 
   ax.tick_params(labelsize=defaultFontsize)
 
-def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, xlabel, ylabel, zlabel, scale, unit, maxVal, opts):
+def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, zlabel, scale, unit, maxVal, opts):
 
   print 'Inside sp2 with action = ' + str(action)
   
@@ -249,14 +259,14 @@ def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, xlabel
     ax.set_zlim(0, maxVal*1.1);
   elif action == '*':
     ax.plot_surface(x1, y1, z1 * z2, color=Color);
-  ax.set_xlabel('\n' + xlabel);
-  ax.set_ylabel('\n' + ylabel);
+  ax.set_xlabel('\n' + opts['xlabel']);
+  ax.set_ylabel('\n' + opts['ylabel']);
   if opts['logx']:
     retick(ax, 'x')
   if opts['logy']:
     retick(ax, 'y')
 
-def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units, maxs, param1, param2, optDict):
+def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units, maxs, optDict):
 
   nfile=np.shape(files)[0]
   ncolor=np.shape(colors)[0];
@@ -266,45 +276,45 @@ def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units,
     if plotwithfiles != None:
       if iFile == 0:
         if plotwithaction == 'p':
-          plotData(files, iFile, False, axes, 'c', scales, units, maxs, param1, param2, optDict)
-          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs, param1, param2, optDict)
+          plotData(files, iFile, False, axes, 'c', scales, units, maxs, optDict)
+          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs, optDict)
         else:
-          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, False, axes, 'c', scales, units, maxs, param1, param2, optDict)
+          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, False, axes, 'c', scales, units, maxs, optDict)
       else:
         if plotwithaction == 'p':
-          plotData(files, iFile,  True, axes, 'c', scales, units, maxs, param1, param2, optDict)
-          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs, param1, param2, optDict)
+          plotData(files, iFile,  True, axes, 'c', scales, units, maxs, optDict)
+          plotData(plotwithfiles, iFile, True, axes, 'm', scales, units, maxs, optDict)
         else:
-          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, True, axes, 'c', scales, units, maxs, param1, param2, optDict)
+          plotDataTwo(files, plotwithfiles, plotwithaction, iFile, True, axes, 'c', scales, units, maxs, optDict)
     else:
       if iFile == 0:
-        plotData(files, iFile, False, axes, colors[iFile % ncolor], scales, units, maxs, param1, param2, optDict)
+        plotData(files, iFile, False, axes, colors[iFile % ncolor], scales, units, maxs, optDict)
       else:
-        plotData(files, iFile,  True, axes, colors[iFile % ncolor], scales, units, maxs, param1, param2, optDict)
+        plotData(files, iFile,  True, axes, colors[iFile % ncolor], scales, units, maxs, optDict)
 
-def plotData(fileNames, iFile, doHold, axes, Color, scales, units, maxs, param1, param2, optDict):
-
-  naxes=np.shape(axes)[0]
-
-  makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, param1, param2, 'Ops/sec', scales[0], units[0], maxs[0], optDict);
-
-  if naxes > 1 and axes[1] != None:
-    makeSubPlot(fileNames[iFile], 3, axes[1][iFile], doHold, Color, param1, param2, 'Writes/sec', scales[1], units[1], maxs[1], optDict);
-
-  if naxes > 2 and axes[2] != None:
-    makeSubPlot(fileNames[iFile], 4, axes[2][iFile], doHold, Color, param1, param2, 'Bytes/sec', scales[2], units[2], maxs[2], optDict);
-
-def plotDataTwo(fileNames, fileNames2, action, iFile, doHold, axes, Color, scales, units, maxs, param1, param2, optDict):
+def plotData(fileNames, iFile, doHold, axes, Color, scales, units, maxs, optDict):
 
   naxes=np.shape(axes)[0]
 
-  makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 2, action, axes[0][iFile], doHold, Color, param1, param2, 'Ops/sec', scales[0], units[0], maxs[0], optDict);
+  makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, optDict['zlabel'], scales[0], units[0], maxs[0], optDict);
 
   if naxes > 1 and axes[1] != None:
-    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 3, action, axes[1][iFile], doHold, Color, param1, param2, 'Writes/sec', scales[1], units[1], maxs[1], optDict);
+    makeSubPlot(fileNames[iFile], 3, axes[1][iFile], doHold, Color, 'Writes/sec', scales[1], units[1], maxs[1], optDict);
 
   if naxes > 2 and axes[2] != None:
-    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 4, action, axes[2][iFile], doHold, Color, param1, param2, 'Bytes/sec', scales[2], units[2], maxs[2], optDict);
+    makeSubPlot(fileNames[iFile], 4, axes[2][iFile], doHold, Color, 'Bytes/sec', scales[2], units[2], maxs[2], optDict);
+
+def plotDataTwo(fileNames, fileNames2, action, iFile, doHold, axes, Color, scales, units, maxs,  optDict):
+
+  naxes=np.shape(axes)[0]
+
+  makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 2, action, axes[0][iFile], doHold, Color,  optDict['zlabel'], scales[0], units[0], maxs[0], optDict);
+
+  if naxes > 1 and axes[1] != None:
+    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 3, action, axes[1][iFile], doHold, Color,  'Writes/sec', scales[1], units[1], maxs[1], optDict);
+
+  if naxes > 2 and axes[2] != None:
+    makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 4, action, axes[2][iFile], doHold, Color,  'Bytes/sec', scales[2], units[2], maxs[2], optDict);
 
 def getDataAndUnits(dat, nline, index):
   d=dat[0:nline,index];
@@ -349,12 +359,14 @@ plotWithAction = getOptArgs(sys.argv, 'plotwithaction', 'p')
 overplot   = etu.str2bool(getOptArgs(sys.argv, 'overplot', 'false'))
 logx       = etu.str2bool(getOptArgs(sys.argv, 'logx', 'false'))
 logy       = etu.str2bool(getOptArgs(sys.argv, 'logy', 'false'))
+scale      = etu.str2bool(getOptArgs(sys.argv, 'scale', 'false'))
 labels     = getOptArgs(sys.argv, 'labels', '').split(';')
 title      = getOptArgs(sys.argv, 'title',  '')
-param1     = getOptArgs(sys.argv, 'param1', 'x (unspecified)')
-param2     = getOptArgs(sys.argv, 'param2', 'y (unspecified)')
+xlabel     = getOptArgs(sys.argv, 'xlabel', 'x (unspecified)')
+ylabel     = getOptArgs(sys.argv, 'ylabel', 'y (unspecified)')
+zlabel     = getOptArgs(sys.argv, 'zlabel', 'z (unspecified)')
 interp     = getOptArgs(sys.argv, 'interp',  'linear')
-figsizestr = getOptArgs(sys.argv, 'figsize', '18,12')
+figsizestr = getOptArgs(sys.argv, 'figsize', '15,10')
 
 figsizearr=figsizestr.split(',')
 figsize=(np.int(figsizearr[0]), np.int(figsizearr[1]))
@@ -374,7 +386,7 @@ print str(files) + ' ' + str(labels)
 colors=['b', 'c', 'm', 'g', 'y', 'k'];
 cellsizes=[10, 10];
 
-scales,units,maxs  = getScalesAndUnits(files);
+scales,units,maxs  = getScalesAndUnits(files, scale);
 plt.axis('off')
 plt.title(title)
 axes = getSubplots(files, overplot)
@@ -383,8 +395,11 @@ opts = {}
 opts['interp'] = interp
 opts['logx']   = logx
 opts['logy']   = logy
+opts['xlabel'] = xlabel
+opts['ylabel'] = ylabel
+opts['zlabel'] = zlabel
 
-plotFiles(files, plotWith, plotWithAction, axes, colors, scales, units, maxs, param1, param2, opts)
+plotFiles(files, plotWith, plotWithAction, axes, colors, scales, units, maxs, opts)
 
 top   =plt.rcParams['figure.subplot.top']
 bottom=plt.rcParams['figure.subplot.bottom']

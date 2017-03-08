@@ -268,6 +268,42 @@ getTestDataYcsb()
     printf "\n"
 }
 
+getTestDataBb()
+{
+    echo "All args='$@'"
+    
+    local files=$(valOrDef files '' "$@")
+    files=${files//\"/}
+    
+    local param1=$(valOrDef param1 '' "$@")
+    param1=${param1//\"/}
+    
+    local param2=$(valOrDef param2 '' "$@")
+    param2=${param2//\"/}
+    
+    local cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+
+    echo "Inside getTestDataYcsb with cellsize= '$cellsize'";
+    
+    local stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
+
+    local fieldcount=$(valOrDef fieldcount '' "$@")
+
+    local batchsize=$(valOrDef batchsize '' "$@")
+    batchsize=${batchsize//\"/}
+    
+    echo "Inside getTestDataYcsb with fieldcount='$fieldcount' cellsize='$cellsize'"
+    
+    local iIter="0"                                                                      
+    for i in $files; do
+	getTestDataSingleBb file=$i param1=$param1 param2=$param2 stat=$stat fieldcount="$fieldcount" batchsize="$batchsize" cellsize="$cellsize" iter=$iIter 
+        iIter=$[$iIter+1] 
+    done
+    printf "\n"
+}
+
 getTestDataSingle()
 {
     file=$1
@@ -780,6 +816,145 @@ getTestDataSingleYcsb()
 		;;
 
 	esac
+    done <$file
+
+    writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat $nHarness
+}
+
+getTestDataSingleBb()
+{
+    local file=$(valOrDef file '' "$@")
+    file=${file//\"/}
+    
+    local param1=$(valOrDef param1 '' "$@")
+    param1=${param1//\"/}
+    
+    local param2=$(valOrDef param2 '' "$@")
+    param2=${param2//\"/}
+    
+    local cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+    
+    local fieldcount=$(valOrDef fieldcount '' "$@")
+    local batchsize=$(valOrDef batchsize '' "$@")
+
+    local stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
+
+    local iter=$(valOrDef iter 'ops' "$@")
+    iter=${iter//\"/}
+
+    printf "\rProcessing $file..."
+    
+    first="true"
+    firstStart="true"
+    haveEnd="false"
+    start="false"
+    setup="false"
+    nHarness=0
+    
+    while read p; do
+
+	case "$p" in
+
+	    #------------------------------------------------------------
+	    # If this is a config line, extract the parameter vals from it
+	    #------------------------------------------------------------
+
+	    *'event_type="setup"'*)
+		setup="true"
+		start="false"
+		;;
+
+	    *'event_type="start"'*)
+		if [ $setup == "true" ]; then
+
+		    start="true"
+		    
+		    if [[ $p =~ [a-z]*{(.*)}[a-z]* ]]; then
+			sub=${BASH_REMATCH[1]}
+			
+			if [ $first == "true" ]; then
+			    first="false"
+			    \rm "/tmp/dat"$iter".txt"
+			else
+			    echo "About to writeValNew av = '$av' val1 = $val1 val2 = $val2"
+			    writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat $nHarness
+			fi
+
+			val1=$(parseparamnew "$sub" $param1)
+			echo "Parsing param with sub = $sub param2 = $param2"
+			val2=$(parseparamnew "$sub" $param2)
+			
+			# These are all the things we need to calculate writes/sec and bytes/sec
+			
+			nbyte=$(parseparamnew "$sub" fieldlength)
+			ncol=$(parseparamnew "$sub" fieldcount)
+			batch=$(parseparamnew "$sub" batchsize)
+			
+			#------------------------------------------------------------
+			# Override defaults if we can
+			#------------------------------------------------------------
+			
+			if [ ! -z $batch ]
+			then
+			    batchsize=$batch
+			fi
+			
+			if [ ! -z $nbyte ]
+			then
+			    cellsize=$nbyte
+			fi
+			
+			if [ ! -z $ncol ]
+			then
+			    fieldcount=$ncol
+			fi
+			
+			av="scale=4;(0.0"
+			nHarness=0
+		    fi
+
+		fi
+		;;
+
+	    #------------------------------------------------------------
+	    # Else accumulate stats for this set of parameters
+	    # if this is a throughput report
+	    #------------------------------------------------------------
+	    
+	    *deploy_basho_perf*)
+		echo "Found deploy line"
+		startdate=$(getDate "$p")
+		haveEnd="false"
+		;;
+	    
+	    #------------------------------------------------------------
+	    # Else accumulate throughputs for this set of parameters
+	    # if this is a throughput report
+	    #------------------------------------------------------------
+	    
+	    *'average throughput'*)
+		echo "Found average throughput line"
+		if [ $stat == "ops" ]; then
+		    if [ $start == "true" ]; then
+			echo "Trying to rematch:"
+			if [[ $p =~ [a-z]*'average throughput: '(.*)'ops/sec' ]]; then
+			    av+="+"${BASH_REMATCH[1]}
+			    echo "av = $av"
+			    nHarness=$[$nHarness+1] 
+			fi
+			
+			if [ $haveEnd == "false" ]; then
+			    enddate=$(getDate "$p")
+			    haveEnd="true"
+			fi
+			
+		    fi
+		fi
+		;;
+
+esac
     done <$file
 
     writeValNew "$av" $param1 $val1 $param2 $val2 "$cellsize" "$fieldcount" "$batchsize" $iter "$startdate" "$enddate" $stat $nHarness
@@ -1512,6 +1687,87 @@ plotlogfileycsb()
     generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize" contour=$contour interp=$interp stat=$stat
 }
 
+plotlogfilebb()
+{
+    local files=$(valOrDef files '' "$@")
+    files=${files//\"/}
+
+    local param1=$(valOrDef param1 '' "$@")
+    param1=${param1//\"/}
+
+    local param2=$(valOrDef param2 '' "$@")
+    param2=${param2//\"/}
+
+    local cellsize=$(valOrDef cellsize '' "$@")
+    cellsize=${cellsize//\"/}
+    
+    echo "cellsize = '$cellsize'"
+    
+    batchsize=$(valOrDef batchsize '' "$@")
+    batchsize=${batchsize//\"/}
+    
+    fieldcount=$(valOrDef fieldcount '' "$@")
+    overplot=$(valOrDef overplot false "$@")
+    figsize=$(valOrDef figsize '' "$@")
+    labels=$(valOrDef labels '' "$@")
+    title=$(valOrDef title '' "$@")
+    scaleto=$(valOrDef scaleto '' "$@")
+    plotwithfiles=$(valOrDef plotwith '' "$@")
+    plotwithaction=$(valOrDef plotwithaction 'p' "$@")
+
+    stat=$(valOrDef stat 'ops' "$@")
+    stat=${stat//\"/}
+    
+    output=$(valOrDef output '' "$@")
+    figview=$(valOrDef figview '' "$@")
+
+    contour=$(valOrDef contour 'none' "$@")
+    contour=${contour//\"/}
+
+    interp=$(valOrDef interp 'cubic' "$@")
+    interp=${interp//\"/}
+    
+    allfiles=$files
+    allcellsize=$cellsize
+    allbatchsize=$batchsize
+    allfieldcount=$fieldcount
+    scale=false
+    plotwith=false
+    
+    #------------------------------------------------------------
+    # If overplotting with another set of files, add those files to
+    # the allfiles list for extraction, and duplicate the cellsize
+    # parameters for those files
+    #------------------------------------------------------------
+
+    if [ "$plotwithfiles" != \"\" ]; then
+	plotwith=true
+	allfiles=$allfiles" "${plotwithfiles//\"/}
+	allcellsize=$allcellsize" "$cellsize
+	allbatchsize=$allbatchsize" "$batchsize
+	allfieldcount=$allfieldcount" "$fieldcount
+    fi
+
+    #------------------------------------------------------------
+    # If scaling to another set of files, add those files to the
+    # allfiles list for extraction, and duplicate the cellsize
+    # parameters for those files
+    #------------------------------------------------------------
+    
+    if [ "$scaleto" != \"\" ]; then
+	scale=true
+	allfiles=$allfiles" "${scaleto//\"/}
+	allcellsize=$allcellsize" "$cellsize
+	allbatchsize=$allbatchsize" "$batchsize
+	allfieldcount=$allfieldcount" "$fieldcount
+    fi
+
+    echo "All cellsize = '$allcellsize'"
+    getTestDataBb files="$allfiles" param1=$param1 param2=$param2 cellsize="$allcellsize" batchsize="$allbatchsize" fieldcount="$allfieldcount" stat=$stat
+
+    generatePythonPlots "$1" $param1 $param2 $overplot $figsize "$labels" "$title" $scale $plotwith $output "$figview" $plotwithaction "$allcellsize" contour=$contour interp=$interp stat=$stat
+}
+
 makeycsbplot()
 {
     output=$(valOrDef output '' "$@")
@@ -1527,6 +1783,11 @@ makeycsbplot()
     plotlogfileycsb $output threadcount fieldcount cellsize="10" figsize="$figsize" labels="Cellsize=10" title="Riak PUT (YCSB)"
 }
 
+makebbplot()
+{
+    plotlogfilebb files="multibucket-copy.out" param1=bucket_count param2=partitioned_sequential_int figsize="(18,12)" labels="BB" title="List Bucket Throughput (BB)" batchsize=1 cellsize=1
+}
+
 make5by5plots()
 {
     plotlogfileycsb files="ycsb_5by5_10.out ycsb_5by5_100.out" param1=threadcount param2=fieldcount figsize="(18,12)" labels="5by5, 10Bytes;5by5, 100Bytes" title="Riak PUT Throughput (YCSB)" batchsize=1
@@ -1539,7 +1800,7 @@ make10byteplots()
 
 make10byteOptplot()
 {
-    plotlogfileycsb files="ycsb_5by5_10_optimized.out ycsb_5by5_10_baseline.out" param1=threadcount param2=fieldcount figsize="(18,12)" labels="5 + 5 Cluster\n10-byte cols\n(optimized OS);5 + 5 Cluster\n10-byte cols\n(no optimization)" title="RiakTS PUT Throughput (YCSB)" cellsize="10 10" batchsize="1 1" contour=none interp=linear overplot=true #output=$RIAK_TEST_BASE/images/nodeComp10Byte
+    plotlogfileycsb files="ycsb_5by5_10_optimized.out ycsb_5by5_10_baseline.out" param1=threadcount param2=fieldcount figsize="(18,5)" labels="5 + 5 Cluster\n10-byte cols\n(optimized vs. non)" title="RiakTS PUT Throughput (YCSB)" cellsize="10 10" batchsize="1 1" contour=none interp=cubic overplot=true output=$RIAK_TEST_BASE/images/osOptComp10Byte
 }
 
 make10colbatchplots()
@@ -2827,3 +3088,184 @@ kvperctestaws()
     runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval1,bucketname=TestBucketNval1,n=1000,nval=1,outdir=/tmp/kvlatency_perc_nval1,clientport=8087" riak=$RIAK_DIR
     runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval3,bucketname=TestBucketNval3,n=1000,nval=3,outdir=/tmp/kvlatency_perc_nval3,clientport=8087" riak=$RIAK_DIR
 }
+
+histGridPlot()
+{
+    local bytes=$(valOrDef bytes '1000' "$@")
+    bytes=${bytes//\"/}
+
+    local nsig=$(valOrDef nsig '4' "$@")
+    nsig=${nsig//\"/}
+
+    local xlims=$(valOrDef xlims '300,2000' "$@")
+    xlims=${xlims//\"/}
+    
+    local output=$(valOrDef output '' "$@")
+    output=${output//\"/}
+
+    echo "output = '$output'"
+    if [ "$output" == '' ]; then
+	python basho-perf-scripts/python_scripts/makehist.py bins=100 logx=true logy=true path='/tmp/kvlatency_perc_node1_nval1 /tmp/kvlatency_perc_node1_nval3 /tmp/kvlatency_perc_node3_nval1 /tmp/kvlatency_perc_node3_nval3' file="put_nbyte"$bytes"_nrow10000" bins=50 nsig=$nsig subplot='2,2' title='1 node, nval 1;1 node, nval 3;3 nodes, nval 1;3 nodes, nval3' xlabel=';;microseconds;microseconds' xlims="$xlims"
+    else
+	python basho-perf-scripts/python_scripts/makehist.py bins=100 logx=true logy=true path='/tmp/kvlatency_perc_node1_nval1 /tmp/kvlatency_perc_node1_nval3 /tmp/kvlatency_perc_node3_nval1 /tmp/kvlatency_perc_node3_nval3' file="put_nbyte"$bytes"_nrow10000" bins=50 nsig=$nsig subplot='2,2' title='1 node, nval 1;1 node, nval 3;3 nodes, nval 1;3 nodes, nval3' xlabel=';;microseconds;microseconds' xlims="$xlims" output=$output
+    fi
+}
+
+histBytePlot()
+{
+    local path=$(valOrDef path '/tmp/kvlatency_perc_node1_nval1' "$@")
+    path=${path//\"/}
+
+    local nsig=$(valOrDef nsig '4' "$@")
+    nsig=${nsig//\"/}
+
+    local xlims=$(valOrDef xlims '300,2000' "$@")
+    xlims=${xlims//\"/}
+
+    local output=$(valOrDef output '' "$@")
+    output=${output//\"/}
+
+    echo "output = '$output'"
+    if [ "$output" == '' ]; then
+	python basho-perf-scripts/python_scripts/makehist.py bins=100 logx=true logy=true path=$path file="put_nbyte1_nrow10000 put_nbyte10_nrow10000 put_nbyte100_nrow10000 put_nbyte1000_nrow10000 put_nbyte10000_nrow10000 put_nbyte100000_nrow10000 put_nbyte1000000_nrow10000" bins=50 nsig=$nsig subplot='1,7' title='' xlabel='microseconds' xlims="300,10000" ylabel='' figsize='21,3'
+    else
+	python basho-perf-scripts/python_scripts/makehist.py bins=100 logx=true logy=true path=$path file="put_nbyte1_nrow10000 put_nbyte10_nrow10000 put_nbyte100_nrow10000 put_nbyte1000_nrow10000 put_nbyte10000_nrow10000 put_nbyte100000_nrow10000 put_nbyte1000000_nrow10000" bins=50 nsig=$nsig subplot='1,7' title='' xlabel='microseconds' xlims="300,10000" ylabel='' figsize='21,3' output=$output
+    fi
+}
+
+makeConfPlot()
+{
+#    python basho-perf-scripts/python_scripts/makeconfplot.py path=/tmp/kvlatency_perc_node1_nval1 nsig=3.3 xlabel="Object size (Bytes)" ylabel="Latency (microseconds)"
+#    python basho-perf-scripts/python_scripts/makeconfplot.py path=/tmp/kvlatency_perc_node1_nval3 nsig=5.0
+#    python basho-perf-scripts/python_scripts/makeconfplot.py path=/tmp/kvlatency_perc_emltest nsig=3.3 xlabel="Object size (Bytes)" ylabel="Latency (microseconds)"
+
+#    python basho-perf-scripts/python_scripts/makeconfplot.py path=/tmp/kvlatency_perc_emltest nsig=5 xlabel="Object size (Bytes)" ylabel="Latency (microseconds)" xmax=1000000 ymax=100000
+
+    python basho-perf-scripts/python_scripts/makeconfplot.py path=/tmp/kvlatency_perc_node1_nval1_w1c nsig=5 xlabel="Object size (Bytes)" ylabel="Latency (microseconds)" xmax=10000000 ymax=1000000
+}
+
+histFullPlot()
+{
+    local path=$(valOrDef path '/tmp/kvlatency_perc_node1_nval1' "$@")
+    path=${path//\"/}
+
+    local bins=$(valOrDef bins '200' "$@")
+    bins=${bins//\"/}
+
+    local nsig=$(valOrDef nsig '0' "$@")
+    nsig=${nsig//\"/}
+
+    local xlims=$(valOrDef xlims '300,2500' "$@")
+    xlims=${xlims//\"/}
+
+    local output=$(valOrDef output '' "$@")
+    output=${output//\"/}
+
+    echo "output = '$output'"
+    if [ $output == '' ]; then
+	echo "Not sending figure"
+	python basho-perf-scripts/python_scripts/makehist.py bins=100 logx=true logy=true path=$path file="put_nbyte1000_nrow10000" bins=$bins nsig=$nsig subplot='1,1' title='' xlabel='microseconds' xlims="$xlims" ylabel='' figsize="10,5"
+    else
+	python basho-perf-scripts/python_scripts/makehist.py bins=100 logx=true logy=true path=$path file="put_nbyte1000_nrow10000" bins=$bins nsig=$nsig subplot='1,1' title='' xlabel='microseconds' xlims="$xlims" ylabel='' figsize="10,5" output=$output
+    fi
+
+
+}
+
+billPlots()
+{
+    local hours=$(valOrDef hours '' "$@")
+    hours=${hours//\"/}
+
+    python basho-perf-scripts/python_scripts/influxPlot.py start=2017-02-14T19:15:00.00Z hoursafter=$hours port=58086
+    python basho-perf-scripts/python_scripts/influxPlot.py start=2017-02-14T19:15:00.00Z hoursafter=$hours port=58087
+}
+
+emlPlots()
+{
+    local hours=$(valOrDef hours '' "$@")
+    hours=${hours//\"/}
+
+    local perc=$(valOrDef perc 'false' "$@")
+    perc=${perc//\"/}
+
+    python basho-perf-scripts/python_scripts/influxPlot.py start="2017-02-17T20:00:45.00Z 2017-02-17T20:04:00.00Z" hoursafter="$hours" port="58086 58087" overplot=true relx=true smooth=true overplotsmooth=false perc=$perc
+}
+
+diskPlots()
+{
+    local hours=$(valOrDef hours '' "$@")
+    hours=${hours//\"/}
+
+    local perc=$(valOrDef perc 'false' "$@")
+    perc=${perc//\"/}
+
+    python basho-perf-scripts/python_scripts/influxPlot.py start="2017-02-17T20:00:45.00Z 2017-02-17T20:04:00.00Z" hoursafter=$hours port="58086 58087" overplot=true relx=true smooth=true overplotsmooth=false perc=$perc db=disk_write  derivative=false harness=false
+}
+
+makeConfCmpPlot()
+{
+    python basho-perf-scripts/python_scripts/makeconfplot.py path="/tmp/kvlatency_perc_node1_nval1 /tmp/kvlatency_perc_node1_nval1_w1c" nsig=3.3 xlabel="Object size (Bytes)" ylabel="Latency (microseconds)" xmax=10000000 ymax=1000000 output=test.png
+}
+
+diskPlots()
+{
+    python basho-perf-scripts/python_scripts/influxPlot.py start="2017-02-17T20:00:45.00Z 2017-02-17T20:00:45.00Z 2017-02-17T20:04:00.00Z 2017-02-17T20:04:00.00Z" hoursafter="70.9 70.9 69.6 69.6" port="58087 58087 58086 58086" overplot=false relx=true perc=false db="ycsb_operations disk_write ycsb_operations disk_write" harness="true false true false" type="none disk_octets none disk_octets" derivative="true false true false" instance="none xvda1 none xvda1" logy="false"
+}
+
+allPlots()
+{
+    local hours=$(valOrDef hours '70' "$@")
+    hours=${hours//\"/}
+
+    local perc=$(valOrDef perc 'false' "$@")
+    perc=${perc//\"/}
+
+    python basho-perf-scripts/python_scripts/influxPlot.py start="2017-02-17T20:00:55.00Z 2017-02-17T20:04:00.00Z" hoursafter="$hours" port="58086 58087" overplot=true relx=true smooth=true overplotsmooth=false perc=$perc file="throughput_40hr.txt throughput_24hr.txt throughput_8hr.txt"
+}
+
+allFilePlots()
+{
+    local hours=$(valOrDef hours '70' "$@")
+    hours=${hours//\"/}
+
+    local perc=$(valOrDef perc 'true' "$@")
+    perc=${perc//\"/}
+
+    python basho-perf-scripts/python_scripts/influxPlot.py overplot=true relx=true smooth=true overplotsmooth=false perc=$perc file="throughput_24hr.txt throughput_8hr.txt throughput_40hr.txt throughput_nonopt_72hr.txt throughput_opt_72hr.txt throughput_opt_72hr_u1604.txt" rt=false legend="10b x 100c, trial 1;10b x 100c, trial 2;10b x 100c, trial 3;10b x 10c, non-opt;10b x 10c, opt;10b x 10c, u1604 opt" xlim=65
+}
+
+allFileIntPlots()
+{
+    local hours=$(valOrDef hours '70' "$@")
+    hours=${hours//\"/}
+
+    local perc=$(valOrDef perc 'true' "$@")
+    perc=${perc//\"/}
+
+    python basho-perf-scripts/python_scripts/intPlot.py overplot=true relx=true file="throughput_24hr.txt throughput_8hr.txt throughput_40hr.txt throughput_nonopt_72hr.txt throughput_opt_72hr.txt throughput_opt_72hr_u1604.txt" rt=false legend="10b x 100c, trial 1;10b x 100c, trial 2;10b x 100c, trial 3;10b x 10c, non-opt;10b x 10c, opt;10b x 10c, u1604 opt" xlim=65
+}
+
+optCmpPlot()
+{
+    local hours=$(valOrDef hours '66 69' "$@")
+    hours=${hours//\"/}
+
+    local perc=$(valOrDef perc 'true' "$@")
+    perc=${perc//\"/}
+
+
+    python basho-perf-scripts/python_scripts/influxPlot.py start="2017-02-17T20:00:55.00Z 2017-02-17T20:04:00.00Z" hoursafter="$hours" port="58086 58087" overplot=true relx=true smooth=true overplotsmooth=false perc=$perc legend="10b x 10c, non-opt;10b x 10c, opt"
+}
+
+u1604Plot()
+{
+    local hours=$(valOrDef hours '62' "$@")
+    hours=${hours//\"/}
+
+    #    python basho-perf-scripts/python_scripts/influxPlot.py start='2017-02-21T21:50:33.350753Z' hoursafter="$hours" port="58086" overplot=false smooth=false relx=false db="ycsb_operations leveldb_value leveldb_value" stat="value" type_instance="none ThrottleCompacts0 ThrottleCompacts1" harness="true false false" derivative="true false false" relx=true
+
+    python basho-perf-scripts/python_scripts/influxPlot.py start='2017-02-21T21:50:33.350753Z' hoursafter="$hours" port="58086" overplot=false smooth=false relx=false db="ycsb_operations" stat="value" harness="true" derivative="true" relx=true perc=true smooth=true overplotsmooth=false
+}
+
+    

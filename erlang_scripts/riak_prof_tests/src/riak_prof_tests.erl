@@ -31,7 +31,7 @@ getClient(_) ->
     getClient("127.0.0.1", 10017).
 
 %%=======================================================================
-%% TS PUT Latency tests
+%% Arg parsing utility functions
 %%=======================================================================
 
 %%------------------------------------------------------------
@@ -41,14 +41,17 @@ getClient(_) ->
 
 checkArgs([ArgStr]) ->
     ArgDict = getArgDict(ArgStr),
-    io:format("Found dictionary = ~p~n", [ArgDict]),
-    io:format("Found key arg1 = ~p~n", [getArgKey(ArgDict, "arg1", [1,10,20])]).
+    io:format("Found dictionary = ~p~n", [ArgDict]).
 
 %%------------------------------------------------------------
 %% Convert a continuous string of the form "key1=val1,key2=val2" to a
 %% dictionary of key,val pairs
 %%------------------------------------------------------------
 
+getArgDict([]) ->
+    dict:from_list([]);
+getArgDict([ArgStr]) ->
+    getArgDict(ArgStr);
 getArgDict(ArgStr) ->
     ArgList = string:tokens(ArgStr, ","),
     KeyValParser = 
@@ -137,6 +140,9 @@ parseKey(Key) ->
 %% key doesn't exist
 %%------------------------------------------------------------
 
+getArgKey(Dict, Key) ->
+    getArgKey(Dict, Key, "").
+
 getArgKey(Dict, Key, DefVal) ->
     case dict:is_key(Key, Dict) of
 	true ->
@@ -144,250 +150,458 @@ getArgKey(Dict, Key, DefVal) ->
 	_ ->
 	    DefVal
     end.
-	    
-runTsPutLatencyTests([Nrow, StrNcols]) when is_list(Nrow) ->
-    SNcolsList = string:tokens(StrNcols, "+"),
-    NcolsList = [list_to_integer(Item) || Item <- SNcolsList],
-    runTsPutLatencyTests(list_to_integer(Nrow), NcolsList).
-
-runTsPutLatencyTests(Nrow, Ncols) ->
-
-    Bytes = [{1000,      1}, 
-	     {1000,     10}, 
-	     {1000,    100}, 
-	     {1000,   1000}, 
-	     {100,   10000}, 
-	     {100,  100000}],
-
-    C = getClient(),
-    profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    profiler:profile({noop, false}),
-
-    ColRunFun = 
-	fun(Ncol) ->
-		[tsLatencyPutTest(C, Nrow, Ncol, Niter, Nbyte) || {Niter, Nbyte} <- Bytes]
-	end,
-
-    [ColRunFun(Ncol) || Ncol <- Ncols].
-
-percTest(Nrow) ->
-        runTsPutLatencyPercentileTests([integer_to_list(Nrow), "1+10+20+50"]).
-
-runTsPutLatencyPercentileTests([Nrow, StrNcols]) when is_list(Nrow) ->
-    SNcolsList = string:tokens(StrNcols, "+"),
-    NcolsList = [list_to_integer(Item) || Item <- SNcolsList],
-    runTsPutLatencyPercentileTests(list_to_integer(Nrow), NcolsList).
-
-runTsPutLatencyPercentileTests(Nrow, Ncols) ->
-
-    Bytes = [{1,       1}, 
-	     {1,      10}, 
-	     {1,     100}, 
-	     {1,    1000}, 
-	     {1,   10000}],
-
-    C = getClient(),
-    profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    profiler:profile({noop, false}),
-
-    ColRunFun = 
-	fun(Ncol) ->
-		[tsLatencyPercentilePutTest(C, Nrow, Ncol, Niter, Nbyte) || {Niter, Nbyte} <- Bytes]
-	end,
-
-    [ColRunFun(Ncol) || Ncol <- Ncols].
-
-runTsPutInsertLatencyTests([Nrow, StrNcols]) when is_list(Nrow) ->
-    SNcolsList = string:tokens(StrNcols, "+"),
-    NcolsList = [list_to_integer(Item) || Item <- SNcolsList],
-    runTsPutInsertLatencyTests(list_to_integer(Nrow), NcolsList).
-
-runTsPutInsertLatencyTests(Nrow, Ncols) ->
-%%    Ncols = [1, 5, 10, 20, 50],
-
-    Bytes = [{1000,      1}, 
-	     {1000,     10}, 
-	     {1000,    100}, 
-	     {1000,   1000}, 
-	     {100,   10000}, 
-	     {100,  100000}],
-
-    C = getClient(),
-    profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    profiler:profile({noop, false}),
-
-    ColRunFun = 
-	fun(Ncol) ->
-		[tsLatencyPutInsertTest(C, Nrow, Ncol, Niter, Nbyte) || {Niter, Nbyte} <- Bytes]
-	end,
-
-    [ColRunFun(Ncol) || Ncol <- Ncols].
-
-%%
-%% Ie, for 100 bytes total, we will write 100 bytes/col for Ncol =  1
-%%                                         20 bytes/col for Ncol =  5
-%%                                         10 bytes/col for Ncol = 10
-%%                                          5 bytes/col for Ncol = 20
-%%------------------------------------------------------------
-
-runTsSplits([Nrow]) when is_list(Nrow) ->
-    runTsSplits(list_to_integer(Nrow));
-runTsSplits(Nrow) ->
-    Ncols = [1, 5, 10, 20, 50],
-
-    Bytes = [{10000,   100}, 
-	     {1000,   1000}, 
-	     {1000,  10000}, 
-	     {1000, 100000},
-	     {100, 1000000}],
-
-    C = getClient(),
-    profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    profiler:profile({noop, false}),
-
-    ColRunFun = 
-	fun(Ncol) ->
-		[tsLatencyPutTest(C, Nrow, Ncol, Niter, round(NbyteTotal/Ncol)) || {Niter, NbyteTotal} <- Bytes]
-	end,
-
-    [ColRunFun(Ncol) || Ncol <- Ncols].
 
 %%=======================================================================
-%% TS Put Latency Tests
+%% General infrastructure for running iterative tests (iterating over
+%% a loop variable, like Nbyte, or Ncol, or both)
 %%=======================================================================
 
-tsLatencyTestData(Ncol, Nbyte) ->    
-    tsLatencyTestData(Ncol, Nbyte, 0, []).
-
-tsLatencyTestData(_Ncol, _Nbyte, _Ncol, Acc) ->
-    Acc;
-tsLatencyTestData(Ncol, Nbyte, Icol, Acc) ->
-    tsLatencyTestData(Ncol, Nbyte, Icol+1, [crypto:rand_bytes(Nbyte)|Acc]).
-
-tsLatencyPutTest(C, Nrow, Ncol, Niter, Nbyte) ->
-    Name = list_to_atom("put_" ++ integer_to_list(Ncol) ++ "_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(Nrow*Niter)),
-    Bucket = "Gen" ++ integer_to_list(Ncol),
-    io:format("Generating data for Bucket = ~p, Nrow = ~p Ncol = ~p Nbyte = ~p~n", [Bucket, Nrow, Ncol, Nbyte]),
-    FieldData = tsLatencyTestData(Ncol, Nbyte),
-    profiler:profile({start, Name}),
-    tsLatencyPutTest({C, Bucket, FieldData}, Name, Nrow, 0, Niter, 1).
-tsLatencyPutTest(_ArgTuple, Name, _Nrow, _Nrow, _Niter, _Niter) ->
-    profiler:profile({stop, Name}),
-    profiler:profile({debug}),
-    ok;
-tsLatencyPutTest(ArgTuple, Name, Nrow, Nrow, Niter, AccIter) ->
-    tsLatencyPutTest(ArgTuple, Name, Nrow, 0, Niter, AccIter+1);
-tsLatencyPutTest(ArgTuple, Name, Nrow, AccRow, Niter, AccIter) ->
-    {C, Bucket, FieldData} = ArgTuple,
-    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, AccRow+1] ++ FieldData ++ [AccRow+1])],
-    ok = riakc_ts:put(C, Bucket, Data),
-    tsLatencyPutTest(ArgTuple, Name, Nrow, AccRow+1, Niter, AccIter).
-
 %%------------------------------------------------------------
-%% PUT percentile latencies
+%% Run an array of tests
 %%------------------------------------------------------------
 
-append_to_file(Filename, Format, Data) ->
-    case file:open(Filename, [append]) of
-        {ok, IoDevice} ->
-	    Bytes = io:format(Format, [Data]),
-            file:write(IoDevice, Bytes),
-	    file:close(IoDevice);
-	        {error, Reason} ->
-            io:format("~s open error  reason:~s~n", [Filename, Reason])
-    end.
+runTest(ArgStr, RunFn, LoopFnGenerator) ->
 
-tsLatencyPercentilePutTest(C, Nrow, Ncol, Niter, Nbyte) ->
-    Name = list_to_atom("put_ncol" ++ integer_to_list(Ncol) ++ "_nbyte" ++ integer_to_list(Nbyte) ++ "_nrow" ++ integer_to_list(Nrow*Niter)),
-    Bucket = "Gen" ++ integer_to_list(Ncol),
-    FileName = "/tmp/tslatency_perc/" ++ atom_to_list(Name),
+    %%------------------------------------------------------------
+    %% Process arguments
+    %%------------------------------------------------------------
+
+    ArgDict = getArgDict(ArgStr),
+
+    %%------------------------------------------------------------
+    %% And run the tests
+    %%------------------------------------------------------------
+
+    {InitFn, NameFn, LoopInitFn, InnerLoopArgFn, InnerLoopExecFn} = LoopFnGenerator(),
+
+    %%------------------------------------------------------------
+    %% Build the argument dictionary we need for the loop
+    %%------------------------------------------------------------
+
+    {LoopArgDict0, OuterLoopExecFn, OuterLoopList} = InitFn(ArgDict, RunFn),
+
+    LoopArgDict1 = dict:from_list([
+				   {nameFn,     NameFn},
+				   {loopInitFn, LoopInitFn},
+				   {loopArgFn,  InnerLoopArgFn},
+				   {loopExecFn, InnerLoopExecFn}
+				  ]),
+
+    MergeFn = fun(_Key, Value1, _Value2) -> Value1 end,
+    LoopArgDict = dict:merge(MergeFn, LoopArgDict0, LoopArgDict1),
+
+    [OuterLoopExecFn(LoopArgDict, LoopVal) || LoopVal <- OuterLoopList].
+
+%%------------------------------------------------------------
+%% Infrastructure for running tests that dump out the complete latency
+%% distribution
+%%------------------------------------------------------------
+
+runPercTest(ArgDict, N, Nbyte) ->
+
+    NameFn   = getArgKey(ArgDict, nameFn),
+    FileName = NameFn(ArgDict, N, Nbyte),
+
+    io:format("Opening file = ~p~n", [FileName]),
+
     case file:open(FileName, [append]) of
         {ok, IoDevice} ->
-	    IoDevice,
-	    io:format("Generating data for Bucket = ~p, Nrow = ~p Ncol = ~p Nbyte = ~p~n", [Bucket, Nrow, Ncol, Nbyte]),
-	    FieldData = tsLatencyTestData(Ncol, Nbyte),
-	    tsLatencyPercentilePutTestLoop({C, Bucket, FieldData, IoDevice}, Nrow, 0, Niter, 1);
+
+	    LoopInitFn = getArgKey(ArgDict, loopInitFn),
+	    LoopArgFn  = getArgKey(ArgDict, loopArgFn),
+	    LoopExecFn = getArgKey(ArgDict, loopExecFn),
+
+	    LoopArgs = LoopInitFn(ArgDict, Nbyte),
+
+	    runPercTestLoop(LoopArgs, IoDevice, LoopArgFn, LoopExecFn, N, 0);
+
 	{error, Reason} ->
             io:format("~s open error  reason:~s~n", [FileName, Reason])
     end.
 
-tsLatencyPercentilePutTestLoop(ArgTuple, _Nrow, _Nrow, _Niter, _Niter) ->
-    {_C, _Bucket, _FieldData, IoDevice} = ArgTuple,
+runPercTestLoop(_LoopArgs, IoDevice, _LoopArgFn, _LoopExecFn, _N, _N) ->
     file:close(IoDevice),
     ok;
-tsLatencyPercentilePutTestLoop(ArgTuple, Nrow, Nrow, Niter, AccIter) ->
-    tsLatencyPercentilePutTestLoop(ArgTuple, Nrow, 0, Niter, AccIter+1);
-tsLatencyPercentilePutTestLoop(ArgTuple, Nrow, AccRow, Niter, AccIter) ->
-    {C, Bucket, FieldData, IoDevice} = ArgTuple,
-    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, AccRow+1] ++ FieldData ++ [AccRow+1])],
+runPercTestLoop(LoopArgs, IoDevice, LoopArgFn, LoopExecFn, N, Acc) ->
+
+    ExecArgs = LoopArgFn(LoopArgs, Acc),
 
     StartTime = eleveldb:current_usec(),
-    ok = riakc_ts:put(C, Bucket, Data),
-    StopTime = eleveldb:current_usec(),
+    LoopExecFn(ExecArgs),
+    StopTime  = eleveldb:current_usec(),
 
     Bytes = io_lib:format("~p~n", [StopTime - StartTime]),
     file:write(IoDevice, Bytes),
 
-    tsLatencyPercentilePutTestLoop(ArgTuple, Nrow, AccRow+1, Niter, AccIter).
+    runPercTestLoop(LoopArgs, IoDevice, LoopArgFn, LoopExecFn, N, Acc+1).
 
 %%------------------------------------------------------------
-%% Puts as INSERTs
+%% Infrastructure for running tests that store only the mean latency
+%% over many trials
 %%------------------------------------------------------------
 
-tsLatencyPutInsertTest(C, Nrow, Ncol, Niter, Nbyte) ->
-    Name = list_to_atom("put_" ++ integer_to_list(Ncol) ++ "_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(Nrow*Niter)),
-    Bucket = "Gen" ++ integer_to_list(Ncol),
-    QueryPrefix = "INSERT INTO " ++ Bucket ++ " (myfamily, myseries, time, " ++ genFieldName(Ncol) ++ ", myint) VALUES ('family1', 'seriesX',",
-    io:format("Generating data for Bucket = ~p, Nrow = ~p Ncol = ~p Nbyte = ~p~n", [Bucket, Nrow, Ncol, Nbyte]),
-    QuerySuffix = tsInsertLatencyTestData(Ncol, Nbyte),
+runMeanTest(ArgDict, N, Nbyte) ->
 
-    profiler:profile({start, Name}),
-    tsLatencyPutInsertTest({C, QueryPrefix, QuerySuffix}, Name, Nrow, 0, Niter, 1).
-tsLatencyPutInsertTest(_ArgTuple, Name, _Nrow, _Nrow, _Niter, _Niter) ->
-    profiler:profile({stop, Name}),
+    NameFn  = getArgKey(ArgDict, nameFn),
+    TagName = NameFn(ArgDict, N, Nbyte),
+
+    io:format("Starting tag = ~p~n", [TagName]),
+
+    LoopInitFn = getArgKey(ArgDict, loopInitFn),
+    LoopArgFn  = getArgKey(ArgDict, loopArgFn),
+    LoopExecFn = getArgKey(ArgDict, loopExecFn),
+
+    LoopArgs = LoopInitFn(ArgDict, Nbyte),
+
+    profiler:profile({start, TagName}),
+    runMeanTestLoop(LoopArgs, TagName, LoopArgFn, LoopExecFn, N, 0).
+
+runMeanTestLoop(_LoopArgs, TagName, _LoopArgFn, _LoopExecFn, _N, _N) ->
+    profiler:profile({stop, TagName}),
     profiler:profile({debug}),
     ok;
-tsLatencyPutInsertTest(ArgTuple, Name, Nrow, Nrow, Niter, AccIter) ->
-    tsLatencyPutInsertTest(ArgTuple, Name, Nrow, 0, Niter, AccIter+1);
-tsLatencyPutInsertTest(ArgTuple, Name, Nrow, AccRow, Niter, AccIter) ->
-    {C, QueryPrefix, QuerySuffix} = ArgTuple,
-    IntVal = integer_to_list(AccRow+1),
-    Query = QueryPrefix ++ IntVal ++ ", " ++ QuerySuffix ++ ", " ++ IntVal ++ ")",
-    {ok, _} = riakc_ts:query(C, Query),
-    tsLatencyPutInsertTest(ArgTuple, Name, Nrow, AccRow+1, Niter, AccIter).
+runMeanTestLoop(LoopArgs, TagName, LoopArgFn, LoopExecFn, N, Acc) ->
+    LoopExecFn(LoopArgFn(LoopArgs, Acc)),
+    runMeanTestLoop(LoopArgs, TagName, LoopArgFn, LoopExecFn, N, Acc+1).
+
+%%=======================================================================	    
+%% TS PUT testing functions
+%%=======================================================================	    
+
+%%------------------------------------------------------------
+%% Top-level function (suitable for calling from a shell) to dump out
+%% complete TS PUT latency distribution
+%%------------------------------------------------------------
+
+runTsPutLatencyPercTests([ArgStr]) ->
+    runTest(ArgStr, fun riak_prof_tests:runPercTest/3, fun riak_prof_tests:tsPutLatencyPercFnGenerator/0).
+
+runTsPutLatencyMeanTests([ArgStr]) ->
+    runTest(ArgStr, fun riak_prof_tests:runMeanTest/3, fun riak_prof_tests:tsPutLatencyMeanFnGenerator/0).
+
+%%------------------------------------------------------------
+%% Function generators for TS put latency tests
+%%------------------------------------------------------------
+
+tsPutLatencyPercFnGenerator() ->
+    tsPutLatencyFnGenerator(perc, false).
+
+tsPutLatencyMeanFnGenerator() ->
+    tsPutLatencyFnGenerator(mean, false).
+
+%%------------------------------------------------------------
+%% Function generators for TS split put latency tests (preserve the
+%% ~same total number of bytes for each schema)
+%%------------------------------------------------------------
+
+tsSplitPutLatencyPercFnGenerator() ->
+    tsPutLatencyFnGenerator(perc, true).
+
+tsSplitPutLatencyMeanFnGenerator() ->
+    tsPutLatencyFnGenerator(mean, true).
+
+%%------------------------------------------------------------
+%% Generator for basic TS Put operations
+%%------------------------------------------------------------
+
+tsPutLatencyFnGenerator(Type, Split) ->
+
+    InitFn     = tsPutInitFn(Type, Split),
+    NameFn     = tsPutNameFn(Type),
+    LoopInitFn = fun tsPutLoopInitFn/2,
+    LoopArgFn  = fun tsPutLoopArgFn/2,
+    LoopExecFn = fun tsPutLoopExecFn/1,
+
+    {InitFn, NameFn, LoopInitFn, LoopArgFn, LoopExecFn}.
+
+%%------------------------------------------------------------
+%% Loop init fn for TS Put functionality
+%%------------------------------------------------------------
+
+tsPutInitFn(Type, Split) ->
+
+    InitFn = fun(ArgDict, RunFn) ->
+
+		     ClientIp   = getArgKey(ArgDict, "clientip", "127.0.0.1"),
+		     ClientPort = list_to_integer(getArgKey(ArgDict, "clientport", "10017")),
+		     N          = list_to_integer(getArgKey(ArgDict, "n", "1000")),
+		     Nval       = list_to_integer(getArgKey(ArgDict, "nval", "1")),
+		     Qval       = list_to_integer(getArgKey(ArgDict, "quantumval", "15")),
+		     Qunit      = getArgKey(ArgDict, "quantumunit", "m"),
+		     Bytes      = getArgKey(ArgDict, "bytes", [1,10,100,1000]),
+		     Cols       = getArgKey(ArgDict, "cols",  [1,10,20,50]),
+		     Dir        = getArgKey(ArgDict, "outdir", "/tmp/tsputlatency_perc/"),
+		     Date       = getArgKey(ArgDict, "date", "false"),
+
+		     %%------------------------------------------------------------
+		     %% Make the directory if it doesn't already exist
+		     %%------------------------------------------------------------
+
+		     case Type of
+			 perc ->
+			     os:cmd("mkdir " ++ Dir);
+			 _ ->
+			     ok
+		     end,
+
+		     %%------------------------------------------------------------
+		     %% Instantiate the client
+		     %%------------------------------------------------------------
+
+		     C = getClient(ClientIp, ClientPort),
+
+		     OuterLoopExecFn = 
+			 fun(OuterLoopArgDict, Ncol) ->
+				 Bucket = list_to_binary("Gen" ++ integer_to_list(Ncol)),
+
+				 io:format("Call create_ts_bucket with Nval ~p Ncol ~p Qval ~p Qunit ~p~p~n", 
+					   [Nval, Ncol, Qval, Qunit, is_integer(Ncol)]),
+
+				 create_ts_bucket(Bucket, Nval, Ncol, Qval, Qunit),
+
+				 InnerLoopArgDict = dict:append(ncol, Ncol, OuterLoopArgDict),
+
+				 case Split of
+				     true ->
+					 [RunFn(InnerLoopArgDict, N, Nbyte) || Nbyte <- Bytes];
+				     false ->
+					 [RunFn(InnerLoopArgDict, N, round(Nbyte/Ncol)) || Nbyte <- Bytes]
+				 end
+			 end,
+
+		     RetDict = dict:from_list([
+					       {client,     C}, 
+					       {dir,        Dir},
+					       {date,       Date}
+					      ]),
+
+		     %%------------------------------------------------------------
+		     %% Return:
+		     %%
+		     %% - the dictionary that should be passed to each
+		     %%   iteration of the outer loop
+		     %%
+		     %% - the exec fn that should be called on each
+		     %%   iteration of the outer loop
+		     %%
+		     %% - the list to iterate over for the outer loop
+		     %%		     
+		     %%------------------------------------------------------------
+
+		     {RetDict, OuterLoopExecFn, Cols}
+	     end,
+    InitFn.
+
+%%------------------------------------------------------------
+%% Name fn for TS Put loop
+%%------------------------------------------------------------
+
+tsPutNameFn(Type) ->
+
+    fun(Dict, N, Nbyte) ->
+
+	    [Ncol] = getArgKey(Dict, ncol),
+
+	    Name = list_to_atom("put_nbyte" ++ integer_to_list(Nbyte) ++ 
+				    "_ncol" ++ integer_to_list(Ncol) ++ 
+				    "_nrow" ++ integer_to_list(N)),
+
+	    %%------------------------------------------------------------
+	    %% If perc, we are dumping to a directory -
+	    %% output the directory name If not, we are
+	    %% creating an internal tag for profiler --
+	    %% return the tag name
+	    %%------------------------------------------------------------
+
+	    case Type of
+		perc ->
+		    getArgKey(Dict, dir) ++ "/" ++ atom_to_list(Name);
+		_ ->
+		    Name
+	    end
+    end.
+
+%%------------------------------------------------------------
+%% Init fn for TS Put loop
+%%------------------------------------------------------------
+
+tsPutLoopInitFn(Dict, Nbyte) ->
+    [Ncol] = getArgKey(Dict, ncol),
+    C      = getArgKey(Dict, client),
+    Bucket = list_to_binary("Gen" ++ integer_to_list(Ncol)),
+    Data = tsPutLatencyTestData(Ncol, Nbyte),
+    io:format("Generated TS data for data for Ncol = ~p Nbyte = ~p~n", [Ncol, Nbyte]),
+    {C, Bucket, Ncol, Data}.
+
+%%------------------------------------------------------------
+%% Arg generator fn for TS Put loop
+%%------------------------------------------------------------
+
+tsPutLoopArgFn({C, Bucket, Ncol, FieldData}, Acc) ->
+    Data = [list_to_tuple([<<"family1">>, <<"seriesX">>, Acc+1] ++ FieldData)],
+    {C, Bucket, Ncol, Data, Acc}.
+
+%%------------------------------------------------------------
+%% Exec fn for TS Put loop
+%%------------------------------------------------------------
+
+tsPutLoopExecFn({C, Bucket, Ncol, Data, Acc}) ->
+    case riakc_ts:put(C, Bucket, Data) of
+	ok ->
+	    ok;
+	_ ->
+	    io:format("Error writing data for Ncol = ~p Acc = ~p~n", [Ncol, Acc])
+    end.
+
+%%-----------------------------------------------------------------------
+%% TS PUT testing utility functions
+%%-----------------------------------------------------------------------
+
+%%------------------------------------------------------------
+%% Generate test data for TS PUTs
+%%------------------------------------------------------------
+
+tsPutLatencyTestData(Ncol, Nbyte) ->    
+    [crypto:rand_bytes(Nbyte) || _Ind <- lists:seq(1, Ncol)].
+
+%%------------------------------------------------------------
+%% Convenience (test) functions
+%%------------------------------------------------------------
+
+percTest(Nrow) ->
+    runTsPutLatencyPercTests(["n=" ++ integer_to_list(Nrow)]).
+
+meanTest(Nrow) ->
+    runTsPutLatencyMeanTests(["n=" ++ integer_to_list(Nrow)]).
 
 %%=======================================================================
-%% TS INSERT Latency tests
+%% TS INSERT tests
 %%=======================================================================
 
 %%------------------------------------------------------------
-%% Run Ncols x Nbyte trials, doing Nrow x Niter iterations for each
-%% combination
+%% Top-level function (suitable for calling from a shell) to dump out
+%% complete TS INSERT latency distribution.
+%%
+%% Notes:
+%%
+%%  set "date=true" to insert with date strings instead of integers
+%%
 %%------------------------------------------------------------
 
-runTsInsertLatencyTests([Nrow, Date]) when is_list(Nrow) ->
-    io:format("Running runTsInsertLantecyTests with Nrow = ~p Date = ~p~n", [Nrow, Date]),
-    runTsInsertLatencyTests(list_to_integer(Nrow), Date).
+runTsInsertLatencyPercTests([ArgStr]) ->
+    runTest(ArgStr, fun riak_prof_tests:runPercTest/3, fun riak_prof_tests:tsInsertLatencyPercFnGenerator/0).
 
-runTsInsertLatencyTests(Nrow, Date) ->
-    Ncols = [1, 5, 10, 20, 50],
+runTsInsertLatencyMeanTests([ArgStr]) ->
+    runTest(ArgStr, fun riak_prof_tests:runMeanTest/3, fun riak_prof_tests:tsInsertLatencyMeanFnGenerator/0).
 
-    Bytes = [{1000,      1}, 
-	     {1000,     10}, 
-	     {1000,    100}, 
-	     {1000,   1000}, 
-	     {100,   10000}],
+%%------------------------------------------------------------
+%% Function generators for TS insert latency tests
+%%------------------------------------------------------------
 
-    C = getClient(),
-    profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    profiler:profile({noop, false}),
+tsInsertLatencyPercFnGenerator() ->
+    tsInsertLatencyFnGenerator(perc).
 
-    ColRunFun = 
-	fun(Ncol) ->
-		[tsLatencyInsertTest({C, Nrow, Date}, Ncol, Niter, Nbyte) || {Niter, Nbyte} <- Bytes]
-	end,
+tsInsertLatencyMeanFnGenerator() ->
+    tsInsertLatencyFnGenerator(mean).
 
-    [ColRunFun(Ncol) || Ncol <- Ncols].
+%%------------------------------------------------------------
+%% Generator for basic TS Insert operations
+%%------------------------------------------------------------
+
+tsInsertLatencyFnGenerator(Type) ->
+
+    InitFn     = tsPutInitFn(Type, false),
+    NameFn     = tsInsertNameFn(Type),
+    LoopInitFn = fun tsInsertLoopInitFn/2,
+    LoopArgFn  = fun tsInsertLoopArgFn/2,
+    LoopExecFn = fun tsInsertLoopExecFn/1,
+
+    {InitFn, NameFn, LoopInitFn, LoopArgFn, LoopExecFn}.
+
+%%------------------------------------------------------------
+%% Name fn for TS Insert loop
+%%------------------------------------------------------------
+
+tsInsertNameFn(Type) ->
+
+    fun(Dict, N, Nbyte) ->
+
+	    [Ncol] = getArgKey(Dict, ncol),
+
+	    Name = list_to_atom("insert_nbyte" ++ integer_to_list(Nbyte) ++ 
+				    "_ncol" ++ integer_to_list(Ncol) ++ 
+				    "_nrow" ++ integer_to_list(N)),
+
+	    %%------------------------------------------------------------
+	    %% If perc, we are dumping to a directory -
+	    %% output the directory name If not, we are
+	    %% creating an internal tag for profiler --
+	    %% return the tag name
+	    %%------------------------------------------------------------
+
+	    case Type of
+		perc ->
+		    getArgKey(Dict, dir) ++ "/" ++ atom_to_list(Name);
+		_ ->
+		    Name
+	    end
+    end.
+
+%%------------------------------------------------------------
+%% Init fn for TS Insert loop
+%%------------------------------------------------------------
+
+tsInsertLoopInitFn(Dict, Nbyte) ->
+    [Ncol] = getArgKey(Dict, ncol),
+    C      = getArgKey(Dict, client),
+    Date   = list_to_atom(getArgKey(Dict, date)),
+
+    Bucket = list_to_binary("Gen" ++ integer_to_list(Ncol)),
+    QueryPrefix = "INSERT INTO " ++ Bucket ++ " (myfamily, myseries, time, " ++ genFieldName(Ncol) ++ ", myint) VALUES ('family1', 'seriesX',",
+    QuerySuffix = tsInsertLatencyTestData(Ncol, Nbyte),
+    
+    io:format("Generated TS INSERT data for data for Ncol = ~p Nbyte = ~p~n", [Ncol, Nbyte]),
+    {C, QueryPrefix, QuerySuffix, Date}.
+
+%%------------------------------------------------------------
+%% Arg generator fn for TS Insert loop
+%%------------------------------------------------------------
+
+tsInsertLoopArgFn({C, QueryPrefix, QuerySuffix, false}, Acc) ->
+
+    %%------------------------------------------------------------
+    %% 1471219200 seconds is Mon Aug 15 00:00:00 UTC 2016
+    %%------------------------------------------------------------
+
+    IntTimeVal = integer_to_list(1471219200000 + Acc),
+    Query = QueryPrefix ++ IntTimeVal ++ ", " ++ QuerySuffix ++ ")",
+    {C, Query};
+
+tsInsertLoopArgFn({C, QueryPrefix, QuerySuffix, true}, Acc) ->
+
+    Hours = Acc div (1000*3600),
+    Min   = (Acc - Hours*1000*3600) div (1000*60),
+    Sec   = (Acc - Hours*1000*3600 - Min*1000*60) div 1000,
+    Ms    = (Acc - Hours*1000*3600 - Min*1000*60 - Sec*1000),
+    DateTimeVal = binary_to_list(iolist_to_binary(io_lib:format("2016-08-15T~2..0B:~2..0B:~2..0B.~3..0BZ", [Hours, Min, Sec, Ms]))),
+
+    Query = QueryPrefix ++ "'" ++ DateTimeVal ++ "', " ++ QuerySuffix ++ ")",
+    {C, Query}.
+
+%%------------------------------------------------------------
+%% Exec fn for TS Insert loop
+%%------------------------------------------------------------
+
+tsInsertLoopExecFn({C, Query}) ->
+    {ok, _} = riakc_ts:query(C, Query).
+			    
+%%-----------------------------------------------------------------------
+%% TS INSERT Utility functions
+%%-----------------------------------------------------------------------
+
+%%------------------------------------------------------------
+%% Generate test data for TS INSERTs
+%%------------------------------------------------------------
 
 tsInsertLatencyTestData(Ncol, Nbyte) ->    
     tsInsertLatencyTestData(Ncol, Nbyte, 0, "").
@@ -402,48 +616,9 @@ tsInsertLatencyTestData(Ncol, Nbyte, Icol, Acc) ->
 	    tsInsertLatencyTestData(Ncol, Nbyte, Icol+1, Acc ++ "'" ++ get_random_string(Nbyte) ++ "'")
     end.
 
-tsLatencyInsertTest({C, Nrow, Date}, Ncol, Niter, Nbyte) ->
-    Name = list_to_atom("put_" ++ integer_to_list(Ncol) ++ "_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(Nrow*Niter)),
-    Bucket = "Gen" ++ integer_to_list(Ncol),
-    QueryPrefix = "INSERT INTO " ++ Bucket ++ " (myfamily, myseries, time, myint, " ++ genFieldName(Ncol) ++ ") VALUES ('family1', 'seriesX',",
-    io:format("Generating data for Bucket = ~p, Nrow = ~p Ncol = ~p Nbyte = ~p~n", [Bucket, Nrow, Ncol, Nbyte]),
-    QuerySuffix = tsInsertLatencyTestData(Ncol, Nbyte),
-    profiler:profile({start, Name}),
-    tsLatencyInsertTest({C, QueryPrefix, QuerySuffix, Date}, Name, Nrow, 0, Niter, 1).
-tsLatencyInsertTest(_ArgTuple, Name, _Nrow, _Nrow, _Niter, _Niter) ->
-    profiler:profile({stop, Name}),
-    profiler:profile({debug}),
-    ok;
-tsLatencyInsertTest(ArgTuple, Name, Nrow, Nrow, Niter, AccIter) ->
-    tsLatencyInsertTest(ArgTuple, Name, Nrow, 0, Niter, AccIter+1);
-tsLatencyInsertTest(ArgTuple, Name, Nrow, AccRow, Niter, AccIter) ->
-    {C, QueryPrefix, QuerySuffix, Date} = ArgTuple,
-
-    %%------------------------------------------------------------
-    %% 1471219200 seconds is Mon Aug 15 00:00:00 UTC 2016
-    %%------------------------------------------------------------
-
-    IntVal = integer_to_list(1471219200000 + AccRow),
-    Hours = AccRow div (1000*3600),
-    Min = (AccRow - Hours*1000*3600) div (1000*60),
-    Sec = (AccRow - Hours*1000*3600 - Min*1000*60) div 1000,
-    Ms  = (AccRow - Hours*1000*3600 - Min*1000*60 - Sec*1000),
-    DateTime = binary_to_list(iolist_to_binary(io_lib:format("2016-08-15T~2..0B:~2..0B:~2..0B.~3..0BZ", [Hours, Min, Sec, Ms]))),
-
-    Query = 
-	case Date of 
-	    true ->
-		QueryPrefix ++ "'" ++ DateTime ++ "', " ++ IntVal ++ ", " ++ QuerySuffix;
-	    _ ->
-		QueryPrefix ++ IntVal ++ ", " ++ IntVal ++ ", " ++ QuerySuffix
-	end,
-
-    {ok, _} = riakc_ts:query(C, Query),
-    tsLatencyInsertTest(ArgTuple, Name, Nrow, AccRow+1, Niter, AccIter).
-
-runTest(Date) ->
-    C = getClient(),
-    tsLatencyInsertTest({C, 10, Date}, 5, 1, 10).
+%%------------------------------------------------------------
+%% Generate field names for TS Gen schema
+%%------------------------------------------------------------
 
 genFieldName(Ind) ->
     genFieldNames(Ind, 0, []).
@@ -465,8 +640,22 @@ get_random_string(Length) ->
                             ++ Acc
                 end, [], lists:seq(1, Length)).
 
+%%=======================================================================
+%% General utility functions
+%%=======================================================================
+
+append_to_file(Filename, Format, Data) ->
+    case file:open(Filename, [append]) of
+        {ok, IoDevice} ->
+	    Bytes = io:format(Format, [Data]),
+            file:write(IoDevice, Bytes),
+	    file:close(IoDevice);
+	        {error, Reason} ->
+            io:format("~s open error  reason:~s~n", [Filename, Reason])
+    end.
+
 %%========================================================================
-%% TS query latency tests
+%% TS QUERY latency tests
 %%========================================================================
 
 %%------------------------------------------------------------
@@ -539,7 +728,7 @@ runTsQueryLatencyTests(ClientAtom, Nbyte, Select, Group, Limit, Filter, Interval
 
 tsLatencyQueryTest({C, Select, Group, Limit, Filter, PutData, IntervalMs}, Nrow, Ncol, Niter, Nbyte) ->
 
-    FieldData = tsLatencyTestData(Ncol, Nbyte),
+    FieldData = tsPutLatencyTestData(Ncol, Nbyte),
     Bucket = "Gen" ++ integer_to_list(Ncol),
 
     %%------------------------------------------------------------
@@ -629,6 +818,10 @@ tsLatencyQueryTest(Args, Niter, AccIter) ->
     {C, Query, _Name} = Args,
     {ok, _} = riakc_ts:query(C, Query),
     tsLatencyQueryTest(Args, Niter, AccIter+1).
+
+%%=======================================================================
+%% Utility functions for TS QUERY testing
+%%=======================================================================
 
 putQueryTestData(Args, Nrow, AccRow) ->
     putQueryTestData(Args, Nrow, AccRow, 0).
@@ -976,43 +1169,43 @@ sepQuery(Tag, Hours) ->
     profiler:profile({stop, Tag}),
     profiler:profile({debug}).
 	 
-%%----------------------------------------------------------------------- 
-%% KV PUT/GET Latency tests
-%%----------------------------------------------------------------------- 
+%%======================================================================= 
+%% KV PUT/GET/DEL Latency tests
+%%=======================================================================
 
-runKvPutLatencyPercentileTests([ArgStr]) ->
-    ArgDict    = getArgDict(ArgStr),
+%%------------------------------------------------------------
+%% Generic test loop -- loop over N iterations, each one processing
+%% data Nbytes long
+%%------------------------------------------------------------
 
-    ClientIp   = getArgKey(ArgDict, "clientip", "127.0.0.1"),
-    ClientPort = list_to_integer(getArgKey(ArgDict, "clientport", "10017")),
-    N          = list_to_integer(getArgKey(ArgDict, "n", "1000")),
-    NVal       = list_to_integer(getArgKey(ArgDict, "nval", "1")),
-    W1c        = list_to_atom(getArgKey(ArgDict, "w1c", "false")),
-    BucketType = list_to_binary(getArgKey(ArgDict, "buckettype", "TestBucketType")),
-    BucketName = list_to_binary(getArgKey(ArgDict, "bucketname", "GeoCheckin")),
-    Bytes      = getArgKey(ArgDict, "bytes", [1,10,100,1000,10000,100000,1000000,10000000]),
-    Dir        = getArgKey(ArgDict, "outdir", "/tmp/kvlatency_perc/"),
+kvTestByteLoop(N, Nbyte, Client, Prefix, InitFn, ExecFn) ->
+    C = getClient(Client),
+    profiler:profile({prefix, "/tmp/client_profiler_results"}),
+    profiler:profile({noop, false}),
+    Name = list_to_atom(Prefix ++ "_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
+    Data = InitFn(),
+    profiler:profile({start, Name}),
+    kvTestIterLoop(C, Data, Name, ExecFn, N, 0).
+kvTestIterLoop(_C, _Data, Name, _ExecFn, _N, _N) ->
+    profiler:profile({stop, Name}),
+    profiler:profile({debug}),
+    ok;
+kvTestIterLoop(C, Data, Name, ExecFn, N, Acc) ->
+    ExecFn(C, Data, Acc),
+    kvTestIterLoop(C, Data, Name, ExecFn, N, Acc+1).
 
-    %% Make the bucket if it doesn't already exist
-    
-    create_kv_bucket(NVal, BucketType, W1c),
+%%------------------------------------------------------------
+%% Top-level function (suitable for calling from a shell) to run a
+%% complete set of KV latency tests (PUT/GET/DEL)
+%%------------------------------------------------------------
 
-    %% Make the directory if it doesn't already exist
+runKvLatencyTests(ArgList) ->
 
-    os:cmd("mkdir " ++ Dir),
+    ArgDict = getArgDict(ArgList),
 
-    %% Instantiate the client
-
-    C = getClient(ClientIp, ClientPort),
-
-    %% And run the tests
-
-    [kvPutLatencyPercentileTest({C, {BucketType, BucketName}, Dir}, N, Nbyte) || Nbyte <- Bytes].
-
-runKvLatencyTests([ArgStr]) ->
-    ArgDict = getArgDict(ArgStr),
     Client  = getArgKey(ArgDict, "client", local),
     Bucket  = list_to_binary(getArgKey(ArgDict, "bucket", "TestBucketType")),
+
     io:format("Client = ~p Bucket - ~p~n Dict = ~p~n", [Client, Bucket, ArgDict]),
 
     Bytes = [{100,       1}, 
@@ -1030,99 +1223,297 @@ runKvLatencyTest(N, Nbyte, Client, Bucket) ->
     kvGetTest(N, Nbyte, Client, Bucket),
     kvDelTest(N, Nbyte, Client, Bucket).
     
-runKvLatencyTest(Args) ->
-    [Nstr, NbyteStr] = Args,
-    N = list_to_integer(Nstr),
-    Nbyte = list_to_integer(NbyteStr),
-    kvPutTest(N, Nbyte, local, <<"TestBucketType">>),
-    kvGetTest(N, Nbyte, local, <<"TestBucketType">>).
-     
 kvTestData(Nbyte) ->
     crypto:rand_bytes(Nbyte).
 
-kvPutTest(N,Nbyte,Client,Bucket) ->
-    C = getClient(Client),
-    profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    profiler:profile({noop, false}),
-    Name = list_to_atom("put_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
-    Data = kvTestData(Nbyte),
-    profiler:profile({start, Name}),
-    kvPutTest(C,Bucket,Data,Name,N,0).
-kvPutTest(_C,_Bucket,_Data,Name,_N,_N) ->
-    profiler:profile({stop, Name}),
-    profiler:profile({debug}),
-    ok;
-kvPutTest(C,Bucket,Data,Name, N,Acc) ->
-    Key = list_to_binary("key" ++ integer_to_list(Acc)),
-    Obj = riakc_obj:new({Bucket, <<"GeoCheckin">>}, Key, Data),
-    riakc_pb_socket:put(C, Obj),
-    kvPutTest(C,Bucket,Data,Name,N,Acc+1).
+kvPutTest(N, Nbyte, Client, Bucket) ->
+    InitFn = fun() -> kvTestData(Nbyte) end,
+    ExecFn = 
+	fun(C, Data, Acc) ->
+		Key = list_to_binary("key" ++ integer_to_list(Acc)),
+		Obj = riakc_obj:new({Bucket, <<"GeoCheckin">>}, Key, Data),
+		ok = riakc_pb_socket:put(C, Obj)
+	end,
+    kvTestByteLoop(N, Nbyte, Client, "put", InitFn, ExecFn).
+
+kvGetTest(N, Nbyte, Client, Bucket) ->
+    InitFn = fun() -> ok end,
+    ExecFn =
+	fun(C, _Data, Acc) ->
+		Key = list_to_binary("key" ++ integer_to_list(Acc)),
+		{ok, _Tuple} = riakc_pb_socket:get(C, {Bucket, <<"GeoCheckin">>}, Key)
+	end,
+    kvTestByteLoop(N, Nbyte, Client, "get", InitFn, ExecFn).
+
+kvDelTest(N, Nbyte, Client, Bucket) ->
+    InitFn = fun() -> ok end,
+    ExecFn = 
+	fun(C, _Data, Acc) ->
+		Key = list_to_binary("key" ++ integer_to_list(Acc)),
+		ok = riakc_pb_socket:delete(C, {Bucket, <<"GeoCheckin">>}, Key)
+	end,
+    kvTestByteLoop(N, Nbyte, Client, "del", InitFn, ExecFn).
 
 %%------------------------------------------------------------
-%% Dump out complete KV latency distribution
+%% Top-level function for running KV-style tests against TS buckets,
+%% using client PUT/GET/DELETE api 
 %%------------------------------------------------------------
 
-kvPutLatencyPercentileTest({C, Bucket, Dir}, N, Nbyte) ->
-    Name = list_to_atom("put_nbyte" ++ integer_to_list(Nbyte) ++ "_nrow" ++ integer_to_list(N)),
-    FileName = Dir ++ "/" ++ atom_to_list(Name),
-    io:format("File = ~p~n", [FileName]),
-    case file:open(FileName, [append]) of
-        {ok, IoDevice} ->
-	    IoDevice,
-	    io:format("Generating data ~n", []),
-	    Data = kvTestData(Nbyte),
-	    kvPutLatencyPercentileTestLoop({C, Bucket, Data, IoDevice}, N, 0);
-	{error, Reason} ->
-            io:format("~s open error  reason:~s~n", [FileName, Reason])
+runKvStyleTsLatencyTests(ArgList) ->
+
+    ArgDict = getArgDict(ArgList),
+
+    Client  = getArgKey(ArgDict, "client", local),
+    Bucket  = <<"Gen1">>,
+
+    create_ts_bucket(<<"Gen1">>, 1, 1, 15, "m"),
+
+    io:format("Client = ~p Bucket - ~p~n Dict = ~p~n", [Client, Bucket, ArgDict]),
+
+    Bytes = [{100,       1}, 
+	     {100,      10}, 
+	     {100,     100}, 
+	     {100,    1000}, 
+	     {100,   10000}, 
+	     {100,  100000}, 
+	     {100, 1000000}, 
+	     {10, 10000000}],
+    [runKvStyleTsLatencyTest(N, Nbyte, Client, Bucket) || {N, Nbyte} <- Bytes].
+
+runKvStyleTsLatencyTest(N, Nbyte, Client, Bucket) ->
+    kvStyleTsPutTest(N, Nbyte, Client, Bucket),
+    kvStyleTsGetTest(N, Nbyte, Client, Bucket),
+    kvStyleTsDelTest(N, Nbyte, Client, Bucket).
+
+kvStyleTsPutTest(N, Nbyte, Client, Bucket) ->
+    InitFn = fun() -> tsPutLatencyTestData(1, Nbyte) end,
+    ExecFn = 
+	fun(C, Data, Acc) ->
+		RowData = [list_to_tuple([<<"family1">>, <<"seriesX">>, Acc+1] ++ Data)],
+		ok = riakc_ts:put(C, Bucket, RowData)
+	end,
+    kvTestByteLoop(N, Nbyte, Client, "put", InitFn, ExecFn).
+
+kvStyleTsGetTest(N, Nbyte, Client, Bucket) ->
+    InitFn = fun() -> ok end,
+    ExecFn =
+	fun(C, _Data, Acc) ->
+		Key = [<<"family1">>, <<"seriesX">>, Acc+1],
+		{ok, _Tuple} = riakc_ts:get(C, Bucket, Key, [])
+	end,
+    kvTestByteLoop(N, Nbyte, Client, "get", InitFn, ExecFn).
+
+kvStyleTsDelTest(N, Nbyte, Client, Bucket) ->
+    InitFn = fun() -> ok end,
+    ExecFn = 
+	fun(C, _Data, Acc) ->
+		Key = [<<"family1">>, <<"seriesX">>, Acc+1],
+		ok = riakc_ts:delete(C, Bucket, Key, [])
+	end,
+    kvTestByteLoop(N, Nbyte, Client, "del", InitFn, ExecFn).
+
+%%------------------------------------------------------------
+%% Top-level function to execute KV-style tests against TS buckets
+%% using only QUERY api
+%%------------------------------------------------------------
+
+runKvStyleTsQueryLatencyTests(ArgList) ->
+
+    ArgDict = getArgDict(ArgList),
+
+    Client  = getArgKey(ArgDict, "client", local),
+    Bucket  = <<"Gen1">>,
+
+    create_ts_bucket(<<"Gen1">>, 1, 1, 15, "m"),
+
+    io:format("Client = ~p Bucket - ~p~n Dict = ~p~n", [Client, Bucket, ArgDict]),
+
+    Bytes = [{100,       1}, 
+	     {100,      10}, 
+	     {100,     100}, 
+	     {100,    1000}, 
+	     {100,   10000}, 
+	     {100,  100000}, 
+	     {100, 1000000}, 
+	     {10, 10000000}],
+    [runKvStyleTsQueryLatencyTest(N, Nbyte, Client, Bucket) || {N, Nbyte} <- Bytes].
+
+runKvStyleTsQueryLatencyTest(N, Nbyte, Client, Bucket) ->
+    kvStyleTsQueryPutTest(N, Nbyte, Client, Bucket),
+    kvStyleTsQueryGetTest(N, Nbyte, Client, Bucket),
+    kvStyleTsQueryDelTest(N, Nbyte, Client, Bucket).
+
+kvStyleTsQueryPutTest(N, Nbyte, Client, Bucket) ->
+    InitFn = fun() -> get_random_string(Nbyte) end,
+    ExecFn = 
+	fun(C, Data, Acc) ->
+		Query = "INSERT INTO " ++ binary_to_list(Bucket) ++ 
+		    " (myfamily, myseries, time, myvar1) VALUES ('family1', 'seriesX', " ++ integer_to_list(Acc+1) ++ ", '" ++ Data ++ "')",
+		{ok, _Tuple} = riakc_ts:query(C, Query)
+	end,
+    kvTestByteLoop(N, Nbyte, Client, "put", InitFn, ExecFn).
+
+kvStyleTsQueryGetTest(N, Nbyte, Client, Bucket) ->
+    InitFn = fun() -> ok end,
+    ExecFn =
+	fun(C, _Data, Acc) ->
+		Query = "select * from " ++ binary_to_list(Bucket) ++ 
+		    " where myfamily='family1' and myseries='seriesX' and time = " ++ integer_to_list(Acc+1),
+		{ok, _Tuple} = riakc_ts:query(C, Query)
+	end,
+    kvTestByteLoop(N, Nbyte, Client, "get", InitFn, ExecFn).
+
+kvStyleTsQueryDelTest(N, Nbyte, Client, Bucket) ->
+    InitFn = fun() -> ok end,
+    ExecFn = 
+	fun(C, _Data, Acc) ->
+		Query = "delete from " ++ binary_to_list(Bucket) ++ 
+		    " where myfamily='family1' and myseries='seriesX' and time = " ++ integer_to_list(Acc+1),
+		{ok, _Tuple} = riakc_ts:query(C, Query)
+	end,
+    kvTestByteLoop(N, Nbyte, Client, "del", InitFn, ExecFn).
+    
+%%------------------------------------------------------------
+%% Top-level function (suitable for calling from a shell) to dump out
+%% complete KV latency distribution
+%%------------------------------------------------------------
+
+runKvPutLatencyPercTests([ArgStr]) ->
+    runTest(ArgStr, fun runPercTest/3, fun kvPutLatencyPercFnGenerator/0).
+
+runKvPutLatencyMeanTests([ArgStr]) ->
+    runTest(ArgStr, fun runMeanTest/3, fun kvPutLatencyMeanFnGenerator/0).
+
+%%------------------------------------------------------------
+%% Generator functions for perc and mean tests
+%%------------------------------------------------------------
+
+kvPutLatencyPercFnGenerator() ->
+    kvPutLatencyFnGenerator(perc).
+
+kvPutLatencyMeanFnGenerator() ->
+    kvPutLatencyFnGenerator(mean).
+
+%%------------------------------------------------------------
+%% Generator function for KV Put operations
+%%------------------------------------------------------------
+
+kvPutLatencyFnGenerator(Type) ->
+
+    InitFn     = kvPutInitFn(Type),
+    NameFn     = kvPutNameFn(Type),
+    LoopInitFn = fun kvPutLoopInitFn/2,
+    LoopArgFn  = fun kvPutLoopArgFn/2,
+    LoopExecFn = fun kvPutLoopExecFn/1,
+
+    {InitFn, NameFn, LoopInitFn, LoopArgFn, LoopExecFn}.
+
+%%------------------------------------------------------------
+%% Loop fns for KV put latency distribution
+%%------------------------------------------------------------
+
+kvPutInitFn(Type) ->
+
+    fun(ArgDict, RunFn) ->
+	    ClientIp   = getArgKey(ArgDict, "clientip", "127.0.0.1"),
+	    ClientPort = list_to_integer(getArgKey(ArgDict, "clientport", "10017")),
+	    N          = list_to_integer(getArgKey(ArgDict, "n", "1000")),
+	    NVal       = list_to_integer(getArgKey(ArgDict, "nval", "1")),
+	    W1c        = list_to_atom(getArgKey(ArgDict, "w1c", "false")),
+	    BucketType = list_to_binary(getArgKey(ArgDict, "buckettype", "TestBucketType")),
+	    BucketName = list_to_binary(getArgKey(ArgDict, "bucketname", "GeoCheckin")),
+	    Bytes      = getArgKey(ArgDict, "bytes", [1,10,100,1000,10000,100000,1000000,5000000]),
+	    Dir        = getArgKey(ArgDict, "outdir", "/tmp/kvlatency_perc/"),
+	    
+	    %%------------------------------------------------------------
+	    %% Make the bucket if it doesn't already exist
+	    %%------------------------------------------------------------
+	    
+	    create_kv_bucket(NVal, BucketType, W1c),
+	    
+	    %%------------------------------------------------------------
+	    %% Make the directory if it doesn't already exist
+	    %%------------------------------------------------------------
+	    
+	    case Type of
+		perc ->
+		    os:cmd("mkdir " ++ Dir);
+		_ ->
+		    ok
+	    end,
+	    
+	    %%------------------------------------------------------------
+	    %% Instantiate the client
+	    %%------------------------------------------------------------
+	    
+	    C = getClient(ClientIp, ClientPort),
+	    
+	    RetDict = dict:from_list([
+				      {client,     C}, 
+				      {bucket,     {BucketType, BucketName}}, 
+				      {dir,        Dir}
+				     ]),
+	    OuterLoopExecFn = 
+		fun(InnerLoopArgDict, Nbyte) ->
+			RunFn(InnerLoopArgDict, N, Nbyte)
+		end,
+	    
+	    %%------------------------------------------------------------
+	    %% Return:
+	    %%
+	    %% - the dictionary that should be passed to each iteration of the outer loop
+	    %% - the exec fn that should be called on each iteration of the outer loop
+	    %% - the list to iterate over for the outer loop
+	    %%
+	    %%------------------------------------------------------------
+	    
+	    {RetDict, OuterLoopExecFn, Bytes}
     end.
 
-kvPutLatencyPercentileTestLoop({_C, _Bucket, _Data, IoDevice},_N,_N) ->
-    file:close(IoDevice),
-    ok;
-kvPutLatencyPercentileTestLoop({C, Bucket, Data, IoDevice}, N, Acc) ->
-    Key = list_to_binary("key" ++ integer_to_list(Acc)),
+%%------------------------------------------------------------
+%% Name fn for KV Put loop
+%%------------------------------------------------------------
+
+kvPutNameFn(Type) ->
+
+    fun(Dict, N, Nbyte) ->
+
+	    Name = list_to_atom("put_nbyte" ++ integer_to_list(Nbyte) ++ 
+				    "_nrow" ++ integer_to_list(N)),
+	    
+	    %%------------------------------------------------------------
+	    %% If perc, we are dumping to a directory -
+	    %% output the directory name If not, we are
+	    %% creating an internal tag for profiler --
+	    %% return the tag name
+	    %%------------------------------------------------------------
+	    
+	    case Type of
+		perc ->
+		    getArgKey(Dict, dir) ++ "/" ++ atom_to_list(Name);
+		_ ->
+		    Name
+	    end
+    end.
+
+kvPutLoopInitFn(Dict, Nbyte) ->
+    C      = getArgKey(Dict, client),
+    Bucket = getArgKey(Dict, bucket),
+    Data   = kvTestData(Nbyte),
+    io:format("Generated KV data ~p long ~n", [Nbyte]),
+    {C, Bucket, Data}.
+
+kvPutLoopArgFn({C, Bucket, Data}, Acc) ->
+    Key = list_to_binary("key" ++ integer_to_list(Acc)),			
     Obj = riakc_obj:new(Bucket, Key, Data),
+    {C, Obj}.
 
-    StartTime = eleveldb:current_usec(),
-    riakc_pb_socket:put(C, Obj),
-    StopTime = eleveldb:current_usec(),
-
-    Bytes = io_lib:format("~p~n", [StopTime - StartTime]),
-    file:write(IoDevice, Bytes),
-
-    kvPutLatencyPercentileTestLoop({C, Bucket, Data, IoDevice}, N, Acc+1).
-
-kvGetTest(N,Nbyte,Client,Bucket) ->
-    C = getClient(Client),
-    profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    profiler:profile({noop, false}),
-    Name = list_to_atom("get_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
-    profiler:profile({start, Name}),
-    kvGetTest(C,Bucket,Name,N,0).
-kvGetTest(_C,_Bucket,Name,_N,_N) ->
-    profiler:profile({stop, Name}),
-    profiler:profile({debug}),
-    ok;
-kvGetTest(C,Bucket,Name,N,Acc) ->
-    Key = list_to_binary("key" ++ integer_to_list(Acc)),
-    riakc_pb_socket:get(C, {Bucket, <<"GeoCheckin">>}, Key),
-    kvGetTest(C,Bucket,Name,N,Acc+1).
-
-kvDelTest(N,Nbyte,Client,Bucket) ->
-    C = getClient(Client),
-    profiler:profile({prefix, "/tmp/client_profiler_results"}),
-    profiler:profile({noop, false}),
-    Name = list_to_atom("del_" ++ integer_to_list(Nbyte) ++ "_" ++ integer_to_list(N)),
-    profiler:profile({start, Name}),
-    kvDelTest(C,Bucket,Name,N,0).
-kvDelTest(_C,_Bucket,Name,_N,_N) ->
-    profiler:profile({stop, Name}),
-    profiler:profile({debug}),
-    ok;
-kvDelTest(C,Bucket,Name,N,Acc) ->
-    Key = list_to_binary("key" ++ integer_to_list(Acc)),
-    riakc_pb_socket:delete(C, {Bucket, <<"GeoCheckin">>}, Key),
-    kvDelTest(C,Bucket,Name,N,Acc+1).
+kvPutLoopExecFn({C, Obj}) ->
+    riakc_pb_socket:put(C, Obj).
+		   
+%%=======================================================================
+%% Other functions
+%%=======================================================================
 
 keys(Bucket) ->
     keys(getClient(), Bucket).
@@ -1717,10 +2108,31 @@ putTestKey(Ind) ->
     Obj2 = riakc_obj:update_metadata(Obj, MD2),
     riakc_pb_socket:put(Pid, Obj2).
 
+kvTest() ->
+    putKvKey(<<"Key">>, <<"Val">>),
+    delKvKey(<<"Key">>).
+
+putKvKey(Key, Val) ->
+    putKvKey({<<"TestBucketType">>,<<"test">>}, Key, Val).
+
 putKvKey(Bucket, Key, Val) ->
     Pid = getClient(),
     Obj = riakc_obj:new(Bucket, Key, Val),
     riakc_pb_socket:put(Pid, Obj).
+
+getKvKey(Key) ->
+    getKvKey({<<"TestBucketType">>,<<"test">>}, Key).
+
+getKvKey(Bucket, Key) ->
+    Pid = getClient(),
+    riakc_pb_socket:get(Pid, Bucket, Key).
+
+delKvKey(Key) ->
+    delKvKey({<<"TestBucketType">>,<<"test">>}, Key).
+
+delKvKey(Bucket, Key) ->
+    Pid = getClient(),
+    riakc_pb_socket:delete(Pid, Bucket, Key).
 
 getModList() ->
     Ret = file:list_dir(app_helper:get_env(riak_core,platform_data_dir) ++ "/ddl_ebin"),
@@ -1797,5 +2209,67 @@ create_kv_bucket(NVal, Bucket, WriteOnce) when is_boolean(WriteOnce) ->
     os:cmd("riak-admin bucket-type create " ++ binary_to_list(Bucket) ++ " '" ++ Props ++ "'"),
     timer:sleep(1000),
     os:cmd("riak-admin bucket-type activate " ++ binary_to_list(Bucket)).
+
+create_kv_expiry_bucket(NVal, Bucket, WriteOnce, Expiry) when is_boolean(WriteOnce) ->
+    io:format("Inside CKB with ~p ~p ~p~n", [NVal, Bucket, WriteOnce]),
+    Props =
+        case WriteOnce of
+            false ->
+		io_lib:format("{\"props\": {" ++
+                                  "\"n_val\": " ++ integer_to_list(NVal) ++
+                                  ", \"allow_mult\": false" ++
+                                  ", \"expiration\": \"enabled\"" ++
+                                  ", \"default_time_to_live\": \"" ++ Expiry ++ "\"" ++
+                                  ", \"expiration_mode\": \"per_item\"" ++
+                                  "}}", []);
+	    true ->   
+		io_lib:format("{\"props\": {" ++
+				  "\"n_val\": " ++ integer_to_list(NVal) ++
+                                  ", \"expiration\": \"enabled\"" ++
+                                  ", \"default_time_to_live\": \"" ++ Expiry ++ "\"" ++
+                                  ", \"expiration_mode\": \"per_item\"" ++
+                                  ", \"write_once\": true}}", [])
+        end,
+
+    io:format("Creating bucket with Props = ~p~n", [Props]),
+
+    os:cmd("riak-admin bucket-type create " ++ binary_to_list(Bucket) ++ " '" ++ Props ++ "'"),
+    timer:sleep(1000),
+    os:cmd("riak-admin bucket-type activate " ++ binary_to_list(Bucket)).
+
+create_ts_bucket(Bucket, Nval, Ncol, Quantum, Unit) ->
+    io:format("Inside CTB with Bucket = ~p Ncol = ~p Nval = ~p~n", [Bucket, Ncol, Nval]),
+
+    FieldInds = lists:seq(1, Ncol),
+    GenFieldList = ["myvar" ++ integer_to_list(Ind) ++ " varchar not null, " || Ind <- FieldInds],
+    GenFields = binary_to_list(list_to_binary(GenFieldList)),
+
+    Props =
+	io_lib:format("{\"props\": {" ++
+			  "\"n_val\": " ++ integer_to_list(Nval) ++
+			  ", \"table_def\": \"CREATE TABLE " ++ binary_to_list(Bucket) ++
+			  " (myfamily varchar not null, myseries varchar not null, time timestamp not null, " ++
+			  GenFields ++ 
+			  "PRIMARY KEY ((myfamily, myseries, quantum(time, " ++ integer_to_list(Quantum) ++ ", " ++ Unit ++
+			  ")), myfamily, myseries, time))\"}}", []),
+
+    io:format("About to call create with Bucket = ~p ~nProps = ~p~n", [Bucket, Props]),
+
+    os:cmd("riak-admin bucket-type create " ++ binary_to_list(Bucket) ++ " '" ++ Props ++ "'"),
+    timer:sleep(3000),
+    os:cmd("riak-admin bucket-type activate " ++ binary_to_list(Bucket)).
+
+expiryTest() ->
+    riak_prof_tests:create_kv_expiry_bucket(1, <<"ExpBucket">>, false, "1m"),
+    expKey().
+
+expKey() ->
+    expKey(<<"Key">>).
+    
+expKey(Key) ->
+    riak_prof_tests:putKvKey({<<"ExpBucket">>, <<"Bucket">>}, Key, <<"Val">>).
+
+getExpKey(Key) ->
+    riak_prof_tests:getKvKey({<<"ExpBucket">>, <<"Bucket">>}, Key).
 
 

@@ -7,6 +7,8 @@ import sys
 from os import listdir
 from os.path import isfile, join
 import scipy.stats as stats
+import os
+import erltestutil as etu
 
 defaultFontsize=22
 
@@ -68,47 +70,95 @@ def parseProfilerOutputVals(fileName, labelDict):
           
   return labelDict
 
-def getRawDiffProfilerOutput(fileName1, fileName2, op):
-  d1 = parseProfilerOutput(fileName1, {})
-  d2 = parseProfilerOutput(fileName2, {})
-  print 'd1 = ' + str(d1)
-  print 'd2 = ' + str(d2)
-  cols  = []
-  btes  = []
-  us    = []
-  for key in d1.keys():
-    s = key.split('_')
-    if s[0] == 'put':
+def getRawDiffProfilerOutput(fileName1, fileName2, op, opts):
 
-      if key in d2.keys():
-        cols.append(float(s[1]))
-        btes.append(np.log10(float(s[2])))
-        if op == '-':
-          us.append((d2[key]['usec'] - d1[key]['usec'])/d1[key]['usec'])
-        elif op == '/':
-          us.append(d2[key]['usec']/d1[key]['usec'])
+  print 'Here'
+  if opts['dirs']:
+    dat1 = etu.getDat(fileName1, 'mean',  'ncol', 'nbyte', opts)
+    s1   = etu.getDat(fileName1, 'std',   'ncol', 'nbyte', opts)
+    dat2 = etu.getDat(fileName2, 'mean',  'ncol', 'nbyte', opts)
+    s2   = etu.getDat(fileName2, 'std',   'ncol', 'nbyte', opts)
+
+    print 'd1 = ' + str(dat1)
+    print 'd2 = ' + str(dat2)
+
+    print 's1 = ' + str(s1)
+    print 's2 = ' + str(s2)
+    
+    d1 = {}
+    d2 = {}
+    nline = np.shape(dat1)[0]
+
+    cols = []
+    btes = []
+    us   = []
+  
+    for i in range(0,nline):
+      d1[i] = {}
+      d1[i]['usec']    = dat1[i,2]
+      d1[i]['usecstd'] = s1[i,2]
+      d2[i] = {}
+      d2[i]['usec']    = dat2[i,2]
+      d2[i]['usecstd'] = s2[i,2]
+      cols.append(dat1[i,0])
+      btes.append(dat1[i,1])
+
+      if op == '-':
+        us.append((d2[i]['usec'] - d1[i]['usec'])/d1[i]['usec'])
+      elif op == '/':
+        us.append(d2[i]['usec']/d1[key]['usec'])
+        
+  else:
+    d1 = parseProfilerOutput(fileName1, {})
+    d2 = parseProfilerOutput(fileName2, {})
+    print 'd1 = ' + str(d1)
+    print 'd2 = ' + str(d2)
+    cols  = []
+    btes  = []
+    us    = []
+    for key in d1.keys():
+      s = key.split('_')
+      if s[0] == 'put':
+
+        if key in d2.keys():
+          cols.append(float(s[1]))
+          btes.append(np.log10(float(s[2])))
+          if op == '-':
+            us.append((d2[key]['usec'] - d1[key]['usec'])/d1[key]['usec'])
+          elif op == '/':
+            us.append(d2[key]['usec']/d1[key]['usec'])
 
   return cols, btes, us, d1, d2
 
-def getProfilerOutput(fileName):
-  d = parseProfilerOutput(fileName, {})
+def getProfilerOutput(fileName, opts):
 
-  cols  = []
-  btes  = []
-  us    = []
-  for key in d.keys():
-    s = key.split('_')
-    if s[0] == 'put':
-      cols.append(float(s[1]))
-      btes.append(np.log10(float(s[2])))
-      ntrial = np.int(s[3])
-      us.append(np.log10(d[key]['usec']/ntrial))
+  if opts['dirs']:
+    d = etu.getDat(fileName, 'mean', 'ncol', 'nbyte', opts)
+    print 'd = ' + str(d)
+    cols = d[:,0]
+    btes = np.log10(d[:,1])
+    us   = np.log10(d[:,2])
+  else:
+    d = parseProfilerOutput(fileName, {})
 
-  x,y,z = getGriddedData(cols, btes, us)
+    cols  = []
+    btes  = []
+    us    = []
+    for key in d.keys():
+      s = key.split('_')
+      if s[0] == 'put':
+        cols.append(float(s[1]))
+        btes.append(np.log10(float(s[2])))
+        ntrial = np.int(s[3])
+        us.append(np.log10(d[key]['usec']/ntrial))
+        
+  x,y,z = getGriddedData(cols, btes, us, opts)
+  
   return x,y,z
 
-def getDiffProfilerOutput(fileName1, fileName2, op):
-  c, r, diff, d1, d2 = getRawDiffProfilerOutput(fileName1, fileName2, op)
+def getDiffProfilerOutput(fileName1, fileName2, op, opts):
+
+  c, r, diff, d1, d2 = getRawDiffProfilerOutput(fileName1, fileName2, op, opts)
 
   if op == '-':
     chi2 = 0.0
@@ -135,10 +185,10 @@ def getDiffProfilerOutput(fileName1, fileName2, op):
   else:
     statstr = ''
     
-  x,y,z = getGriddedData(c, r, diff)
+  x,y,z = getGriddedData(c, r, diff, opts)
   return x,y,z,statstr
 
-def getGriddedData(x,y,d):
+def getGriddedData(x,y,d,opts):
   npoints=np.size(x);
   points = np.ndarray((npoints, 2), np.double);
 
@@ -152,7 +202,7 @@ def getGriddedData(x,y,d):
   x1=np.linspace(np.min(ux), np.max(ux), 200);
   y1=np.linspace(np.min(uy), np.max(uy), 200);
   x2,y2 = np.meshgrid(x1, y1);
-  z2=int.griddata(points, d, (x2, y2), method='cubic');
+  z2=int.griddata(points, d, (x2, y2), method=opts['interp']);
   return x2, y2, z2
 
 def retick(ax, axname):
@@ -237,16 +287,21 @@ if np.size(sys.argv) > 6:
 else:
   zlabel=None
 
-overplot = str2bool(getOptArgs(sys.argv, 'overplot', True))
+overplot = str2bool(getOptArgs(sys.argv, 'overplot', 'true'))
 figfile  = getOptArgs(sys.argv, 'figfile',  None)
 
-x1, y1, z1 = getProfilerOutput(file1)
-x2, y2, z2 = getProfilerOutput(file2)
+opts = {}
+opts['dirs'] = str2bool(getOptArgs(sys.argv, 'dirs', 'false'))
+opts['nsig'] = etu.getOptArgs(sys.argv, 'nsig', 0.0)
+opts['interp'] = etu.getOptArgs(sys.argv, 'interp', 'cubic')
+
+x1, y1, z1 = getProfilerOutput(file1, opts)
+x2, y2, z2 = getProfilerOutput(file2, opts)
 
 op = getOptArgs(sys.argv, 'op', '-')
 
 if not overplot:
-  xd, yd, diff, statstr = getDiffProfilerOutput(file1, file2, op)
+  xd, yd, diff, statstr = getDiffProfilerOutput(file1, file2, op, opts)
 
 fig = plt.figure(figsize=(25,8))
 fig.set_facecolor('white');
@@ -275,21 +330,24 @@ makePlot(ax, x1, y1, z1, zmin, zmax, 'c', title1)
 ax = fig.add_subplot(1,3,2, projection='3d')
 makePlot(ax, x2, y2, z2, zmin, zmax, 'm', title2)
 
-ax = fig.add_subplot(1,3,3, projection='3d')
+if True:
 
-if overplot:
-  makePlot(ax, x1, y1, z1, zmin, zmax, 'c', title3)
-  plt.hold(True)
-  makePlot(ax, x2, y2, z2, zmin, zmax, 'm')
-else:
-  if op == '-':
-    makePlot(ax, x2, y2, diff*100, -100, 100, 'y', title3 + '\n' + statstr, False, zlabel3)
+  ax = fig.add_subplot(1,3,3, projection='3d')
+
+  if overplot:
+    makePlot(ax, x1, y1, z1, zmin, zmax, 'c', title3)
+    plt.hold(True)
+    makePlot(ax, x2, y2, z2, zmin, zmax, 'm')
   else:
-    makePlot(ax, x2, y2, diff, np.min(diff), np.max(10), 'y', title3 + '\n' + statstr, False, zlabel3)
+    if op == '-':
+      makePlot(ax, x2, y2, diff*100, -100, 100, 'y', title3 + '\n' + statstr, False, zlabel3)
+    else:
+      makePlot(ax, x2, y2, diff, np.min(diff), np.max(10), 'y', title3 + '\n' + statstr, False, zlabel3)
 
-print 'x2   = ' + str(x2)
-print 'y2   = ' + str(np.power(10, y2))
-print 'diff = ' + str(diff)
+  print 'x2   = ' + str(x2)
+  print 'y2   = ' + str(np.power(10, y2))
+  print 'diff = ' + str(diff)
+  
 
 if figfile != None:
   plt.tight_layout(w_pad=2,pad=5)

@@ -1,6 +1,8 @@
 import erltestutil as etu
 import sys
 import numpy as np
+from os import listdir
+from os.path import isfile, join
 import matplotlib.pyplot as plt
 
 def getData(mypath, file, stat, opts):
@@ -34,6 +36,10 @@ opts = {}
 fig = plt.figure(figsize=figsize)
 fig.set_facecolor('white');
 
+if np.size(files) == 1 and files[0] == '' and np.size(paths) == 1:
+    files = [f for f in listdir(paths[0]) if isfile(join(paths[0], f))]
+    subplot[0], subplot[1] = etu.getSubplotDims(np.size(files))
+    
 nFile = np.size(files)
 nFile = max(nFile, np.size(paths))
 nFile = max(nFile, np.size(nsigs))
@@ -55,6 +61,8 @@ for iFile in range(0, nFile):
     plt.ylabel(etu.indOrVal(ylabels, iFile))
     plt.title(etu.indOrVal(titles, iFile))
 
+    print 'File ' + str(file) + ' mean = ' + str(etu.getStat(path, file, 'mean', opts)) + ' +- ' + str(etu.getStat(path, file, 'meanerr', opts)) + ' ' + str(etu.getStat(path, file, 'std', opts))
+    
     if xlims != None:
         ax.set_xlim(xlims[0], xlims[1])
 

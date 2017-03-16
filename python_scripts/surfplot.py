@@ -105,15 +105,20 @@ def getData(fileName, index, opts):
 
   dat = np.loadtxt(fileName);
   nline = np.shape(dat)[0];
+
   x = dat[0:nline,0];
   if opts['logx']:
     x = np.log10(x)
-  nx = np.size(np.unique(x));
+
   y = dat[0:nline,1];
   if opts['logy']:
     y = np.log10(y)
-  ny = np.size(np.unique(y));
+
   [d, unit] = getDataAndUnits(dat, nline, index);
+  print 'd = ' + str(d)
+  if opts['logz']:
+    d = np.log10(d)
+  print 'd now = ' + str(d)
   npoints=np.size(x);
   points = np.ndarray((npoints, 2), np.double);
 
@@ -128,14 +133,19 @@ def getData(fileName, index, opts):
   y1=np.linspace(np.min(uy), np.max(uy), 200);
   x2,y2 = np.meshgrid(x1, y1);
 
+  print 'here 0'
+
   if opts['interp'] == 'gauss':
     z2=gaussInterp(points, d, x2, y2)
   else:
     print 'd = ' + str(d) + ' shape = ' + str(np.shape(d))
     print 'points = ' + str(points) + ' shape = ' + str(np.shape(points))
     print 'x2 = ' + str(x2) + ' shape = ' + str(np.shape(x2))
-    z2=int.griddata(points, d, (x2, y2), method=interp)
+    z2=int.griddata(points, d, (x2, y2), method=opts['interp'])
 
+  print 'here 1'
+  print str(z2)
+  
   return x2, y2, z2, unit
 
 def gaussInterp(points, z, x2, y2):
@@ -178,13 +188,13 @@ def gaussInterp(points, z, x2, y2):
         zv = z[i]
         zmn = z2[i1][i2]
         w = np.exp(-((x0-xv)*(x0-xv)/(2*sx*sx) + (y0-yv)*(y0-yv)/(2*sy*sy)))
-#        w = 1.0
         w2[i1][i2] += w
         z2[i1][i2] += (zv * w - zmn) / w2[i1][i2]
 
   return z2
       
 def retick(ax, axname):
+
   if axname == 'x':
     rng = ax.get_xlim()
   elif axname == 'y':
@@ -223,8 +233,10 @@ def makeSubPlot(fileName, index, ax, doHold, Color, zlabel, scale, unit, maxVal,
     ax.set_zlabel('\n' + zlabel + ' (' + unit + ')', fontsize=defaultFontsize);
   else:
     ax.set_zlabel('\n' + zlabel, fontsize=defaultFontsize);
+
+  if not opts['logz']:
+    ax.set_zlim(0, maxVal*1.1);
     
-  ax.set_zlim(0, maxVal*1.1);
   ax.set_xlabel('\n' + opts['xlabel'], fontsize=defaultFontsize);
   ax.set_ylabel('\n' + opts['ylabel'], fontsize=defaultFontsize);
 
@@ -232,6 +244,8 @@ def makeSubPlot(fileName, index, ax, doHold, Color, zlabel, scale, unit, maxVal,
     retick(ax, 'x')
   if opts['logy']:
     retick(ax, 'y')
+  if opts['logz']:
+    retick(ax, 'z')
 
   ax.tick_params(labelsize=defaultFontsize)
 
@@ -356,17 +370,20 @@ if plotWith != None:
 
 plotWithAction = getOptArgs(sys.argv, 'plotwithaction', 'p')
 
-overplot   = etu.str2bool(getOptArgs(sys.argv, 'overplot', 'false'))
-logx       = etu.str2bool(getOptArgs(sys.argv, 'logx', 'false'))
-logy       = etu.str2bool(getOptArgs(sys.argv, 'logy', 'false'))
-scale      = etu.str2bool(getOptArgs(sys.argv, 'scale', 'false'))
-labels     = getOptArgs(sys.argv, 'labels', '').split(';')
-title      = getOptArgs(sys.argv, 'title',  '')
-xlabel     = getOptArgs(sys.argv, 'xlabel', 'x (unspecified)')
-ylabel     = getOptArgs(sys.argv, 'ylabel', 'y (unspecified)')
-zlabel     = getOptArgs(sys.argv, 'zlabel', 'z (unspecified)')
-interp     = getOptArgs(sys.argv, 'interp',  'linear')
-figsizestr = getOptArgs(sys.argv, 'figsize', '15,10')
+opts = {}
+
+overplot       = etu.str2bool(getOptArgs(sys.argv, 'overplot', 'false'))
+opts['logx']   = etu.str2bool(getOptArgs(sys.argv, 'logx', 'false'))
+opts['logy']   = etu.str2bool(getOptArgs(sys.argv, 'logy', 'false'))
+opts['logz']   = etu.str2bool(getOptArgs(sys.argv, 'logz', 'false'))
+scale          = etu.str2bool(getOptArgs(sys.argv, 'scale', 'false'))
+labels         = getOptArgs(sys.argv, 'labels', '').split(';')
+title          = getOptArgs(sys.argv, 'title',  '')
+opts['xlabel'] = getOptArgs(sys.argv, 'xlabel', 'x (unspecified)')
+opts['ylabel'] = getOptArgs(sys.argv, 'ylabel', 'y (unspecified)')
+opts['zlabel'] = getOptArgs(sys.argv, 'zlabel', 'z (unspecified)')
+opts['interp'] = getOptArgs(sys.argv, 'interp',  'linear')
+figsizestr     = getOptArgs(sys.argv, 'figsize', '15,10')
 
 figsizearr=figsizestr.split(',')
 figsize=(np.int(figsizearr[0]), np.int(figsizearr[1]))
@@ -374,7 +391,8 @@ figsize=(np.int(figsizearr[0]), np.int(figsizearr[1]))
 fig = plt.figure(figsize=figsize)
 fig.set_facecolor('white');
 
-# Append empty labels out to the length of the files var, if not enough labels were provided
+# Append empty labels out to the length of the files var, if not
+# enough labels were provided
 
 nFile=np.shape(files)[0]
 nLabel=np.shape(labels)[0]
@@ -390,14 +408,6 @@ scales,units,maxs  = getScalesAndUnits(files, scale);
 plt.axis('off')
 plt.title(title)
 axes = getSubplots(files, overplot)
-
-opts = {}
-opts['interp'] = interp
-opts['logx']   = logx
-opts['logy']   = logy
-opts['xlabel'] = xlabel
-opts['ylabel'] = ylabel
-opts['zlabel'] = zlabel
 
 plotFiles(files, plotWith, plotWithAction, axes, colors, scales, units, maxs, opts)
 

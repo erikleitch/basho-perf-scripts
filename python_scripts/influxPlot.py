@@ -95,11 +95,15 @@ def toKArr(y):
     return y
 
 def getInfluxQueryHarness(port, optsDict, utcstart, utcend):
-    return getInfluxQuery(port, optsDict, utcstart, utcend, etu.getHarnessHosts().split(' '))
+    return getInfluxQuery(port, optsDict, utcstart, utcend, etu.getHarnessHosts(optsDict).split(' '))
 
 def getInfluxQuerySystem(port, optsDict, utcstart, utcend):
-    return getInfluxQuery(port, optsDict, utcstart, utcend, etu.getSystemHosts().split(' '))
+    return getInfluxQuery(port, optsDict, utcstart, utcend, etu.getSystemHosts(optsDict).split(' '))
 
+#def getSysCpuQuery
+#     "query": "SELECT non_negative_derivative(sum(\"value\"), $interval) FROM \"cpu_value\" WHERE \"type_instance\" = 'idle' AND  ($\
+#systemFilter)  AND $timeFilter GROUP BY time($interval) fill(0)",
+     
 def getInfluxQuery(port, optsDict, utcstart, utcend, hosts):
 
     #------------------------------------------------------------
@@ -107,8 +111,12 @@ def getInfluxQuery(port, optsDict, utcstart, utcend, hosts):
     #------------------------------------------------------------
     
     if optsDict['derivative']:
-        statFilter = "non_negative_derivative(sum(\"" + optsDict['stat'] + "\"),10s)/10"
-        groupByFilter = " group by time(10s) fill(0)"
+        if optsDict['db'] == 'cpu_value':
+            statFilter = "non_negative_derivative(sum(\"" + optsDict['stat'] + "\"),10s)"
+            groupByFilter = " group by time(10s) fill(0)"
+        else:
+            statFilter = "non_negative_derivative(sum(\"" + optsDict['stat'] + "\"),10s)/10"
+            groupByFilter = " group by time(10s) fill(0)"
     else:
         statFilter = "\"" + optsDict['stat'] + "\""
         groupByFilter = ''
@@ -130,7 +138,13 @@ def getInfluxQuery(port, optsDict, utcstart, utcend, hosts):
     # Construct type_instance filter
     #------------------------------------------------------------
 
-    if optsDict['typeInstanceFilter'] != 'none':
+    if optsDict['typeInstanceFilter'] == 'othercpu':
+        if selectFilter == '':
+            selectFilter = " type_instance != 'system' and type_instance != 'idle' and type_instance != 'user'"
+        else:
+            selectFilter += " and type_instance != 'system' and type_instance != 'idle' and type_instance != 'user'"
+        
+    elif optsDict['typeInstanceFilter'] != 'none':
         if selectFilter == '':
             selectFilter = " type_instance = '" + optsDict['typeInstanceFilter'] + "'"
         else:
@@ -248,7 +262,7 @@ def getAxis(axs, iPlot, smooth, overplot, overplotsmooth):
         nTrace = np.size(axs)/2
         return axs[nTrace + iPlot]
     
-def makePlot(ax, valDict, ind, relx, delta, xlim, firstPlot, smoothData, npt, perc, logy):
+def makePlot(ax, valDict, ind, relx, delta, xlim, firstPlot, smoothData, npt, perc, logy, opts):
 
     x = valDict[ind]['x']
     y = valDict[ind]['y']
@@ -265,6 +279,24 @@ def makePlot(ax, valDict, ind, relx, delta, xlim, firstPlot, smoothData, npt, pe
 
     print 'Plotting data to axis ' + str(ax)
     ax.plot(x[delta:n-delta], y[delta:n-delta])
+
+    mn  = np.mean(y[delta:n-delta])
+    std = np.std(y[delta:n-delta])
+
+    rng = ax.get_ylim()
+    print 'rng = ' + str(rng)
+    newrng = [rng[0], rng[1]]
+
+    if opts['min'] != None:
+        newrng[0] = float(opts['min'])
+    if opts['max'] != None:
+        newrng[1] = float(opts['max'])
+
+    print 'newrng = ' + str(newrng)
+    print 'setting rng 0'
+    ax.set_ylim(newrng[0], newrng[1])
+    print 'setting rng 1'
+    
     xaxis = ax.get_xlim()
 
     #newxlim = []
@@ -294,22 +326,30 @@ rt             = etu.str2bool(etu.getOptArgs(sys.argv, 'rt', 'true'))
 overplot       = etu.str2bool(etu.getOptArgs(sys.argv, 'overplot', 'false'))
 overplotsmooth = etu.str2bool(etu.getOptArgs(sys.argv, 'overplotsmooth', 'true'))
 
-perc       = etu.str2bool(etu.getOptArgs(sys.argv, 'perc', 'false'))
-ports      = etu.strToIntArray(etu.getOptArgs(sys.argv, 'port', '58086'))
-dbs        = etu.getOptArgs(sys.argv, 'db', 'ycsb_operations').split(' ')
-stats      = etu.getOptArgs(sys.argv, 'stat', 'value').split(' ')
-typeFilters= etu.getOptArgs(sys.argv, 'type', 'none').split(' ')
+perc        = etu.str2bool(etu.getOptArgs(sys.argv, 'perc', 'false'))
+ports       = etu.strToIntArray(etu.getOptArgs(sys.argv, 'port', '58086'))
+dbs         = etu.getOptArgs(sys.argv, 'db', 'ycsb_operations').split(' ')
+stats       = etu.getOptArgs(sys.argv, 'stat', 'value').split(' ')
+typeFilters = etu.getOptArgs(sys.argv, 'type', 'none').split(' ')
 instanceFilters= etu.getOptArgs(sys.argv, 'instance', 'none').split(' ')
-typeInstanceFilters= etu.getOptArgs(sys.argv, 'type_instance', 'none').split(' ')
-harnesses  = etu.strToBoolArray(etu.getOptArgs(sys.argv, 'harness', 'true'))
-derivatives= etu.strToBoolArray(etu.getOptArgs(sys.argv, 'derivative', 'true'))
-starts     = etu.getOptArgs(sys.argv, 'start', '2017-02-07T19:50:06.939342Z').split(' ');
+typeInstanceFilters= etu.getOptArgs(sys.argv, 'type_instance', 'none').split(';')
+clusters    = etu.getOptArgs(sys.argv, 'cluster', 'sla').split(' ')
+harnesses   = etu.strToBoolArray(etu.getOptArgs(sys.argv, 'harness', 'true'))
+derivatives = etu.strToBoolArray(etu.getOptArgs(sys.argv, 'derivative', 'true'))
+starts      = etu.getOptArgs(sys.argv, 'start', '2017-02-07T19:50:06.939342Z').split(' ');
 end         = etu.getOptArgs(sys.argv, 'end',   '2017-02-07T20:55:06.000000Z');
 hoursbefore = etu.strToFloatArrayOrNone(etu.getOptArgs(sys.argv, 'hoursbefore', None))
 hoursafter  = etu.strToFloatArrayOrNone(etu.getOptArgs(sys.argv, 'hoursafter',  None))
 lasthours   = etu.getOptArgs(sys.argv, 'lasthours',   None)
 legend      = etu.toStrArrayOrNone(etu.getOptArgs(sys.argv, 'legend',   None), ';')
 xlimopt     = etu.getOptArgs(sys.argv, 'xlim',  None)
+query       = etu.getOptArgs(sys.argv, 'query',  None)
+
+print 'Foudn query = ' + str(query)
+
+optsDict = {}
+optsDict['min'] = etu.getOptArgs(sys.argv, 'min',  None)
+optsDict['max'] = etu.getOptArgs(sys.argv, 'max',  None)
 
 nStat = np.size(ports)
 nStat = etu.max(nStat, np.size(starts))
@@ -317,6 +357,7 @@ nStat = etu.max(nStat, np.size(dbs))
 nStat = etu.max(nStat, np.size(stats))
 nStat = etu.max(nStat, np.size(typeFilters))
 nStat = etu.max(nStat, np.size(typeInstanceFilters))
+nStat = etu.max(nStat, np.size(clusters))
 nStat = etu.max(nStat, np.size(harnesses))
 nStat = etu.max(nStat, np.size(derivatives))
 
@@ -367,11 +408,13 @@ statDict = {}
 
 if rt:
     for iStat in range(0, nStat):
-        optsDict = {}
+
         
         utcstart, utcend = parseDate(etu.indOrVal(starts, iStat), end, etu.indOrVal(hoursafter, iStat), etu.indOrVal(hoursbefore, iStat), lasthours)
         harness    = etu.indOrVal(harnesses, iStat)
 
+
+        optsDict['cluster']            = etu.indOrVal(clusters, iStat)
         optsDict['stat']               = etu.indOrVal(stats, iStat)
         optsDict['db']                 = etu.indOrVal(dbs, iStat)
         optsDict['typeFilter']         = etu.indOrVal(typeFilters, iStat)
@@ -461,12 +504,12 @@ nPlot = np.size(axs)
 iPlot = 0
 for key in fileList:
     ax = getAxis(axs, iPlot, False, overplot, overplotsmooth)
-    xlim, firstPlot = makePlot(ax, fileDict, key, relx, delta, xlim, firstPlot, False, npt, False, False)
+    xlim, firstPlot = makePlot(ax, fileDict, key, relx, delta, xlim, firstPlot, False, npt, False, False, optsDict)
     iPlot += 1
 
 for iStat in range(0, nStat):
     ax = getAxis(axs, iPlot, False, overplot, overplotsmooth)
-    xlim, firstPlot = makePlot(ax, statDict, iStat, relx, delta, xlim, firstPlot, False, npt, False, etu.indOrVal(logys, iStat))
+    xlim, firstPlot = makePlot(ax, statDict, iStat, relx, delta, xlim, firstPlot, False, npt, False, etu.indOrVal(logys, iStat), optsDict)
     iPlot += 1
         
 #------------------------------------------------------------
@@ -478,12 +521,12 @@ if pltsmooth:
     iPlot = 0
     for key in fileList:
         ax = getAxis(axs, iPlot, True, overplot, overplotsmooth)
-        xlim, firstPlot = makePlot(ax, fileDict, key, relx, delta, xlim, firstPlot, True, npt, perc, False)
+        xlim, firstPlot = makePlot(ax, fileDict, key, relx, delta, xlim, firstPlot, True, npt, perc, False, optsDict)
         iPlot += 1
 
     for iStat in range(0, nStat):
         ax = getAxis(axs, iPlot, True, overplot, overplotsmooth)
-        xlim, firstPlot = makePlot(ax, statDict, iStat, relx, delta, xlim, firstPlot, True, npt, perc, etu.indOrVal(logys, iStat))
+        xlim, firstPlot = makePlot(ax, statDict, iStat, relx, delta, xlim, firstPlot, True, npt, perc, etu.indOrVal(logys, iStat), optsDict)
         iPlot += 1
 
 if legend != None:

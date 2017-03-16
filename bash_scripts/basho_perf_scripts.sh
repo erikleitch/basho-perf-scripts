@@ -3075,6 +3075,38 @@ influxPlot()
     python basho-perf-scripts/python_scripts/influxPlot.py hoursafter=23.0 db='ycsb_operations ycsb_latency leveldb_value leveldb_value leveldb_value leveldb_value' stat='value value value value value value' type='none none BGCompactDirect ThrottleCounter ThrottleCompacts0 ThrottleCompacts1' harness='true true false false false false' derivative='true true true true true true' smooth=true relx=true
 }
 
+sysDiskIoInfluxPlot()
+{
+    simpleInfluxPlot "SELECT non_negative_derivative(sum("value"), 10s)/10 FROM interface_rx WHERE type = 'if_octets' AND instance !~ /bond.*/ and  time > '2017-02-28T14:19:16Z' and time < '2017-03-01T14:19:16Z' and  ( host = 'basho-c2s1' or host = 'basho-c2s2' or host = 'basho-c2s3' or host = 'basho-c2s4' or host = 'basho-c2s5' ) group by time(10s) fill(0)" logy=true
+}
+
+sysCpuInfluxPlot()
+{
+    simpleInfluxPlot  "SELECT non_negative_derivative(sum("value"), 10s) FROM cpu_value WHERE type_instance != 'system' AND type_instance != 'idle' AND type_instance != 'user' and  time > '2017-02-28T14:19:16Z' and time < '2017-03-01T14:19:16Z' and  ( host = 'basho-c2s1' or host = 'basho-c2s2' or host = 'basho-c2s3' or host = 'basho-c2s4' or host = 'basho-c2s5' ) group by time(10s) fill(0)" logy=true
+}
+
+sysUserCpuInfluxPlot()
+{
+    simpleInfluxPlot "SELECT non_negative_derivative(sum("value"), 10s) FROM cpu_value WHERE type_instance = 'u\
+ser' and time > '2017-02-28T14:19:16Z' and time < '2017-03-01T14:19:16Z' and  ( host = 'basho-c2s1' or host = 'basho-c2s2' or host = 'basho-c2s3' or host = 'basho-c2s4' or host = 'basho-c2s5' ) group by time(10s) fill(0)" logy=true
+}
+ 
+simpleInfluxPlot()
+{
+    query=$1
+    
+    local min=$(valOrDef min '' "$@")
+    min=${min//\"/}
+
+    local max=$(valOrDef max '' "$@")
+    max=${max//\"/}
+
+    local logy=$(valOrDef logy '' "$@")
+    logy=${logy//\"/}
+
+    python basho-perf-scripts/python_scripts/queryPlot.py "$query" min=$min max=$max logy=$logy
+}
+
 awsbash()
 {
     env_ssh system_hosts 'echo "export BASHO_PERF_ROOT=/home/eml/projects/riak/utilities/internal_utilities_checkout/basho-perf_develop" >> /home/eml/.bashrc'

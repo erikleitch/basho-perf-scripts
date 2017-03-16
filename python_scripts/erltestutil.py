@@ -5,6 +5,21 @@ from os.path import isfile, join
 import numpy as np
 import subprocess
 
+def relative(d):
+    if isinstance(d, dict):
+        for key in d.keys():
+            d[key]['x'] = relativeArr(d[key]['x'])
+    else:
+        return relativeArr(d)
+
+def relativeArr(x):
+    n = np.size(x)
+    x0 = x[0]
+    for i in range(0,n):
+        x[i] = (x[i] - x0) / 3600
+
+    return x
+
 def max(v1, v2):
     if v1 > v2:
         return v1
@@ -170,11 +185,30 @@ def loadDataFromFile(file):
     y = dat[:,1]
     return x, y
 
-def getSystemHosts():
+def getSystemHosts(opts):
+    if opts['cluster'] == "sla":
+        return getSLASystemHosts()
+    else:
+        return getAwsSystemHosts()
+
+def getAwsSystemHosts():
   return "ip-10-1-3-1 ip-10-1-3-2 ip-10-1-3-3 ip-10-1-3-4 ip-10-1-3-5"
 
-def getHarnessHosts():
+def getHarnessHosts(opts):
+    if opts['cluster'] == "sla":
+        return getSLAHarnessHosts()
+    else:
+        return getAwsHarnessHosts()
+
+def getAwsHarnessHosts():
   return "ip-10-1-2-1 ip-10-1-2-2 ip-10-1-2-3 ip-10-1-2-4 ip-10-1-2-5"
+
+def getSLASystemHosts():
+  return "basho-c2s1 basho-c2s2 basho-c2s3 basho-c2s4 basho-c2s5"
+
+def getSLAHarnessHosts():
+  return "basho-c1s1 basho-c1s2 basho-c1s3 basho-c1s4"
+
 
 def getNextValSymm(y, n, indlo, indhi, probSum, probTarget):
 
@@ -306,3 +340,48 @@ def getConfidenceIntervalSymm(x, y, perc):
       print ' sum(1) = ' + str(probSum) + ' target = ' + str(probTarget)
       
     return x[indmax], x[indlo], x[indhi]
+
+def smooth(y, box_pts):
+
+    n = np.size(y)
+    ntotal = 2*box_pts + n
+    print 'ntotal = ' + str(ntotal)
+    yarr = np.ndarray(ntotal,dtype=np.double)
+    print 'n = ' + str(n) + ' s1 = ' + str(np.shape(y)) + ' s2 = ' + str(np.shape(yarr))
+    
+    for i in range(0,ntotal):
+        if i < box_pts:
+            yarr[i] = 0.0
+        elif i >= n + box_pts:
+            yarr[i] = 0.0
+        else:
+            yarr[i] = y[i - box_pts]
+            
+    box = np.ones(box_pts)/box_pts
+    yarr_smooth = np.convolve(yarr, box, mode='same')
+    return yarr_smooth[box_pts:box_pts+n]
+            
+def gsmooth(x, y, sigma):
+    n = np.size(x)
+    s = np.ndarray(n, np.double)
+    for i in range(0, n):
+        dx = (x[i] - x[0])
+        s[i] = np.exp(-dx*dx/(2*sigma*sigma))
+    return s
+
+def percentage(d, dn):
+    if isinstance(d, dict):
+        for key in d.keys():
+            d[key]['y'] = percentageArr(d[key]['y'], dn)
+    else:
+        return percentageArr(d, dn)
+        
+def percentageArr(y, dn):
+    n = np.size(y)
+
+    ymax = y[dn]
+    print 'ymax =  ' + str(ymax)
+    for i in range(0, n):
+        y[i] = y[i] / ymax
+
+    return y

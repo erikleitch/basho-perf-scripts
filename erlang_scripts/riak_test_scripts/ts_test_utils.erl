@@ -366,11 +366,17 @@ set_max_query_size(Bytes) ->
     set_riak_conf_option('riak_kv.query.timeseries.max_returned_data_size', integer_to_list(Bytes)),
     set_riak_kv_option(timeseries_query_max_returned_data_size, Bytes).
 
+set_qbuf_inmem_max(Size) ->
+    set_riak_conf_option('riak_kv.query.timeseries.qbuf_inmem_max', Size).
+
 set_max_query_size() ->
     set_max_query_size(1000000000).
 
 set_max_running_fsms(N) ->
     set_riak_kv_option(timeseries_query_max_running_fsms, N).
+
+set_max_batch_size(Size) ->
+    set_riak_kv_option(timeseries_max_batch_size, Size).
 
 set_max_object_size(Mb) ->
     set_riak_kv_option(warn_object_size, Mb),

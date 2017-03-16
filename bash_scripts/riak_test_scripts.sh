@@ -1532,6 +1532,9 @@ testCmpSequence()
 
     script1=$(simpleValOrDef script1 '' $@)
     script2=$(simpleValOrDef script2 '' $@)
+
+    mod=$(simpleValOrDef mod 'riak_prof_tests' $@)
+    mod=${mod//\"/}
     
     # Args to pass to first/second iteration?
 
@@ -1633,7 +1636,7 @@ testCmpSequence()
     iIter=$startIter
     while [ $iIter -lt $endIter ]
     do
-	runerl mod=riak_prof_tests fn=$erlfn1 args="$args1"
+	runerl mod=$mod fn=$erlfn1 args="$args1"
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/$prefix1"_iter"$iIter.txt
 	iIter=$[$iIter+1]
     done
@@ -1684,10 +1687,73 @@ testCmpSequence()
     iIter=$startIter
     while [ $iIter -lt $endIter ]
     do
-	runerl mod=riak_prof_tests fn=$erlfn2 args="$args2"
+	runerl mod=$mod fn=$erlfn2 args="$args2"
 	cp `getlast /tmp/client_profiler_results` $RIAK_TEST_BASE/data/$prefix2"_iter"$iIter.txt
 	iIter=$[$iIter+1]
     done
+}
+
+tsPercTests()
+{
+    testCmpSequence start=0 iter=1 branch=riak_ee_riak_ts_develop \
+		    script1=ts_setup_geocheck \
+		    script2=ts_setup_geocheck \
+		    args1="n=10000,outdir=/tmp/ts1.6_1" \
+		    args2="n=10000,outdir=/tmp/ts1.6_2" \
+		    erlfn=runTsPutLatencyPercentileTests \
+		    prefix=dont_care
+}
+
+tsLatCmpTests()
+{
+    testCmpSequence start=0 iter=5 branch=riak_ee_riak_ts_develop \
+		    script1=ts_setup_geocheck \
+		    script2=ts_setup_geocheck \
+		    erlfn=runTsPutLatencyTests \
+		    args="1 1+5+10+20+50" \
+		    prefix1=tsputlatency_ts1.5_1 \
+		    prefix2=tsputlatency_ts1.5_2
+}
+
+tsPutLatencyTestSequenceTs1.5VsTs1.6()
+{
+    testCmpSequence start=0 iter=5 \
+		    branch1=riak_ee_riak_ts_ee_1.5.0 \
+		    branch2=riak_ee_riak_ts_ee_1.6 \
+		    script=ts_setup_geocheck \
+		    erlfn=runTsPutLatencyTests \
+		    args="1 1+5+10+20+50" \
+		    prefix1=tsputlatency_ts1.5 \
+		    prefix2=tsputlatency_ts1.6
+}
+
+queryPlotTs1.5Ts1.6()
+{
+    python $RIAK_TEST_BASE/python_scripts/surfcmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.6_iter*.txt`" $'TS1.5 QUERY Latency' $'TS1.6 QUERY Latency' $'$\Delta$ QUERY Latency' $'$\Delta$Latency (%)' overplot=false op='-' chis=true cmpplot=frac xparam=ncol yparam=nrow iparam=niter logx=false logy=true logz=true interp=cubic figfile="querycmp_ts1.5_ts1.6.png"
+}
+
+querytest()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tst_1.5_iter0.txt`" "`echo $RIAK_TEST_BASE/data/tst_1.6_iter0.txt`" $'TS1.5 QUERY Latency' $'TS1.6 QUERY Latency' $'$\Delta$ QUERY Latency' $'$\Delta$Latency (%)' overplot=false op='-' chis=true cmpplot=frac xparam=ncol yparam=nrow iparam=niter logx=false logy=true logz=true interp=linear
+}
+
+tsQueryLatencyTestSequenceTs1.5VsTs1.6()
+{
+    testCmpSequence start=0 iter=5 \
+		    branch1=riak_ee_riak_ts_ee_1.5.0 \
+		    branch2=riak_ee_riak_ts_ee_1.6 \
+		    mod=newtests \
+		    script1=ts_setup_generic_pre_ts1_6 \
+		    script2=ts_setup_generic \
+		    erlfn=runTsQueryLatencyMeanTests \
+		    args="n=100" \
+		    prefix1=tsquerylatency_ts1.5 \
+		    prefix2=tsquerylatency_ts1.6
+}
+
+tsLatPlot()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsputlatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.5_iter*.txt`" "`echo $RIAK_TEST_BASE/data/tsputlatency_ts1.6_iter*.txt`" $'TS1.5 PUT Latency' $'TS1.6 PUT Latency' $'$\Delta$ Put Latency' $'$\Delta$Latency (%)' overplot=False op='-'
 }
 
 #-----------------------------------------------------------------------
@@ -1866,9 +1932,93 @@ limitOrigPlotTs1.5()
     python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_orig_nolimit*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_orig_limit*.txt`" $'TS1.5 Query Latency\n(10 bytes per column, no limit)' $'TS1.5 Query Latency\n(10 bytes per column, limit)' $'Latency Ratio\nLimit/No limit' $'Ratio' overplot=False cmpplot=div chis=False zmax=50
 }
 
-limitAmlPlotTs1.5()
+limitPlotTs1.6Def()
 {
-    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_aml_nolimit*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.5_aml_limit*.txt`" $'TS1.5 Query Latency\n(10 bytes per column, no limit)' $'TS1.5 Query Latency\n(10 bytes per column, limit)' $'Latency Ratio\nLimit/No limit' $'Ratio' overplot=False cmpplot=div chis=True zmax=2
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.6_nolimit_def*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.6_limit_def*.txt`" $'TS1.6 (dev) Query Latency\n(10 bytes per column, no limit)' $'TS1.6 (dev) Query Latency\n(10 bytes per column, limit)' $'Latency Ratio\nLimit/No limit' $'Ratio' overplot=False cmpplot=div chis=True zmax=10 figsize="24,8" figfile=limitPlotDef
+}
+
+limitPlotTs1.6Inmem()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.6_nolimit_inmem*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.6_limit_inmem*.txt`" $'TS1.6 (dev) Query Latency\n(10 bytes per column, no limit)' $'TS1.6 (dev) Query Latency\n(10 bytes per column, limit)' $'Latency Ratio\nLimit/No limit' $'Ratio' overplot=False cmpplot=div chis=True zmax=10 figsize="24,8" figfile=limitPlotInmem
+}
+
+limitPlotTs1.6Leveldb()
+{
+    python $RIAK_TEST_BASE/python_scripts/tsquerylatency_cmp.py "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.6_nolimit_leveldb*.txt`" "`echo $RIAK_TEST_BASE/data/tsquerylatency_ts1.6_limit_leveldb*.txt`" $'TS1.6 (dev) Query Latency\n(10 bytes per column, no limit)' $'TS1.6 (dev) Query Latency\n(10 bytes per column, limit)' $'Latency Ratio\nLimit/No limit' $'Ratio' overplot=False cmpplot=div chis=True zmax=4 figsize="24,8" figfile=limitPlotLeveldb
+}
+
+tsQueryLatencyTestSequenceLimitTs1.6Def()
+{
+    testCmpSequence start=0 iter=10 branch=riak_ee_riak_ts_develop erlfn=runTsQueryLatencyTests script1=ts_setup_gen_single_quantum nodes=3 \
+		    args1="10 time none nolimit none true 1000 1+10+100+200" \
+		    args2="10 time none limit   none true 1000 1+10+100+200" \
+		    prefix1=tsquerylatency_ts1.6_nolimit_def \
+		    prefix2=tsquerylatency_ts1.6_limit_def
+}
+
+tsQueryLatencyTestSequenceLimitTs1.6AllInmem()
+{
+    testCmpSequence start=0 iter=10 branch=riak_ee_riak_ts_develop erlfn=runTsQueryLatencyTests script1=ts_setup_gen_single_quantum_allinmem nodes=3 \
+		    args1="10 time none nolimit none true 1000 1+10+100+200" \
+		    args2="10 time none limit   none true 1000 1+10+100+200" \
+		    prefix1=tsquerylatency_ts1.6_nolimit_inmem \
+		    prefix2=tsquerylatency_ts1.6_limit_inmem
+}
+
+tsQueryLatencyTestSequenceLimitTs1.6AllLeveldb()
+{
+    testCmpSequence start=0 iter=10 branch=riak_ee_riak_ts_develop erlfn=runTsQueryLatencyTests script1=ts_setup_gen_single_quantum_allleveldb nodes=3 \
+		    args1="10 time none nolimit none true 1000 1+10+100+200" \
+		    args2="10 time none limit   none true 1000 1+10+100+200" \
+		    prefix1=tsquerylatency_ts1.6_nolimit_leveldb \
+		    prefix2=tsquerylatency_ts1.6_limit_leveldb
+}
+
+tsQueryLatencyTestSequenceLimitTs1.6()
+{
+    tsQueryLatencyTestSequenceLimitTs1.6Def
+    tsQueryLatencyTestSequenceLimitTs1.6AllInmem
+    tsQueryLatencyTestSequenceLimitTs1.6AllLeveldb
+}
+
+kvLatencyTestSequenceOptW1c()
+{
+    testCmpSequence start=0 iter=10 branch1=riak_ee_riak_ts_develop branch2=riak_ee_riak_ts_optimize_w1c_delete \
+		    erlfn=runKvLatencyTests \
+		    script=ts_setup_kv_nval1_w1c \
+		    nodes=1 \
+		    args="val=1" \
+		    prefix1=kvlatency_nonopt \
+		    prefix2=kvlatency_opt
+}
+
+kvStyleTsLatencyTestSequenceOptW1c()
+{
+    testCmpSequence start=0 iter=10 branch1=riak_ee_riak_ts_develop branch2=riak_ee_riak_ts_optimize_w1c_delete \
+		    erlfn=runKvStyleTsLatencyTests \
+		    script=ts_setup_kv_nval1_w1c \
+		    nodes=1 \
+		    args="val=1" \
+		    prefix1=tslatency_nonopt \
+		    prefix2=tslatency_opt
+}
+
+kvStyleTsQueryLatencyTestSequenceOptW1c()
+{
+    testCmpSequence start=0 iter=10 branch1=riak_ee_riak_ts_develop branch2=riak_ee_riak_ts_optimize_w1c_delete \
+		    erlfn=runKvStyleTsQueryLatencyTests \
+		    script=ts_setup_kv_nval1_w1c \
+		    nodes=1 \
+		    args="val=1" \
+		    prefix1=tsqlatency_nonopt \
+		    prefix2=tsqlatency_opt
+}
+
+kvLatencyTests()
+{
+    kvLatencyTestSequenceOptW1c
+    kvStyleTsLatencyTestSequenceOptW1c
+    kvStyleTsQueryLatencyTestSequenceOptW1c
 }
 
 #-----------------------------------------------------------------------
@@ -2753,9 +2903,15 @@ generateSeQueryMovie()
 
 kvperctest()
 {
-    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval1,bucketname=TestBucketNval1,n=1000,nval=1,outdir=/tmp/kvlatency_perc_nval1"
+    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval1,bucketname=TestBucketNval1,n=10000,nval=1,outdir=/tmp/kvlatency_perc_node1_nval1"
 
-    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval3,bucketname=TestBucketNval3,n=1000,nval=3,outdir=/tmp/kvlatency_perc_nval3"
+#    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval1W1c,bucketname=TestBucketNval1W1c,n=10000,nval=1,outdir=/tmp/kvlatency_perc_node1_nval1_w1c,w1c=true"
 
-    python basho-perf-scripts_master/python_scripts/makeconfplot.py bins=50 nsig=6 logx=true logy=true path='/tmp/kvlatency_perc_nval1'
+ #    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval1,bucketname=TestBucketNval1,n=10000,nval=1,outdir=/tmp/kvlatency_perc_node3_nval1"
+
+#    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval3,bucketname=TestBucketNval3,n=10000,nval=3,outdir=/tmp/kvlatency_perc_node1_nval3"
+
+#    runerl mod=riak_prof_tests fn=runKvPutLatencyPercentileTests args="buckettype=TestBucketTypeNval3,bucketname=TestBucketNval3,n=1000,nval=3,outdir=/tmp/kvlatency_perc_nval3"
+
+#    python basho-perf-scripts_master/python_scripts/makeconfplot.py bins=50 nsig=6 logx=true logy=true path='/tmp/kvlatency_perc_nval1'
 }

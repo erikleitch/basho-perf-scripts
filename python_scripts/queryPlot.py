@@ -168,6 +168,9 @@ optsDict = {}
 optsDict['port']   = etu.getOptArgs(sys.argv, 'port', 58086)
 optsDict['min']    = etu.getOptArgs(sys.argv, 'min',  '')
 optsDict['max']    = etu.getOptArgs(sys.argv, 'max',  '')
+optsDict['xlabel'] = etu.getOptArgs(sys.argv, 'xlabel',  '')
+optsDict['ylabel'] = etu.getOptArgs(sys.argv, 'ylabel',  '')
+optsDict['title']  = etu.getOptArgs(sys.argv, 'title',  '')
 optsDict['relx']   = etu.str2bool(etu.getOptArgs(sys.argv, 'relx', 'false'))
 optsDict['perc']   = etu.str2bool(etu.getOptArgs(sys.argv, 'perc', 'false'))
 optsDict['logy']   = etu.str2bool(etu.getOptArgs(sys.argv, 'logy', 'false'))
@@ -229,8 +232,17 @@ for iStat in range(0, nStat):
 
 if optsDict['legend'] != None:
     plt.legend(optsDict['legend'])
+
     
 if optsDict['relx']:
     plt.xlabel('Elapsed time (hours)')
+elif optsDict['xlabel'] == '':
+    plt.xlabel('Time')
+else:
+    plt.xlabel(optsDict['xlabel'])
+
+plt.ylabel(optsDict['ylabel'])
+plt.title(optsDict['title'])
+    
 
 plt.show(block=True)

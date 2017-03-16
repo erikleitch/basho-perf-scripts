@@ -2,7 +2,7 @@ import erltestutil as etu
 import sys
 import numpy as np
 
-def getGrid(mypath, stat, param1, param2):
+def getGrid(mypath, stat, param1, param2, opts):
     files = etu.getFiles(mypath)
     vals = {}
     for file in files:
@@ -12,7 +12,9 @@ def getGrid(mypath, stat, param1, param2):
         for arg in args:
             if param1 in arg:
                 hasPar1 = True
+                print 'param1 = ' + str(param1) + ' arg = ' + str(arg)
                 sargs = arg.split(param1)
+                print 'sargs = ' + str(sargs)
                 par1 = int(sargs[1])
             if param2 in arg:
                 hasPar2 = True
@@ -20,7 +22,7 @@ def getGrid(mypath, stat, param1, param2):
                 par2 = int(sargs[1])
 
         if hasPar1 and hasPar2:
-            val = etu.getStat(mypath, file, stat)
+            val = etu.getStat(mypath, file, stat, opts)
             if par1 not in vals.keys():
                 vals[par1] = {}
             vals[par1][par2] = val
@@ -39,6 +41,12 @@ def saveGrid(vals, fileName):
     f.close()
 
 stat = etu.getOptArgs(sys.argv, 'stat', 'mean')
+nsig = etu.getOptArgs(sys.argv, 'nsig', '0')
 
-vals = getGrid('/tmp/tslatency_perc', stat, 'ncol', 'nbyte')
-saveGrid(vals, '/tmp/tslatency_perc/' + stat + '_grid.txt')
+opts = {}
+if nsig > 0:
+    opts['nsig'] = nsig
+
+
+vals = getGrid('/tmp/tsputlatency_perc', stat, 'ncol', 'nbyte', opts)
+saveGrid(vals, '/tmp/tsputlatency_perc/' + stat + '_grid.txt')

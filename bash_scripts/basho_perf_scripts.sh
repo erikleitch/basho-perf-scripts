@@ -3077,7 +3077,7 @@ influxPlot()
 
 sysDiskIoInfluxPlot()
 {
-    simpleInfluxPlot "SELECT non_negative_derivative(sum("value"), 10s)/10 FROM interface_rx WHERE type = 'if_octets' AND instance !~ /bond.*/ and  time > '2017-02-28T14:19:16Z' and time < '2017-03-01T14:19:16Z' and  ( host = 'basho-c2s1' or host = 'basho-c2s2' or host = 'basho-c2s3' or host = 'basho-c2s4' or host = 'basho-c2s5' ) group by time(10s) fill(0)" logy=true
+    simpleInfluxPlot "SELECT non_negative_derivative(sum("value"), 10s)/10 FROM interface_rx WHERE type = 'if_octets' AND instance !~ /bond.*/ and  time > '2017-02-28T14:19:16Z' and time < '2017-03-01T14:19:16Z' and  ( host = 'basho-c2s1' or host = 'basho-c2s2' or host = 'basho-c2s3' or host = 'basho-c2s4' or host = 'basho-c2s5' ) group by time(10s) fill(0)" logy=true ylabel="Disk I/O"
 }
 
 sysCpuInfluxPlot()
@@ -3104,7 +3104,13 @@ simpleInfluxPlot()
     local logy=$(valOrDef logy '' "$@")
     logy=${logy//\"/}
 
-    python basho-perf-scripts/python_scripts/queryPlot.py "$query" min=$min max=$max logy=$logy
+    local xlabel=$(valOrDef xlabel '' "$@")
+    xlabel=${xlabel//\"/}
+
+    local ylabel=$(valOrDef ylabel '' "$@")
+    ylabel=${ylabel//\"/}
+
+    python basho-perf-scripts/python_scripts/queryPlot.py "$query" min=$min max=$max logy=$logy xlabel="$xlabel" ylabel="$ylabel"
 }
 
 awsbash()

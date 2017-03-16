@@ -9,34 +9,43 @@ import erltestutil as etu
 
 defaultFontsize=14
 
-def getScalesAndUnits(fileNames, scale):
+def getScalesAndUnits(fileNames, scale, opts):
 
   mxs = []
-  iFile=0
   ncolmax=0
 
+  iFile=0
   for file in fileNames:
-    dat = np.loadtxt(file);
+    print 'iFile = ' + str(iFile)
+    opts['stat'] = etu.indOrVal(opts['stats'], iFile)
+    dat = getDat(file, opts)
     nline = np.shape(dat)[0];
     ncol  = np.shape(dat)[1];
+
     if ncol > ncolmax:
       ncolmax = ncol;
+
+    iFile += 1
 
   mxs =[]
   for i in range(2,ncol):
     mxs.append([])
 
+  iFile=0
   for file in fileNames:
-    dat = np.loadtxt(file);
+    opts['stat'] = etu.indOrVal(opts['stats'], iFile)
+    dat = getDat(file, opts);
     nline = np.shape(dat)[0];
     ncol  = np.shape(dat)[1];
 
     for i in range(2,ncol):
       mxs[i-2].append(np.max(dat[0:nline,i]))
 
+    iFile += 1
+    
   units  = []
   scales = []
-  maxs = []
+  maxs   = []
 
   for i in range(2,ncol):
     index = i-2
@@ -64,16 +73,30 @@ def getScalesAndUnits(fileNames, scale):
 
   return scales, units, maxs
 
-def getSubplots(fileNames, overplot):
+def getSubplots(fileNames, overplot, opts):
+
+  if opts['cmp']:
+    axes=[None] * 3
+    axes[0] = []
+    axes[0].append(fig.add_subplot(3, 1, 1, projection='3d'));
+    axes[1] = []
+    axes[1].append(fig.add_subplot(3, 1, 2, projection='3d'));
+    axes[2] = []
+    axes[2].append(fig.add_subplot(3, 1, 3, projection='3d'));
+    return axes
 
   ncolmax = 0
+  iFile=0
   for file in fileNames:
-    dat = np.loadtxt(file);
+    opts['stat'] = etu.indOrVal(opts['stats'], iFile)
+    dat   = getDat(file, opts)
     nline = np.shape(dat)[0];
     ncol  = np.shape(dat)[1];
     if ncol > ncolmax:
       ncolmax = ncol;
 
+    iFile += 1
+    
   axes=[None] * (ncolmax-2)
 
   nColPerRow=ncolmax-2
@@ -87,7 +110,8 @@ def getSubplots(fileNames, overplot):
         axes[iCol].append(ax)
   else:
     for iFile in range(0,nFile):
-      dat  = np.loadtxt(fileNames[iFile]);
+      opts['stat'] = etu.indOrVal(opts['stats'], iFile)
+      dat  = getDat(fileNames[iFile], opts);
       nCol = np.shape(dat)[1] - 2;
 
       # Iterate over all columns actually present in this file, adding
@@ -101,9 +125,19 @@ def getSubplots(fileNames, overplot):
 
   return axes
 
+def getDat(fileName, opts):
+  if opts['dirs']:
+    print 'Calling getDat with stat = ' + str(opts['stat'])
+    return etu.getDat(fileName, opts['stat'], opts['param1'], opts['param2'], opts)
+  else:
+    return np.loadtxt(fileName);
+
 def getData(fileName, index, opts):
 
-  dat = np.loadtxt(fileName);
+  dat = getDat(fileName, opts);
+
+  print 'dat = ' + str(dat)
+  
   nline = np.shape(dat)[0];
 
   x = dat[0:nline,0];
@@ -115,10 +149,10 @@ def getData(fileName, index, opts):
     y = np.log10(y)
 
   [d, unit] = getDataAndUnits(dat, nline, index);
-  print 'd = ' + str(d)
+
   if opts['logz']:
     d = np.log10(d)
-  print 'd now = ' + str(d)
+
   npoints=np.size(x);
   points = np.ndarray((npoints, 2), np.double);
 
@@ -201,6 +235,7 @@ def retick(ax, axname):
     rng = ax.get_ylim()
   else:
     rng = ax.get_zlim()
+    print 'Z rng = ' + str(rng)
 
   mn = np.int(np.floor(rng[0]))
   mx = np.int(np.ceil(rng[1]))
@@ -227,6 +262,7 @@ def makeSubPlot(fileName, index, ax, doHold, Color, zlabel, scale, unit, maxVal,
 
   x,y,z,unit2 = getData(fileName, index, opts);
   plt.hold(doHold);
+  print 'z = ' + str(z) + ' scale = ' + str(scale)
   ax.plot_surface(x, y, z/scale, color=Color);
 
   if unit != '':
@@ -234,9 +270,12 @@ def makeSubPlot(fileName, index, ax, doHold, Color, zlabel, scale, unit, maxVal,
   else:
     ax.set_zlabel('\n' + zlabel, fontsize=defaultFontsize);
 
-  if not opts['logz']:
-    ax.set_zlim(0, maxVal*1.1);
-    
+  minVal = np.min(z/scale)
+  
+  if opts['logz']:
+    maxVal = np.log10(maxVal)
+
+  ax.set_zlim(minVal, maxVal*1.1);
   ax.set_xlabel('\n' + opts['xlabel'], fontsize=defaultFontsize);
   ax.set_ylabel('\n' + opts['ylabel'], fontsize=defaultFontsize);
 
@@ -262,6 +301,12 @@ def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, zlabel
     plotunit = unit
   if action == '-':
     ax.plot_surface(x1, y1, (z1 - z2)/scale, color=Color);
+
+    maxVal = etu.max(np.max(z1)/scale, np.max(z2)/scale);
+    minVal = etu.min(np.min(z1)/scale, np.min(z2)/scale);
+    
+    ax.set_zlim(minVal, maxVal*1.1);
+    
   elif action == '+':
     ax.plot_surface(x1, y1, (z1 + z2)/scale, color=Color);
   elif action == '/':
@@ -279,6 +324,8 @@ def makeSubPlotTwo(fileName, fileName2, index, action, ax, doHold, Color, zlabel
     retick(ax, 'x')
   if opts['logy']:
     retick(ax, 'y')
+  if opts['logz']:
+    retick(ax, 'z')
 
 def plotFiles(files, plotwithfiles, plotwithaction, axes, colors, scales, units, maxs, optDict):
 
@@ -310,6 +357,8 @@ def plotData(fileNames, iFile, doHold, axes, Color, scales, units, maxs, optDict
 
   naxes=np.shape(axes)[0]
 
+  optDict['stat'] = etu.indOrVal(optDict['stats'], iFile)
+  
   makeSubPlot(fileNames[iFile], 2, axes[0][iFile], doHold, Color, optDict['zlabel'], scales[0], units[0], maxs[0], optDict);
 
   if naxes > 1 and axes[1] != None:
@@ -322,6 +371,8 @@ def plotDataTwo(fileNames, fileNames2, action, iFile, doHold, axes, Color, scale
 
   naxes=np.shape(axes)[0]
 
+  optDict['stat'] = etu.indOrVal(optDict['stats'], iFile)
+    
   makeSubPlotTwo(fileNames[iFile], fileNames2[iFile], 2, action, axes[0][iFile], doHold, Color,  optDict['zlabel'], scales[0], units[0], maxs[0], optDict);
 
   if naxes > 1 and axes[1] != None:
@@ -345,45 +396,46 @@ def getDataAndUnits(dat, nline, index):
   
   return [d, unit];
 
-def getOptArgs(args, name, defval):
-    d = {}
-    for arg in args:
-      if '=' in arg:
-        splargs = arg.split('=')
-        d[splargs[0]] = splargs[1]
-
-
-    if name in d.keys():
-      return d[name]
-    else:
-      return defval
-
 #------------------------------------------------------------
 # Main Script starts here
 #------------------------------------------------------------
 
 files    = sys.argv[1].split(' ');
 
-plotWith = getOptArgs(sys.argv, 'plotwith', None)
+opts = {}
+
+plotWith = etu.getOptArgs(sys.argv, 'plotwith', None)
 if plotWith != None:
   plotWith = plotWith.split(' ')
 
-plotWithAction = getOptArgs(sys.argv, 'plotwithaction', 'p')
+plotWithAction = etu.getOptArgs(sys.argv, 'plotwithaction', 'p')
 
-opts = {}
+overplot       = etu.str2bool(etu.getOptArgs(sys.argv, 'overplot', 'false'))
+opts['logx']   = etu.str2bool(etu.getOptArgs(sys.argv, 'logx', 'false'))
+opts['logy']   = etu.str2bool(etu.getOptArgs(sys.argv, 'logy', 'false'))
+opts['logz']   = etu.str2bool(etu.getOptArgs(sys.argv, 'logz', 'false'))
+scale          = etu.str2bool(etu.getOptArgs(sys.argv, 'scale', 'false'))
+labels         = etu.getOptArgs(sys.argv, 'labels', '').split(';')
+title          = etu.getOptArgs(sys.argv, 'title',  '')
+opts['xlabel'] = etu.getOptArgs(sys.argv, 'xlabel', 'x (unspecified)')
+opts['ylabel'] = etu.getOptArgs(sys.argv, 'ylabel', 'y (unspecified)')
+opts['zlabel'] = etu.getOptArgs(sys.argv, 'zlabel', 'z (unspecified)')
+opts['interp'] = etu.getOptArgs(sys.argv, 'interp',  'linear')
+figsizestr     = etu.getOptArgs(sys.argv, 'figsize', '15,10')
 
-overplot       = etu.str2bool(getOptArgs(sys.argv, 'overplot', 'false'))
-opts['logx']   = etu.str2bool(getOptArgs(sys.argv, 'logx', 'false'))
-opts['logy']   = etu.str2bool(getOptArgs(sys.argv, 'logy', 'false'))
-opts['logz']   = etu.str2bool(getOptArgs(sys.argv, 'logz', 'false'))
-scale          = etu.str2bool(getOptArgs(sys.argv, 'scale', 'false'))
-labels         = getOptArgs(sys.argv, 'labels', '').split(';')
-title          = getOptArgs(sys.argv, 'title',  '')
-opts['xlabel'] = getOptArgs(sys.argv, 'xlabel', 'x (unspecified)')
-opts['ylabel'] = getOptArgs(sys.argv, 'ylabel', 'y (unspecified)')
-opts['zlabel'] = getOptArgs(sys.argv, 'zlabel', 'z (unspecified)')
-opts['interp'] = getOptArgs(sys.argv, 'interp',  'linear')
-figsizestr     = getOptArgs(sys.argv, 'figsize', '15,10')
+# If we are passing dirs instead, we need to know what parameters
+# and stats to extract
+
+opts['dirs']   = etu.str2bool(etu.getOptArgs(sys.argv, 'dirs', 'false'))
+opts['param1'] = etu.getOptArgs(sys.argv, 'param1', 'ncol')
+opts['param2'] = etu.getOptArgs(sys.argv, 'param2', 'nbyte')
+opts['stats']  = etu.getOptArgs(sys.argv, 'stat', 'mean').split(' ')
+print 'stats = ' + str(opts['stats'])
+opts['nsig']   = etu.getOptArgs(sys.argv, 'nsig', '0.0')
+
+# Lastly, see if we are comparing two files
+
+opts['cmp']    = etu.str2bool(etu.getOptArgs(sys.argv, 'cmp', 'false'))
 
 figsizearr=figsizestr.split(',')
 figsize=(np.int(figsizearr[0]), np.int(figsizearr[1]))
@@ -404,10 +456,12 @@ print str(files) + ' ' + str(labels)
 colors=['b', 'c', 'm', 'g', 'y', 'k'];
 cellsizes=[10, 10];
 
-scales,units,maxs  = getScalesAndUnits(files, scale);
+print 'Calling getScalesandunits with files = ' + str(files)
+
+scales,units,maxs  = getScalesAndUnits(files, scale, opts);
 plt.axis('off')
 plt.title(title)
-axes = getSubplots(files, overplot)
+axes = getSubplots(files, overplot, opts)
 
 plotFiles(files, plotWith, plotWithAction, axes, colors, scales, units, maxs, opts)
 

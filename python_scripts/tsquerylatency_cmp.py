@@ -79,7 +79,7 @@ def getRawDiffProfilerOutput(fileName1, fileName2):
     s = key.split('_')
     if s[0] == 'query':
       if key in d2.keys():
-        cols.append(float(s[1]))
+        cols.append(float(s[2]))
         rows.append(np.log10(float(s[3])))
         rs.append((d2[key]['usec'] - d1[key]['usec'])/d1[key]['usec'])
         us.append(d2[key]['usec'] - d1[key]['usec'])
@@ -95,8 +95,8 @@ def getProfilerOutput(fileName):
   for key in d.keys():
     s = key.split('_')
     if s[0] == 'query':
-      cols.append(float(s[1]))
-      bytes = s[2]
+      cols.append(float(s[2]))
+      bytes = s[1]
       rows.append(np.log10(float(s[3])))
       ntrial = np.int(s[4])
       us.append(np.log10(d[key]['usec']/ntrial))
@@ -146,7 +146,7 @@ def getGriddedData(x,y,d):
   x1=np.linspace(np.min(ux), np.max(ux), 200);
   y1=np.linspace(np.min(uy), np.max(uy), 200);
   x2,y2 = np.meshgrid(x1, y1);
-  z2=int.griddata(points, d, (x2, y2), method='cubic');
+  z2=int.griddata(points, d, (x2, y2), method='linear');
   return x2, y2, z2
 
 def retick(ax, axname):

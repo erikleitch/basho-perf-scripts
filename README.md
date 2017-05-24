@@ -15,7 +15,8 @@ plots, via calls to the python matplotlib library.
 * <a href=#static_ring_analyzer>Static Ring Analysis</a>
 
 <hr>
-<a name="general">**General**</a>
+<a name="general"></a>
+## General
 
 In general, `basho-perf-scripts` is meant to be used from your
 basho-perf (or riak_test) directory, so best to check it out and run

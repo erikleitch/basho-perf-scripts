@@ -16,7 +16,7 @@ plots, via calls to the python matplotlib library.
 
 <hr>
 <a name="general"></a>
-## General
+##General
 
 In general, `basho-perf-scripts` is meant to be used from your
 basho-perf (or riak_test) directory, so best to check it out and run

@@ -1,7 +1,7 @@
-'41;326;0c# Synopsis
+# Synopsis
 
-basho-perf-scripts is a collection of bash, erlang and python scripts for use with
-basho-perf and riak_test.
+basho-perf-scripts is a collection of bash, erlang and python scripts
+for use with basho-perf and riak_test.
 
 For basho-perf, bash_scripts/basho_perf_scripts.sh provides scripts to
 parse various output files from basho-perf runs and make summary

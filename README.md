@@ -134,7 +134,9 @@ Running the command `animate` will display a movie of those logs (see
 how to configure the underlying python script), a screen capture of which is shown below:
 
 <center>
+
 ![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/ycsb_frame.png)
+
 </center>
 
 Each inner ring represents a separate physical node, and partitions
@@ -163,7 +165,9 @@ then concatenates the results to a single file (ring.txt), which is
 then displayed by the python script, producing an image like:
 
 <center>
+
 ![alt tag](https://github.com/erikleitch/basho-perf-scripts/blob/master/images/static_ring.png)
+
 </center>
 
 Similar to the dynamic ring plots, each inner ring represents a
